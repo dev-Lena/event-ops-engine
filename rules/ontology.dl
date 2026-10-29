@@ -1,0 +1,19 @@
+// Fact schema (EDB). Every fact is inserted from Python (see docs/design.md 5, 9).
+// Column names avoid wirelog reserved words (min, max, count, sum).
+
+// --- session ---------------------------------------------------------------
+.decl session_capacity(session: symbol, capacity: int64)
+.decl days_left(session: symbol, days: int64)
+.decl now(ts: int64)
+
+// --- registration -> attendees ----------------------------------------------
+.decl registration(reg: symbol, session: symbol)
+.decl attendee(reg: symbol, attendee: symbol)
+.decl attendee_attr(attendee: symbol, dim: symbol, value: symbol)
+.decl status_event(reg: symbol, ts: int64, status: symbol)
+.decl unknown_party(reg: symbol, party_size: int64)
+
+// --- targets and policy -----------------------------------------------------
+.decl target(session: symbol, dim: symbol, value: symbol, lo: int64, hi: int64)
+.decl ratio_target(session: symbol, dim: symbol, value_a: symbol, value_b: symbol, max_diff: int64)
+.decl policy(session: symbol, key: symbol, n: int64)

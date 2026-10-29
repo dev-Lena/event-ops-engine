@@ -1,0 +1,25 @@
+// Module ③ promotion judgement. Recommends only; people execute. See docs/design.md 7.
+
+.decl active(session: symbol)
+.decl confirmed_at(reg: symbol, ts: int64)
+.decl recent_seat(session: symbol, attendee: symbol)
+.decl recent_raw(session: symbol, dim: symbol, value: symbol, n: int64)
+.decl recent(session: symbol, dim: symbol, value: symbol, n: int64)
+.decl promote(session: symbol, dim: symbol, value: symbol, need: int64, reason: symbol)
+.decl blocked(session: symbol, dim: symbol, value: symbol, need: int64, reason: symbol)
+
+active(S) :- days_left(S, Days), Days >= 0.
+
+// Confirmations in the last 7 days (604800 s) before `now`. glossary "도메인 경계 규칙".
+confirmed_at(R, T) :- latest_ts(R, T), status_event(R, T, "confirmed").
+recent_seat(S, A) :- registration(R, S), attendee(R, A), confirmed_at(R, T), now(N), T + 604800 > N.
+recent_raw(S, D, V, count(A)) :- recent_seat(S, A), attendee_attr(A, D, V).
+recent(S, D, V, N) :- tracked(S, D, V), recent_raw(S, D, V, N).
+recent(S, D, V, 0) :- tracked(S, D, V), !recent_raw(S, D, V, _).
+
+promote(S, D, V, G, "lead_time") :- gap(S, D, V, G), active(S), !session_full(S), days_left(S, Days), policy(S, "lead_days", L), Days <= L.
+promote(S, D, V, G, "slow_trend") :- gap(S, D, V, G), active(S), !session_full(S), recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
+promote(S, D, V, Diff, "imbalance") :- imbalance(S, D, V, Diff), active(S), !session_full(S).
+
+blocked(S, D, V, G, "session_full") :- gap(S, D, V, G), active(S), session_full(S).
+blocked(S, D, V, Diff, "session_full") :- imbalance(S, D, V, Diff), active(S), session_full(S).

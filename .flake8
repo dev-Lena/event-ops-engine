@@ -1,0 +1,6 @@
+[flake8]
+max-line-length = 100
+extend-ignore = E203, W503
+exclude = .venv, vendor, build
+per-file-ignores =
+    scripts/verify_wirelog.py:E501

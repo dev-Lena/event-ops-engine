@@ -1,0 +1,35 @@
+# 1:1 비율. s4a는 균형이 맞고 추세도 충분해 권고가 없다. s4b는 정원이 찼는데 비율이 깨져 '보류'가 된다.
+policy: ../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s4a, date: 2026-12-07 }
+  - { id: s4b, date: 2026-12-07, capacity: 9 }
+registrations:
+  # s4a: 여 5 · 남 5 확정, 최근 1주에 여 3 · 남 3 확정
+  - { id: a1, session: s4a, members: [{ gender: female, birth_year: 1996 }],
+      status_events: [{ at: 2026-10-20T10:00:00+09:00, status: confirmed }] }
+  - { id: a2, session: s4a, members: [{ gender: female, birth_year: 1997 }],
+      status_events: [{ at: 2026-10-21T10:00:00+09:00, status: confirmed }] }
+  - { id: a3, session: s4a, members: [{ gender: female, birth_year: 1998 }],
+      status_events: [{ at: 2026-11-02T10:00:00+09:00, status: confirmed }] }
+  - { id: a4, session: s4a, members: [{ gender: female, birth_year: 1999 }],
+      status_events: [{ at: 2026-11-03T10:00:00+09:00, status: confirmed }] }
+  - { id: a5, session: s4a, members: [{ gender: female, birth_year: 1990 }],
+      status_events: [{ at: 2026-11-04T10:00:00+09:00, status: confirmed }] }
+  - { id: a6, session: s4a, members: [{ gender: male, birth_year: 1996 }],
+      status_events: [{ at: 2026-10-20T11:00:00+09:00, status: confirmed }] }
+  - { id: a7, session: s4a, members: [{ gender: male, birth_year: 1997 }],
+      status_events: [{ at: 2026-10-21T11:00:00+09:00, status: confirmed }] }
+  - { id: a8, session: s4a, members: [{ gender: male, birth_year: 1998 }],
+      status_events: [{ at: 2026-11-02T11:00:00+09:00, status: confirmed }] }
+  - { id: a9, session: s4a, members: [{ gender: male, birth_year: 1991 }],
+      status_events: [{ at: 2026-11-03T11:00:00+09:00, status: confirmed }] }
+  - { id: a10, session: s4a, members: [{ gender: male, birth_year: 1992 }],
+      status_events: [{ at: 2026-11-04T11:00:00+09:00, status: confirmed }] }
+  # s4b: 정원 9에 여 6 · 남 3 확정 → 정원 마감, 남성 부족
+  - { id: b1, session: s4b, members: [{ gender: female, birth_year: 1996 }, { gender: female, birth_year: 1996 }, { gender: female, birth_year: 1995 }],
+      status_events: [{ at: 2026-10-20T10:00:00+09:00, status: confirmed }] }
+  - { id: b2, session: s4b, members: [{ gender: female, birth_year: 1990 }, { gender: female, birth_year: 1991 }, { gender: female, birth_year: 1992 }],
+      status_events: [{ at: 2026-10-21T10:00:00+09:00, status: confirmed }] }
+  - { id: b3, session: s4b, members: [{ gender: male, birth_year: 1990 }, { gender: male, birth_year: 1991 }, { gender: male, birth_year: 1992 }],
+      status_events: [{ at: 2026-10-22T10:00:00+09:00, status: confirmed }] }
