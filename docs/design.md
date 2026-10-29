@@ -169,7 +169,6 @@ docs/             design.md glossary.md decisions/ standards/
 
 ## 12. 확인하지 못한 것
 
-- Linux CI(ubuntu, wheel 엔진)에서의 동작 — PR을 올린 뒤 CI 결과로 확인한다.
 - 수백 건 이상 신청에서의 속도 — 합성 데이터는 회차당 20명 이하다.
 - `average` 등 다른 집계 함수 — 이번 규칙은 `count` · `max`만 쓴다.
 - 실제 운영사 정책값 — 7절의 값은 모두 가정값이다.
@@ -180,3 +179,4 @@ docs/             design.md glossary.md decisions/ standards/
 |---|---|
 | 2026-10-29 | 처음 만듦 (핸드오프 §2~§6 + 문법 검증 결과 반영) |
 | 2026-10-29 | PR #1 리뷰 반영: 이유 우선순위, 지난 회차 `blocked` 제외, 목표가 정원을 넘으면 거부 |
+| 2026-10-29 | Linux CI(ubuntu, pyrewire 1.1.3 manylinux wheel 엔진)에서 테스트 60개 통과 확인 → 12절에서 제거 |
