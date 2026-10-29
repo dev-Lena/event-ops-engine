@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "event-ops-engine"
+version = "0.1.0"
+description = "Rule-based judgement engine for event session capacity and promotion (wirelog Datalog)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+  "pyrewire==1.1.3",
+  "pydantic>=2.7,<3",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "black>=24",
+  "isort>=5.13",
+  "flake8>=7",
+  "mypy>=1.10",
+  "types-PyYAML",
+]
+
+[project.scripts]
+event-ops = "event_ops_engine.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+event_ops_engine = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["event_ops_engine"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = "pyrewire.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
