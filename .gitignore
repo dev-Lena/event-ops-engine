@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+
+# Secrets (security-standards.md 2)
+.env
+.env.*
+!.env.example
+
+# Wirelog engine source and build (rebuild with scripts/build-wirelog.sh)
+vendor/
+
+# Real event data must never enter the repository (design.md 8)
+data/private/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
