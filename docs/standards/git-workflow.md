@@ -79,7 +79,7 @@ Refs: #<이슈 번호>
 
 - 모든 PR은 **`main`을 대상**으로 한다. 다른 PR 브랜치 위에 **쌓지 않는다**(stacked PR 금지) — 앞 PR이 바뀌거나 먼저 머지되면 뒤 PR의 대상 · 충돌이 꼬인다. 앞 작업이 필요하면 그 PR이 머지된 뒤 main에서 새 브랜치를 딴다.
 - 본문은 [PR 템플릿](#부록-a-pr-템플릿)을 채운다 (한국어 + 영어). 본문에는 **무엇이 바뀌었는지**를 적는다.
-- PR을 만든 직후, 본문과 **별도의 코멘트**로 "배경과 판단 근거"를 남긴다 (한국어). 리뷰어가 코드를 보기 전에 **왜 이 작업을 이렇게 했는지** 이해하기 위해서다.
+- PR을 만든 직후, 본문과 **별도의 코멘트**로 "배경과 판단 근거"를 남긴다 — 한국어 코멘트 하나, 영어 코멘트 하나 (5절). 리뷰어가 코드를 보기 전에 **왜 이 작업을 이렇게 했는지** 이해하기 위해서다.
 - PR 본문 · 코멘트에도 **Claude 서명 줄**(`🤖 Generated with Claude Code` 등)을 넣지 않는다 ([2번](#claude-서명-줄을-넣지-않는다)).
 
 ### 커밋을 더하기 전에 PR이 아직 열려 있는지 확인한다
@@ -162,13 +162,22 @@ gh pr view --json state,url -q '.state + " " + .url'   # 현재 브랜치의 PR 
 
 | 대상 | 언어 |
 |---|---|
-| 이슈 | 한국어 |
-| PR 본문 | 한국어 + 영어 |
-| PR 배경 · 판단 근거 코멘트 | 한국어 |
+| 이슈 제목 | 한국어 + 영어 (`한국어 제목 / English title`) |
+| 이슈 본문 | 한국어 + 영어 (한 본문: 한국어 → `---` → 영어) |
+| PR 본문 | 한국어 + 영어 (한 본문: 한국어 블록 → `---` → 영어 블록) |
+| PR 배경 · 판단 근거 코멘트 | 한국어 코멘트와 영어 코멘트를 **따로** 올린다 |
+| 리뷰 기록 코멘트 | 한국어 코멘트와 영어 코멘트를 **따로** 올린다 |
 | 커밋 메시지 | 영어 |
 | 브랜치명 | 영어 |
 | 코드 주석 | 한국어 허용 |
 | 코드 식별자 (변수 · 함수 · DB 컬럼) | 영어 |
+
+### 5-1. 두 언어로 쓰는 법
+
+- **영어는 번역이 아니라 따로 쓴다.** 한국어 글을 옮기지 말고, 같은 사실을 미국 현업 개발자가 PR · 이슈에 쓰는 표현으로 다시 쓴다. 예: `Context` · `Why` · `What changed` · `Caveats / follow-ups`, 리뷰는 `Finding` · `Fix`, 이슈는 `Context` · `Scope` · `Acceptance criteria`.
+- **두 언어 모두 훑어 읽기 좋게.** 결론 먼저, 짧은 문단, 표와 목록. 한 언어만 읽어도 핵심이 다 잡혀야 한다.
+- 긴 글(판단 근거 · 리뷰 기록)은 언어별 코멘트로 나누고, 짧은 글(이슈 · PR 본문)은 한 본문에 둔다.
+- 이유: 공개 저장소는 한국어 독자와 영어 독자가 같이 본다. GitHub는 본문의 CSS · JS를 지우므로 언어 토글은 만들 수 없고, `<details>`로 접으면 알림 · 검색 · 미리보기에서 가려진다.
 
 ---
 
@@ -177,41 +186,66 @@ gh pr view --json state,url -q '.state + " " + .url'   # 현재 브랜치의 PR 
 저장소의 `.github/pull_request_template.md`로 복사한다. "확인 방법"의 명령은 프로젝트 것으로 바꾼다 (아래는 npm 프로젝트 예).
 
 ````markdown
-## 요약 / Summary
+<!-- 한국어 블록 → --- → English 블록. 영어는 번역이 아니라 현업 표현으로 따로 씁니다 (git-workflow.md > 5. 언어). -->
 
-<!-- 무엇을 왜 바꿨는지 / What changed and why -->
+## 요약
 
--
-
-## 변경 사항 / Changes
+<!-- 무엇을 왜 바꿨는지 -->
 
 -
 
-## 스크린샷 / Screenshots
+## 변경 사항
+
+-
+
+## 스크린샷
 
 <!--
 화면(UI · UX)이나 이미지를 만들거나 바꿨다면 반드시 넣는다 — 모바일 + PC, 언어별, 상태별. 가능하면 디자인 시안도 함께.
-이미지는 pr-assets 브랜치에 올려 참조한다 (git-workflow.md > 4. 스크린샷 · 이미지).
-Required for any UI or image change. 화면이 없으면 "해당 없음 / N/A".
+이미지는 pr-assets 브랜치에 올려 참조한다 (git-workflow.md > 4. 스크린샷 · 이미지). 화면이 없으면 "해당 없음".
 -->
 
-## 확인 방법 / How to verify
+## 확인 방법
 
 - [ ] `npm test`
-- [ ] `npm run test:e2e` (화면 · 흐름 변경 시 / for UI or flow changes)
+- [ ] `npm run test:e2e` (화면 · 흐름 변경 시)
 - [ ] `npm run typecheck`
 - [ ] `npm run lint`
 - [ ] `npm run build`
-- [ ] 화면 · 이미지 변경 시 위 스크린샷 섹션 채움 / Screenshots section filled for UI or image changes
+- [ ] 화면 · 이미지 변경 시 위 스크린샷 섹션 채움
+
+---
+
+## Summary
+
+<!-- What changed and why. Write it fresh in plain engineering English, not as a translation. -->
+
+-
+
+## Changes
+
+-
+
+## Screenshots
+
+<!-- Required for any UI or image change. "N/A" when there is no UI. -->
+
+## How to verify
+
+- [ ] `npm test`
+- [ ] `npm run test:e2e` (UI or flow changes)
+- [ ] `npm run typecheck`
+- [ ] `npm run lint`
+- [ ] `npm run build`
 
 ## 관련 이슈 / Related issues
 
 Closes #
 
 <!--
-PR을 만든 뒤 본문과 별도로 "배경과 판단 근거" 코멘트를 남겨주세요 (git-workflow.md > 3. PR).
+PR을 만든 뒤 본문과 별도로 "배경과 판단 근거" 코멘트를 한국어 · 영어 각각 남겨주세요 (git-workflow.md > 3. PR, 5. 언어).
 왜 하는가 · 목적 · 우선순위 · 판단 기준 · 왜 그렇게 판단했나 · 왜 이렇게 구현했나 · 고려할 점/주의할 점
-After opening the PR, post a separate rationale comment (see git-workflow.md > 3. PR).
+After opening the PR, post two separate rationale comments, one in Korean and one in English (git-workflow.md > 3, 5).
 Claude 서명 줄을 넣지 않습니다 / No Claude attribution lines.
 -->
 ````
@@ -262,3 +296,4 @@ Claude 서명 줄을 넣지 않습니다 / No Claude attribution lines.
 | 날짜 | 내용 |
 |---|---|
 | 2026-09-26 | 처음 만듦 (LuckPlay CONTRIBUTING · PR 템플릿 · 커밋 템플릿에서 정리). main 직접 커밋 금지 · 수동 머지, PR 쌓지 않기, 커밋 전 PR 열림 확인, Claude 서명 줄 금지 추가 |
+| 2026-10-29 | 5절 언어: 이슈 제목 · 본문, PR 본문, 판단 근거 · 리뷰 기록 코멘트를 한국어 + 영어로. 영어는 번역이 아닌 현업 표현. 긴 코멘트는 언어별로 분리. PR 템플릿을 한국어 블록 → 영어 블록 구조로 (공개 저장소 · 포트폴리오 준비) |
