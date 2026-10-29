@@ -1,0 +1,40 @@
+# 1인 신청만 있는 회차. 기준 시각에서 14일 뒤 (lead_days 밖).
+policy: ../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-21 }
+registrations:
+  - id: r1
+    session: s1
+    members: [{ gender: female, birth_year: 1998 }]
+    status_events:
+      - { at: 2026-10-20T12:00:00+09:00, status: applied }
+      - { at: 2026-10-21T09:00:00+09:00, status: confirmed }
+  - id: r2
+    session: s1
+    members: [{ gender: female, birth_year: 1993 }]
+    status_events:
+      - { at: 2026-10-25T12:00:00+09:00, status: pending_payment }
+      - { at: 2026-10-26T09:00:00+09:00, status: confirmed }
+  - id: r3
+    session: s1
+    members: [{ gender: female, birth_year: 1990 }]
+    status_events:
+      - { at: 2026-11-05T12:00:00+09:00, status: pending_payment }
+      - { at: 2026-11-06T09:00:00+09:00, status: confirmed }      # 최근 1주 안
+  - id: r4
+    session: s1
+    members: [{ gender: male, birth_year: 1995 }]
+    status_events:
+      - { at: 2026-10-22T12:00:00+09:00, status: confirmed }
+  - id: r5
+    session: s1
+    members: [{ gender: female, birth_year: 2001 }]
+    status_events:
+      - { at: 2026-11-06T20:00:00+09:00, status: pending_payment }  # 입금 대기
+  - id: r6
+    session: s1
+    members: [{ gender: male, birth_year: 1988 }]
+    status_events:
+      - { at: 2026-10-23T12:00:00+09:00, status: confirmed }
+      - { at: 2026-11-01T12:00:00+09:00, status: cancelled }       # 취소 → 자리 반환

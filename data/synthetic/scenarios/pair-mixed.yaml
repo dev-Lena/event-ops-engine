@@ -1,0 +1,25 @@
+# 2인 신청(혼성 · 같은 성별)과 1인 신청이 섞인 회차. 기준 시각에서 3일 뒤 (lead_days 안).
+policy: ../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s2, date: 2026-11-10 }
+registrations:
+  - id: r1
+    session: s2
+    members:
+      - { gender: female, birth_year: 1994 }
+      - { gender: male, birth_year: 1992 }
+    status_events:
+      - { at: 2026-10-28T12:00:00+09:00, status: confirmed }
+  - id: r2
+    session: s2
+    members:
+      - { gender: female, birth_year: 1999 }
+      - { gender: female, birth_year: 1999 }
+    status_events:
+      - { at: 2026-10-29T12:00:00+09:00, status: confirmed }
+  - id: r3
+    session: s2
+    members: [{ gender: male, birth_year: 1985 }]
+    status_events:
+      - { at: 2026-11-06T12:00:00+09:00, status: pending_payment }

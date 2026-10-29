@@ -1,0 +1,21 @@
+# 단체 신청(5명)과 구성 미상 옛 신청(2명)이 있는 회차.
+policy: ../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s3, date: 2026-11-28 }
+registrations:
+  - id: r1
+    session: s3
+    members:
+      - { gender: female, birth_year: 1991 }
+      - { gender: female, birth_year: 1991 }
+      - { gender: female, birth_year: 1993 }
+      - { gender: male, birth_year: 1990 }
+      - { gender: male, birth_year: 1989 }
+    status_events:
+      - { at: 2026-11-03T12:00:00+09:00, status: confirmed }
+  - id: r2
+    session: s3
+    party_size: 2            # 신청 방식 칸이 없던 옛 신청: 구성 미상
+    status_events:
+      - { at: 2026-11-04T12:00:00+09:00, status: confirmed }

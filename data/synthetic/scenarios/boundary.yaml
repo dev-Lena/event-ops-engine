@@ -1,0 +1,24 @@
+# 경계값. s5a: 나이 구간 경계(19·20·29·30·39·40세), 회차까지 정확히 lead_days(7일).
+#          s5b: 어제 열린 회차(남은 날 -1) → 홍보 판단 없음.
+policy: ../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s5a, date: 2026-11-14 }
+  - { id: s5b, date: 2026-11-06 }
+registrations:
+  - id: r1
+    session: s5a
+    members:
+      - { gender: female, birth_year: 2007 }   # 19세 → unknown
+      - { gender: female, birth_year: 2006 }   # 20세 → 20s
+      - { gender: female, birth_year: 1997 }   # 29세 → 20s
+      - { gender: male, birth_year: 1996 }     # 30세 → 30s
+      - { gender: male, birth_year: 1987 }     # 39세 → 30s
+      - { gender: male, birth_year: 1986 }     # 40세 → 40s_plus
+    status_events:
+      - { at: 2026-11-01T10:00:00+09:00, status: confirmed }
+  - id: r2
+    session: s5b
+    members: [{ gender: female, birth_year: 1995 }]
+    status_events:
+      - { at: 2026-10-30T10:00:00+09:00, status: confirmed }
