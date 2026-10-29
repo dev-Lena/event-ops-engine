@@ -2,6 +2,8 @@
 
 from datetime import date
 
+import pytest
+
 from event_ops_engine.loader import load_policy
 from event_ops_engine.model import RatioTarget, Session, TargetRange
 from event_ops_engine.policy import resolve_ratios, resolve_targets
@@ -39,3 +41,19 @@ def test_session_ratios_override_defaults() -> None:
     )
     assert resolve_ratios(policy, custom) == [("gender", "female", "male", 0)]
     assert resolve_ratios(policy, Session(id="s", date=date(2026, 11, 14), ratios=())) == []
+
+
+@pytest.mark.parametrize("target", [TargetRange(lo=9), TargetRange(lo=1, hi=9)])
+def test_target_beyond_session_capacity_is_rejected(target: TargetRange) -> None:
+    policy = load_policy(POLICY)
+    session = Session(
+        id="s", date=date(2026, 11, 14), capacity=8, targets={"gender": {"female": target}}
+    )
+    with pytest.raises(ValueError, match="exceeds capacity 8"):
+        resolve_targets(policy, session)
+
+
+def test_lo_sum_over_capacity_is_allowed_as_a_target_conflict() -> None:
+    policy = load_policy(POLICY)  # female lo 6 + male lo 6 > capacity 9 (scenario ratio/s4b)
+    rows = resolve_targets(policy, Session(id="s", date=date(2026, 11, 14), capacity=9))
+    assert ("gender", "female", 6, 6) in rows

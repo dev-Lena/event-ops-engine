@@ -83,3 +83,18 @@ def test_evidence_lists_inputs_behind_the_recommendation(engine: Engine) -> None
 def test_promotion_decisions_without_engine_cover_all_sessions() -> None:
     decisions = promotion_decisions(scenario("ratio"))
     assert {d.session for d in decisions} == {"s4b"}
+
+
+def test_mixed_reasons_take_need_and_message_from_the_gap_reason(engine: Engine) -> None:
+    loaded(engine, "single")
+    male = by_value(session_promotion(engine, "s1"))[("gender", "male")]
+    assert male.reasons == ("imbalance", "slow_trend")
+    assert male.need == 5  # target shortfall, not the ratio difference
+    assert male.message.startswith("신청 추세 느림: male 5명 부족")
+
+
+def test_past_full_session_gets_no_hold(engine: Engine) -> None:
+    loaded(engine, "boundary")
+    assert engine.rows("session_full", "s5c")  # capacity 1, one confirmed
+    assert engine.rows("gap", "s5c", "gender", "male") == [("s5c", "gender", "male", 1)]
+    assert session_promotion(engine, "s5c") == []

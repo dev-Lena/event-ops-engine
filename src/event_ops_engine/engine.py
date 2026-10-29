@@ -20,7 +20,8 @@ from .facts import Facts, Row
 
 RULES_DIR = Path(__file__).resolve().parents[2] / "rules"
 RULE_FILES = ("ontology.dl", "capacity.dl", "promotion.dl")
-QUOTED_CONSTANT = re.compile(r'"([^"]*)"')
+LINE_COMMENT = re.compile(r"//[^\n]*")
+QUOTED_CONSTANT = re.compile(r'"([^"\n]*)"')
 WIRELOG_LIB_ENV = "WIRELOG_LIB"
 
 
@@ -58,7 +59,8 @@ class Engine:
         src = load_rules() if rules_src is None else rules_src
         self._session = EasySession(src)
         self._inputs: dict[str, dict[Row, int]] = {}
-        for constant in set(QUOTED_CONSTANT.findall(src)):
+        # Comments are stripped first so a stray quote in one cannot hide a real constant.
+        for constant in set(QUOTED_CONSTANT.findall(LINE_COMMENT.sub("", src))):
             self._session.intern(constant)
 
     def insert(self, relation: str, row: Row) -> None:
@@ -68,11 +70,14 @@ class Engine:
         store[row] = store.get(row, 0) + 1
 
     def remove(self, relation: str, row: Row) -> None:
+        """Retract one previously inserted row. A row that was never inserted is an error."""
         row = tuple(row)
+        store = self._inputs.get(relation, {})
+        if row not in store:
+            raise KeyError(f"{relation}{row}: not an inserted fact")
         self._session.remove(relation, list(row))
-        store = self._inputs.setdefault(relation, {})
-        store[row] = store.get(row, 0) - 1
-        if store[row] <= 0:
+        store[row] -= 1
+        if store[row] == 0:
             del store[row]
 
     def load(self, facts: Facts) -> None:
@@ -110,16 +115,18 @@ class Engine:
         self.close()
 
 
-def contributing_registrations(engine: Engine, session_id: str, dim: str, value: str) -> list[str]:
-    """Registration ids whose confirmed attendees carry (dim, value) in the session."""
-    attendees = {row[1] for row in engine.rows("seat", session_id)}
-    matching = {
-        row[0] for row in engine.snapshot("attendee_attr") if row[1] == dim and row[2] == value
-    }
-    registrations = {
-        row[0] for row in engine.snapshot("attendee") if row[1] in attendees & matching
-    }
-    return sorted(registrations)
+def contributors_by_value(engine: Engine, session_id: str) -> dict[tuple[str, str], list[str]]:
+    """(dim, value) -> sorted registration ids whose confirmed attendees carry that value.
+
+    Built once per session from three snapshots; callers look every value up in it.
+    """
+    seated = {row[1] for row in engine.rows("seat", session_id)}
+    registration_of = {row[1]: row[0] for row in engine.snapshot("attendee")}
+    found: dict[tuple[str, str], set[str]] = {}
+    for attendee, dim, value in engine.snapshot("attendee_attr"):
+        if attendee in seated:
+            found.setdefault((str(dim), str(value)), set()).add(registration_of[attendee])
+    return {key: sorted(regs) for key, regs in found.items()}
 
 
 def unique(items: Iterable[str]) -> list[str]:

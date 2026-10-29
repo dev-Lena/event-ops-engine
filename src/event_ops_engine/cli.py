@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .capacity import SessionStatus, capacity_status
 from .decision import Decision
-from .engine import Engine, ensure_library_env
+from .engine import Engine
 from .facts import scenario_facts
 from .loader import load_scenario
 from .promotion import promotion_decisions
@@ -45,7 +45,6 @@ def format_decision(decision: Decision) -> str:
 
 def report(scenario_path: Path) -> list[str]:
     scenario = load_scenario(scenario_path)
-    ensure_library_env()
     lines: list[str] = []
     with Engine() as engine:
         engine.load(scenario_facts(scenario))
