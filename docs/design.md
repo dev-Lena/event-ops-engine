@@ -111,7 +111,7 @@ promote(S, D, V, G, "lead_time")     :- gap(S, D, V, G), active(S), !session_ful
 promote(S, D, V, G, "slow_trend")    :- gap(S, D, V, G), active(S), !session_full(S),
                                         recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
 promote(S, D, V, Diff, "imbalance")  :- imbalance(S, D, V, Diff), active(S), !session_full(S).
-blocked(S, D, V, G, "session_full")  :- gap(S, D, V, G), session_full(S).
+blocked(S, D, V, G, "session_full")  :- gap(S, D, V, G), active(S), session_full(S).
 ```
 
 | 이유 | 뜻 | 권고 문구(사용자) |
@@ -119,10 +119,11 @@ blocked(S, D, V, G, "session_full")  :- gap(S, D, V, G), session_full(S).
 | `lead_time` | 회차가 `lead_days` 안으로 다가왔는데 부족분이 남음 | "회차 임박, {value} {n}명 홍보 필요" |
 | `slow_trend` | 최근 1주 확정 수가 `trend_min_per_week`보다 적음 | "신청 추세 느림, {value} {n}명 홍보 권장" |
 | `imbalance` | 비율 목표의 허용 차를 넘음 | "{value} 쪽 {n}명 부족(비율)" |
-| `blocked: session_full` | 부족분은 있으나 정원이 찼음 | "정원 마감 — 목표와 정원이 충돌, 운영자 확인" |
+| `blocked: session_full` | 부족분은 있으나 정원이 찼음 (지난 회차는 제외) | "정원 마감 — 목표와 정원이 충돌, 운영자 확인" |
 
 **가정값** (운영사 정책이 정해지면 `policy/events/*.yaml`만 바꾼다): `lead_days: 7`, `trend_min_per_week: 3`, 비율 `max_diff: 1`.
-한 (회차, 속성, 값)에 이유가 여럿이면 `Decision` 하나에 이유 목록으로 모은다. 같은 값에 `promote`와 `blocked`가 동시에 나올 수는 없다 (`!session_full` / `session_full`로 갈린다).
+한 (회차, 속성, 값)에 이유가 여럿이면 `Decision` 하나에 이유 목록으로 모은다. `need`와 문구는 우선순위(`lead_time` > `slow_trend` > `imbalance`)가 가장 높은 이유의 값을 쓴다 — 부족분(gap)과 비율 차(diff)는 다른 수이므로 섞지 않는다.
+값 하나의 `lo`·`hi`가 정원보다 크면 입력 오류로 거부한다(`policy.py`). 여러 값의 `lo` 합이 정원을 넘는 것은 허용하며, 그 충돌이 `blocked`로 드러난다. 같은 값에 `promote`와 `blocked`가 동시에 나올 수는 없다 (`!session_full` / `session_full`로 갈린다).
 
 ## 8. 보안 · 데이터
 
@@ -178,3 +179,4 @@ docs/             design.md glossary.md decisions/ standards/
 | 날짜 | 내용 |
 |---|---|
 | 2026-10-29 | 처음 만듦 (핸드오프 §2~§6 + 문법 검증 결과 반영) |
+| 2026-10-29 | PR #1 리뷰 반영: 이유 우선순위, 지난 회차 `blocked` 제외, 목표가 정원을 넘으면 거부 |

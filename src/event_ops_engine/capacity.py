@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .decision import Decision, DecisionKind
-from .engine import Engine, contributing_registrations
+from .engine import Engine, contributors_by_value
 from .facts import evidence_id, scenario_facts
 from .model import Scenario
 
@@ -52,6 +52,7 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
     gaps = {(row[1], row[2]): int(row[3]) for row in engine.rows("gap", session_id)}
     remaining = {(row[1], row[2]): int(row[3]) for row in engine.rows("remaining", session_id)}
     pending = {(row[1], row[2]): int(row[3]) for row in engine.rows("pending", session_id)}
+    contributors = contributors_by_value(engine, session_id)
 
     values: list[ValueStatus] = []
     for row in engine.rows("filled", session_id):
@@ -60,8 +61,7 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
         evidence = [evidence_id("target", session_id, dim, value)] if lo_hi else []
         evidence.append(evidence_id("session_capacity", session_id))
         evidence.extend(
-            evidence_id("registration", reg)
-            for reg in contributing_registrations(engine, session_id, dim, value)
+            evidence_id("registration", reg) for reg in contributors.get((dim, value), [])
         )
         values.append(
             ValueStatus(

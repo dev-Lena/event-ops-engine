@@ -21,5 +21,5 @@ promote(S, D, V, G, "lead_time") :- gap(S, D, V, G), active(S), !session_full(S)
 promote(S, D, V, G, "slow_trend") :- gap(S, D, V, G), active(S), !session_full(S), recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
 promote(S, D, V, Diff, "imbalance") :- imbalance(S, D, V, Diff), active(S), !session_full(S).
 
-blocked(S, D, V, G, "session_full") :- gap(S, D, V, G), session_full(S).
-blocked(S, D, V, Diff, "session_full") :- imbalance(S, D, V, Diff), session_full(S).
+blocked(S, D, V, G, "session_full") :- gap(S, D, V, G), active(S), session_full(S).
+blocked(S, D, V, Diff, "session_full") :- imbalance(S, D, V, Diff), active(S), session_full(S).

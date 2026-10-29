@@ -9,7 +9,11 @@ POLICY_KEYS = ("lead_days", "trend_min_per_week")
 
 
 def resolve_targets(policy: EventPolicy, session: Session) -> list[tuple[str, str, int, int]]:
-    """(dim, value, lo, hi) rows. Session targets replace the defaults for the dims they name."""
+    """(dim, value, lo, hi) rows. Session targets replace the defaults for the dims they name.
+
+    A single value's lo or hi above the capacity can never be met and is rejected. Lo values
+    whose *sum* exceeds the capacity are allowed: that conflict is what `blocked` reports.
+    """
     capacity = session.capacity or policy.defaults.capacity
     merged: Targets = dict(policy.defaults.targets)
     if session.targets is not None:
@@ -18,6 +22,11 @@ def resolve_targets(policy: EventPolicy, session: Session) -> list[tuple[str, st
     for dim, by_value in merged.items():
         for value, target in by_value.items():
             hi = capacity if target.hi is None else target.hi
+            if target.lo > capacity or hi > capacity:
+                raise ValueError(
+                    f"session {session.id}: target {dim}={value} ({target.lo}~{hi}) "
+                    f"exceeds capacity {capacity}"
+                )
             rows.append((dim, value, target.lo, hi))
     return rows
 
