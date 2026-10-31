@@ -19,3 +19,40 @@
 .decl needs(q: symbol, what: symbol)
 
 in_scope(Q) :- asks_about(Q, T), supported_topic(T).
+
+// --- subject of the question -------------------------------------------------------
+// A question names a registration directly or through one of its log events.
+.decl subject(q: symbol, reg: symbol)
+subject(Q, R) :- about_registration(Q, R).
+subject(Q, R) :- about_event(Q, E), log_event(E, R, _, _), R != "".
+
+// --- type 1: user input error, account number length (#15) ------------------------
+// The number the applicant typed has a different length than the one issued to them.
+// Normal: guide the applicant. Evidence: both log events.
+.decl account_mismatch(q: symbol, issued: symbol, entered: symbol)
+account_mismatch(Q, I, E) :-
+    subject(Q, R), asks_about(Q, "payment"),
+    log_event(I, R, "account_issued", _), log_attr(I, "digits", DI),
+    log_event(E, R, "account_entered", _), log_attr(E, "digits", DE), DI != DE.
+cause(Q, "user_input", I) :- account_mismatch(Q, I, _).
+cause(Q, "user_input", E) :- account_mismatch(Q, _, E).
+needs(Q, "account_entered") :-
+    subject(Q, R), asks_about(Q, "payment"),
+    log_event(_, R, "account_issued", _), !log_event(_, R, "account_entered", _).
+needs(Q, "account_issued") :-
+    subject(Q, R), asks_about(Q, "payment"), !log_event(_, R, "account_issued", _).
+
+// --- type 2: external cause, delivery provider delay (#16) ------------------------
+// Our send timed out, but the provider's receipt says delivered afterwards: the message
+// went out, no resend. Evidence: the timed-out send and the receipt.
+.decl delivered_late(q: symbol, sent: symbol, receipt: symbol)
+delivered_late(Q, S, P) :-
+    subject(Q, R), asks_about(Q, "delivery"),
+    log_event(S, R, "message_sent", TS), log_attr(S, "result", "timeout"),
+    log_event(P, R, "provider_receipt", TP), log_attr(P, "result", "delivered"), TP >= TS.
+cause(Q, "external_delay", S) :- delivered_late(Q, S, _).
+cause(Q, "external_delay", P) :- delivered_late(Q, _, P).
+needs(Q, "provider_receipt") :-
+    subject(Q, R), asks_about(Q, "delivery"),
+    log_event(S, R, "message_sent", _), log_attr(S, "result", "timeout"),
+    !log_event(_, R, "provider_receipt", _).

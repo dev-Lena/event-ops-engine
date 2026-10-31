@@ -12,7 +12,7 @@ from .decision import Verdict, VerdictKind
 from .engine import Engine
 from .facts import CANDIDATE_RELATIONS, TOPICS, Facts, candidate_id, evidence_id, triage_facts
 from .interpreter import InterpretationError, InterpretContext, Interpreter
-from .model import CandidateFact, Interpretation, TriageScenario
+from .model import CandidateFact, ExpectedVerdict, Interpretation, TriageScenario
 
 
 def _squash(text: str) -> str:
@@ -174,3 +174,15 @@ def run_triage(
     finally:
         engine.retract(candidates)
         engine.retract(facts)
+
+
+def differences(verdict: Verdict, expected: ExpectedVerdict) -> list[str]:
+    """How the verdict departs from what the scenario expects (empty list = as expected)."""
+    found: list[str] = []
+    if verdict.kind != expected.kind:
+        found.append(f"kind: expected {expected.kind}, got {verdict.kind}")
+    if expected.cause is not None and verdict.cause != expected.cause:
+        found.append(f"cause: expected {expected.cause}, got {verdict.cause}")
+    if expected.needs and tuple(sorted(expected.needs)) != verdict.needs:
+        found.append(f"needs: expected {list(expected.needs)}, got {list(verdict.needs)}")
+    return found

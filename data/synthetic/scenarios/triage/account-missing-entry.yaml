@@ -1,0 +1,22 @@
+# ① 유형 1의 ask 경로 (#15). 계좌는 발급됐지만 신청자의 입력 기록이 아직 없다.
+# 원인을 가리려면 account_entered가 더 필요하다.
+policy: ../../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-21 }
+registrations:
+  - { id: r1, session: s1, members: [{ gender: male, birth_year: 1990 }],
+      status_events: [{ at: 2026-11-02T09:00:00+09:00, status: pending_payment }] }
+log:
+  - { id: e1, at: 2026-11-02T09:00:01+09:00, kind: account_issued, registration: r1,
+      attrs: { bank: synthetic, digits: 14 } }
+question:
+  id: q1
+  text: "r1 신청자가 계좌로 입금이 안 된다고 합니다. 뭐가 문제죠?"
+  canned:
+    facts:
+      - { relation: asks_about, args: [payment],
+          provenance: { source: question, quote: "계좌로 입금이 안 된다고" }, confidence: 0.85 }
+      - { relation: about_registration, args: [r1],
+          provenance: { source: question, quote: "r1 신청자" }, confidence: 0.95 }
+expected: { kind: ask, needs: [account_entered] }

@@ -23,7 +23,8 @@ TWO_CAUSES = ONE_CAUSE + (
     'cause(Q, "other_cause", E) :- '
     'about_registration(Q, R), log_event(E, R, "message_sent", _).\n'
 )
-NEEDS = 'needs(Q, "provider_receipt") :- asks_about(Q, "delivery"), !cause(Q, _, _).\n'
+NEEDS = 'needs(Q, "provider_receipt") :- asks_about(Q, "seat"), !cause(Q, _, _).\n'
+GENERIC = "seat"  # supported topic with no type rule yet: tests add their own cause rules
 
 
 def scenario_with(facts: list[dict[str, object]], text: str | None = None) -> TriageScenario:
@@ -130,7 +131,7 @@ def test_unsupported_topic_abstains() -> None:
 
 
 def test_no_cause_in_scope_asks_and_names_what_is_needed() -> None:
-    scenario = scenario_with([fact("asks_about", "delivery"), fact("about_registration", "r1")])
+    scenario = scenario_with([fact("asks_about", GENERIC), fact("about_registration", "r1")])
     with Engine(load_rules() + NEEDS) as engine:
         verdict = run_triage(scenario, FakeInterpreter(), engine)
     assert verdict.kind == VerdictKind.ASK
@@ -139,7 +140,7 @@ def test_no_cause_in_scope_asks_and_names_what_is_needed() -> None:
 
 
 def test_one_cause_accepts_with_log_evidence() -> None:
-    scenario = scenario_with([fact("asks_about", "delivery"), fact("about_registration", "r1")])
+    scenario = scenario_with([fact("asks_about", GENERIC), fact("about_registration", "r1")])
     with Engine(load_rules() + ONE_CAUSE) as engine:
         verdict = run_triage(scenario, FakeInterpreter(), engine)
     assert verdict.kind == VerdictKind.ACCEPT
@@ -148,7 +149,7 @@ def test_one_cause_accepts_with_log_evidence() -> None:
 
 
 def test_two_causes_ask_a_person_to_choose() -> None:
-    scenario = scenario_with([fact("asks_about", "delivery"), fact("about_registration", "r1")])
+    scenario = scenario_with([fact("asks_about", GENERIC), fact("about_registration", "r1")])
     with Engine(load_rules() + TWO_CAUSES) as engine:
         verdict = run_triage(scenario, FakeInterpreter(), engine)
     assert verdict.kind == VerdictKind.ASK
@@ -158,7 +159,7 @@ def test_two_causes_ask_a_person_to_choose() -> None:
 
 def test_run_triage_owns_an_engine_when_none_is_given() -> None:
     verdict = run_triage(load_triage_scenario(TRIAGE), FakeInterpreter())
-    assert verdict.kind == VerdictKind.ASK  # no type rules yet (#16)
+    assert verdict.kind == VerdictKind.ACCEPT and verdict.cause == "external_delay"
 
 
 # --- review follow-ups (PR #38) ----------------------------------------------------------
@@ -166,7 +167,7 @@ def test_run_triage_owns_an_engine_when_none_is_given() -> None:
 
 def test_shared_engine_is_left_clean_between_questions() -> None:
     scenario = load_triage_scenario(TRIAGE)
-    with Engine(load_rules() + ONE_CAUSE) as engine:
+    with Engine() as engine:
         first = run_triage(scenario, FakeInterpreter(), engine)
         assert engine.snapshot("question") == [] and engine.snapshot("asks_about") == []
         second = run_triage(scenario, FakeInterpreter(), engine)
@@ -183,7 +184,7 @@ def test_empty_interpretation_asks_instead_of_abstaining() -> None:
 def test_duplicate_candidates_count_once() -> None:
     scenario = scenario_with(
         [
-            fact("asks_about", "delivery"),
+            fact("asks_about", GENERIC),
             fact("about_registration", "r1"),
             fact("about_registration", "r1", quote="r1"),
         ]
@@ -204,8 +205,8 @@ def test_about_event_and_about_session_reach_the_rules() -> None:
         'cause(Q, "by_event", E) :- about_event(Q, E), log_event(E, _, "provider_receipt", _).\n'
         'cause(Q, "by_session", "e1") :- about_session(Q, S), registration(_, S).\n'
     )
-    event_q = scenario_with([fact("asks_about", "delivery"), fact("about_event", "e2")])
-    session_q = scenario_with([fact("asks_about", "delivery"), fact("about_session", "s1")])
+    event_q = scenario_with([fact("asks_about", GENERIC), fact("about_event", "e2")])
+    session_q = scenario_with([fact("asks_about", GENERIC), fact("about_session", "s1")])
     with Engine(load_rules() + rules) as engine:
         by_event = run_triage(event_q, FakeInterpreter(), engine)
         by_session = run_triage(session_q, FakeInterpreter(), engine)
