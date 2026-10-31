@@ -191,3 +191,71 @@ class Scenario(StrictModel):
             if session.id == session_id:
                 return session
         raise KeyError(session_id)
+
+
+# --- module ① inquiry triage (docs/design.md 13) -------------------------------------
+
+
+class LogEvent(StrictModel):
+    """One system event (message sent, provider receipt, payment attempt...). Synthetic only."""
+
+    id: str
+    at: datetime
+    kind: str
+    registration: str | None = None
+    attrs: dict[str, str | int] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _require_timezone(self) -> Self:
+        if self.at.tzinfo is None:
+            raise ValueError(f"log event {self.id}: time must carry a time zone")
+        return self
+
+
+class Provenance(StrictModel):
+    """Where a candidate fact came from: a verbatim quote of the question."""
+
+    source: str = "question"
+    quote: str = Field(min_length=1)
+
+
+class CandidateFact(StrictModel):
+    """A fact the interpreter proposes. Validated by the harness before it reaches the rules."""
+
+    relation: str
+    args: tuple[str, ...] = Field(min_length=1)
+    provenance: Provenance
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class Interpretation(StrictModel):
+    """The interpreter's whole answer for one question."""
+
+    facts: tuple[CandidateFact, ...] = ()
+    note: str = ""
+
+
+class Question(StrictModel):
+    """One synthetic operator inquiry. `canned` is the fake interpreter's answer."""
+
+    id: str
+    text: str = Field(min_length=1)
+    canned: Interpretation | None = None
+
+
+class TriageScenario(Scenario):
+    """A capacity scenario plus an event log and one question."""
+
+    log: tuple[LogEvent, ...] = ()
+    question: Question
+
+    @model_validator(mode="after")
+    def _log_consistent(self) -> Self:
+        ids = [event.id for event in self.log]
+        if len(set(ids)) != len(ids):
+            raise ValueError("duplicate log event id")
+        known = {registration.id for registration in self.registrations}
+        for event in self.log:
+            if event.registration is not None and event.registration not in known:
+                raise ValueError(f"log event {event.id}: unknown registration {event.registration}")
+        return self

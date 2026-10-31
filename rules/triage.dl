@@ -1,0 +1,21 @@
+// Module ① inquiry triage: the generic contract. Type rules (#15-#21) derive `cause` and
+// `needs`; this file only fixes the schema and `in_scope`. See docs/design.md 13.
+
+// --- input facts (ADAPT, facts.py) --------------------------------------------
+.decl question(q: symbol)
+.decl supported_topic(topic: symbol)
+.decl log_event(id: symbol, reg: symbol, kind: symbol, ts: int64)
+.decl log_attr(id: symbol, attr: symbol, value: symbol)
+
+// --- candidate facts proposed by the interpreter (validated in harness.py) ---------
+.decl asks_about(q: symbol, topic: symbol)
+.decl about_registration(q: symbol, reg: symbol)
+.decl about_session(q: symbol, session: symbol)
+.decl about_event(q: symbol, id: symbol)
+
+// --- derived ---------------------------------------------------------------------
+.decl in_scope(q: symbol)
+.decl cause(q: symbol, cause: symbol, evidence: symbol)
+.decl needs(q: symbol, what: symbol)
+
+in_scope(Q) :- asks_about(Q, T), supported_topic(T).

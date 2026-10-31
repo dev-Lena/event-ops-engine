@@ -10,7 +10,7 @@
 |---|---|---|---|
 | ② 현황 (capacity) | 회차 · 속성 값마다 `filled` · `gap` · `remaining` · 입금 대기 · 정원 대비 남은 자리 | 없음 | 구현 |
 | ③ 홍보 판단 (promotion) | 부족분 · 남은 날 · 최근 추세 · 비율 불균형으로 홍보 **권고** 또는 **보류** | 없음 | 구현 |
-| ① 운영 문의 판정 (triage) | 문의 글을 유형으로 해석(LLM) → 규칙으로 판정 → accept / ask / abstain / reject | 있음 | 다음 PR |
+| ① 운영 문의 판정 (triage) | 문의 글을 유형으로 해석(LLM) → 규칙으로 판정 → accept / ask / abstain / reject | 있음 | 계약 · 해석기 · 하네스(13절), 유형 규칙은 다음 PR |
 
 엔진은 **권고만** 한다. 홍보 실행 · 개별 신청 거절은 사람이 한다. 개별 신청자를 자동으로 거절하는 규칙은 두지 않는다.
 
@@ -173,6 +173,45 @@ docs/             design.md glossary.md decisions/ standards/
 - `average` 등 다른 집계 함수 — 이번 규칙은 `count` · `max`만 쓴다.
 - 실제 운영사 정책값 — 7절의 값은 모두 가정값이다.
 
+## 13. 운영 문의 판정 (①, `rules/triage.dl`, `harness.py`)
+
+담당자의 "이거 버그인가요?"를 **LLM 출력 → 후보 사실 → 규칙 → 검증된 결정**으로 처리한다. 하네스 5단계를 모두 쓴다.
+
+| 단계 | 하는 일 | 코드 |
+|---|---|---|
+| ADAPT | 질문 + 회차 · 신청(②와 같은 시나리오) + 이벤트 로그를 사실로 적재 | `facts.py` (`log_event` · `log_attr` · `question` · `supported_topic`) |
+| INTERPRET | 해석기가 질문을 **후보 사실**로 바꾼다. 검증에 실패하면 여기서 `reject` | `interpreter.py` (Claude Code CLI · 가짜) |
+| REASON | 후보 사실을 엔진에 넣고 규칙이 `in_scope` · `cause` · `needs`를 파생 | `rules/triage.dl` + 유형별 규칙 |
+| DECIDE | 결정 계약(아래)으로 `Verdict` 조립 | `harness.py` |
+| ACT | 결과 · 근거 · 단계별 trace 출력. 실행 없음(dry-run, 사람 확인) | `harness.py` · CLI |
+
+**후보 사실** (`CandidateFact`): `relation`, `args`, `provenance(source, quote)`, `confidence`(0~1).
+- `relation`은 후보 관계 네 개 중 하나만: `asks_about(q, topic)` · `about_registration(q, reg)` · `about_session(q, session)` · `about_event(q, log_id)`. 그 밖의 관계는 LLM이 **새 사실을 만든 것**이므로 `reject`.
+- `provenance.quote`는 질문 원문의 일부여야 한다. `args`가 가리키는 신청 · 회차 · 로그 id가 입력에 없으면 `reject` ("로그에 없는 사실").
+- 해석기는 사실을 **제안**만 한다. 원인 판정은 규칙만 한다.
+
+**이벤트 로그** (`LogEvent`): `id`, `at`, `kind`, `registration`(선택), `attrs{key: value}`. 종류(`kind`)와 속성은 유형 규칙과 함께 정한다 (#15~#21). 합성 로그만 둔다.
+
+**결정 계약** (`Verdict`, glossary "판정"):
+
+| 조건 | 판정 | 내용 |
+|---|---|---|
+| 검증 실패 (관계 아님 · 근거 없음 · 없는 id) | `reject` | 거부 이유 |
+| 지원하지 않는 주제 (`in_scope` 없음) | `abstain` | 지원 주제 목록 |
+| 원인 1개 (`cause` 한 가지) | `accept` | 원인 + 근거 로그 id |
+| 원인 0개, 범위 안 | `ask` | `needs`가 말하는 더 필요한 사실 |
+| 원인 2개 이상 | `ask` | 후보 원인 목록, 사람이 가린다 |
+
+```
+in_scope(Q)      :- asks_about(Q, T), supported_topic(T).
+cause(Q, C, E)   -- 유형 규칙이 파생. C는 원인 이름, E는 근거 로그 id
+needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필요한 사실
+```
+
+지원 주제(`supported_topic`)는 `payment` · `delivery` · `duplicate` · `deadline` · `seat` 다섯 개이고, 유형 규칙이 붙을 때마다 실제로 판정되는 주제가 늘어난다. 모든 `Verdict`에는 근거 id가 1개 이상 붙는다 (후보 사실 id `candidate/<q>/<relation>/<args>`, 로그 id `log/<id>`).
+
+**해석기**: 기본은 Claude Code CLI(`claude -p`, 구독 안 · 추가 비용 0), 테스트는 가짜 해석기(시나리오 파일의 `canned` 응답). API는 쓰지 않는다. LLM 출력은 JSON이며 `Interpretation` 모델 검증을 통과해야 한다.
+
 ## 기록
 
 | 날짜 | 내용 |
@@ -180,3 +219,4 @@ docs/             design.md glossary.md decisions/ standards/
 | 2026-10-29 | 처음 만듦 (핸드오프 §2~§6 + 문법 검증 결과 반영) |
 | 2026-10-29 | PR #1 리뷰 반영: 이유 우선순위, 지난 회차 `blocked` 제외, 목표가 정원을 넘으면 거부 |
 | 2026-10-29 | Linux CI(ubuntu, pyrewire 1.1.3 manylinux wheel 엔진)에서 테스트 60개 통과 확인 → 12절에서 제거 |
+| 2026-10-31 | 13절 ① 운영 문의 판정: 하네스 5단계, 후보 사실, 결정 계약, 해석기 |

@@ -31,6 +31,13 @@
 | 홍보 판단에 쓰는 설정값 | 홍보 기준 / promotion policy | `policy(session, key, n)` | 임계값 | `lead_days`, `trend_min_per_week`. 값은 **가정값** ([design.md 7](design.md#7-홍보-판단-③)) |
 | 판단 결과 하나 (권고 · 보류 · 확인 요청) | 판단 / decision | `Decision` (Python) | 알림 | 근거 사실 id 목록을 반드시 같이 가진다 |
 | 판단을 떠받치는 입력 사실 | 근거 / evidence | `evidence` (fact id 목록) | — | 예: `target/s1/gender/female`, `registration/r3` |
+| 담당자가 올린 운영 문의 한 건 | 문의 / question | `question(q)` | 티켓, 이슈 | 합성 질문만 둔다. 자유 서술은 해석기 입력으로만 쓰고 저장소에는 합성 문장만 |
+| 해석기(LLM)가 문의에서 뽑아 제안한 사실. 검증 전 | 후보 사실 / candidate fact | `CandidateFact` (relation · args · provenance · confidence) | 추출 결과, 엔티티 | 관계 네 개(`asks_about` · `about_registration` · `about_session` · `about_event`)만 허용. 규칙이 파생한 사실과 구분한다 |
+| 후보 사실이 어디서 왔는지 (원문 인용) | 근거 출처 / provenance | `Provenance(source, quote)` | — | 없으면 입력에서 거부 |
+| 시스템이 남긴 사건 기록 (발송 · 결제 시도 · 수신증 등) | 이벤트 로그 / event log | `log_event(id, reg, kind, ts)` · `log_attr(id, key, value)` | 히스토리 | 합성 로그만. `status_event`(신청 상태)와 다르다 |
+| 규칙이 문의에서 가려낸 원인 | 원인 / cause | `cause(q, cause, evidence)` | 결론 | 유형 규칙이 파생. 한 문의에 원인이 하나일 때만 accept |
+| 문의 판정 결과 | 판정 / verdict | `Verdict` (`accept` · `ask` · `abstain` · `reject`) | 답변 | [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
+| 해석기가 질문을 후보 사실로 바꾸는 부품 | 해석기 / interpreter | `Interpreter` (Claude Code CLI · 가짜) | 모델, 에이전트 | 사실을 만들지 않고 제안만 한다 |
 
 ## 상태 값
 
@@ -65,3 +72,4 @@
 | 날짜 | 내용 |
 |---|---|
 | 2026-10-29 | 처음 만듦 (핸드오프 §3 용어 + 상태 값 + 경계 규칙) |
+| 2026-10-31 | ① 용어 추가: 문의 · 후보 사실 · 근거 출처 · 이벤트 로그 · 원인 · 판정 · 해석기 |
