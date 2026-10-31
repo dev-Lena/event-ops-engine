@@ -205,6 +205,9 @@ class LogEvent(StrictModel):
     registration: str | None = None
     attrs: dict[str, str | int] = Field(default_factory=dict)
 
+    def __hash__(self) -> int:  # frozen model with a dict field: hash by identity fields
+        return hash((self.id, self.at, self.kind))
+
     @model_validator(mode="after")
     def _require_timezone(self) -> Self:
         if self.at.tzinfo is None:
