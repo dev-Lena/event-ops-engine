@@ -249,11 +249,14 @@ class Question(StrictModel):
 
 
 class ExpectedVerdict(StrictModel):
-    """What the scenario author expects. `event-ops triage` reports any difference."""
+    """What the scenario author expects. `event-ops triage` reports any difference.
+
+    `cause` and `needs` left as None are not compared; `needs: []` means "nothing missing".
+    """
 
     kind: VerdictKind
     cause: str | None = None
-    needs: tuple[str, ...] = ()
+    needs: tuple[str, ...] | None = None
 
 
 class TriageScenario(Scenario):

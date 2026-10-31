@@ -40,7 +40,7 @@ def test_triage_main_reports_mismatch_with_exit_code_one(
     wrong = tmp_path / "wrong.yaml"
     wrong.write_text(
         source.replace("policy: ../../../../", f"policy: {REPO}/").replace(
-            "expected: { kind: accept, cause: user_input }", "expected: { kind: ask }"
+            "expected: { kind: accept, cause: user_input, needs: [] }", "expected: { kind: ask }"
         ),
         encoding="utf-8",
     )

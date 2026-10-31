@@ -21,4 +21,4 @@ question:
           provenance: { source: question, quote: "문자를 못 받았다는데" }, confidence: 0.9 }
       - { relation: about_registration, args: [r1],
           provenance: { source: question, quote: "r1 신청자" }, confidence: 0.95 }
-expected: { kind: accept, cause: external_delay }
+expected: { kind: accept, cause: external_delay, needs: [] }

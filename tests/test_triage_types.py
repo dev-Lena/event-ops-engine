@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from event_ops_engine.cli import VERDICT_LABELS
 from event_ops_engine.decision import VerdictKind
 from event_ops_engine.harness import differences, run_triage
 from event_ops_engine.interpreter import FakeInterpreter
@@ -101,6 +102,62 @@ def test_another_registrations_receipt_does_not_count() -> None:
     assert verdict_for(scenario) == (VerdictKind.ASK, None, ("provider_receipt",))
 
 
+# --- several events per registration (PR #39 review) ---------------------------------------
+
+
+def test_reissued_account_is_compared_with_the_latest_issue_only() -> None:
+    scenario = load_triage_scenario(TRIAGE / "account-length.yaml")
+    issued, entered = scenario.log  # issued 14 digits, entered 13
+    reissued = issued.model_copy(
+        update={"id": "e3", "at": issued.at.replace(minute=20), "attrs": {"digits": 13}}
+    )
+    kind, cause, needs = verdict_for(
+        scenario.model_copy(update={"log": (issued, reissued, entered)})
+    )
+    assert (kind, cause, needs) == (VerdictKind.ASK, None, ())  # the latest issue matches
+
+
+def test_corrected_entry_supersedes_the_wrong_one() -> None:
+    scenario = load_triage_scenario(TRIAGE / "account-length.yaml")
+    issued, entered = scenario.log
+    corrected = entered.model_copy(
+        update={"id": "e3", "at": entered.at.replace(hour=10), "attrs": {"digits": 14}}
+    )
+    assert verdict_for(scenario.model_copy(update={"log": (issued, entered, corrected)}))[0] == (
+        VerdictKind.ASK
+    )
+
+
+def test_receipt_after_a_resend_does_not_explain_the_first_timeout() -> None:
+    scenario = load_triage_scenario(TRIAGE / "delivery-timeout.yaml")
+    sent, receipt = scenario.log
+    resend = sent.model_copy(
+        update={"id": "e3", "at": sent.at.replace(minute=1), "attrs": {"result": "ok"}}
+    )
+    verdict = run_triage(
+        scenario.model_copy(update={"log": (sent, resend, receipt)}), FakeInterpreter()
+    )
+    assert verdict.kind == VerdictKind.ASK and verdict.needs == ()
+
+
+def test_accept_never_carries_needs_from_another_event() -> None:
+    scenario = load_triage_scenario(TRIAGE / "delivery-timeout.yaml")
+    sent, receipt = scenario.log
+    earlier = sent.model_copy(update={"id": "e0", "at": sent.at.replace(day=31, month=10)})
+    verdict = run_triage(
+        scenario.model_copy(update={"log": (earlier, sent, receipt)}), FakeInterpreter()
+    )
+    assert (verdict.kind, verdict.cause, verdict.needs) == (
+        VerdictKind.ACCEPT,
+        "external_delay",
+        (),
+    )
+
+
+def test_every_verdict_kind_has_a_label() -> None:
+    assert set(VERDICT_LABELS) == set(VerdictKind)
+
+
 # --- expected verdict --------------------------------------------------------------------
 
 
@@ -111,3 +168,5 @@ def test_differences_name_kind_cause_and_needs() -> None:
     wrong = scenario.expected.model_copy(update={"kind": VerdictKind.ASK, "needs": ("x",)})
     found = differences(verdict, wrong)
     assert len(found) == 2 and found[0].startswith("kind:") and found[1].startswith("needs:")
+    loose = scenario.expected.model_copy(update={"cause": None, "needs": None})
+    assert differences(verdict, loose) == []

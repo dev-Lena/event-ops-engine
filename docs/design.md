@@ -216,10 +216,10 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 
 | 유형 | 주제 | 보는 로그 (`kind` · `attrs`) | 원인 (`cause`) | 근거 | 더 필요한 사실 (`needs`) |
 |---|---|---|---|---|---|
-| 1 사용자 입력 실수 (#15) | `payment` | `account_issued{digits}` · `account_entered{digits}` | 두 자릿수가 다르면 `user_input` | 두 이벤트 id | `account_issued`가 없으면 그것, 있는데 `account_entered`가 없으면 그것 |
-| 2 외부 요인 (#16) | `delivery` | `message_sent{result: timeout}` · 그 뒤의 `provider_receipt{result: delivered}` | `external_delay` | 발송 · 수신증 id | timeout 뒤 수신증이 없으면 `provider_receipt` |
+| 1 사용자 입력 실수 (#15) | `payment` | `account_issued{digits}` · `account_entered{digits}` | **가장 최근** 발급과 **가장 최근** 입력의 자릿수가 다르면 `user_input` (`superseded`로 이전 이벤트 제외) | 두 이벤트 id | `account_issued`가 없으면 그것, 있는데 `account_entered`가 없으면 그것 |
+| 2 외부 요인 (#16) | `delivery` | `message_sent{result: timeout}` · 그 뒤의 `provider_receipt{result: delivered}` (둘 사이에 재발송이 없을 때, `resent_between`) | `external_delay` | 발송 · 수신증 id | timeout 뒤 수신증이 없으면 `provider_receipt` |
 
-자릿수가 같거나 수신증이 `failed`이면 원인도 `needs`도 없어 `ask`가 된다. 그 경우는 아직 유형이 없다는 뜻이고, #18~#21에서 유형이 늘면 거기서 판정된다. 시나리오 파일은 `expected`(기대 판정 · 원인 · needs)를 적고, `event-ops triage`는 실제 판정과 비교해 다르면 종료 코드 1을 낸다.
+원인이 하나라도 파생되면 `needs`는 비운다 (다른 이벤트의 '아직 없는 사실'이 확정된 원인에 끌려 나오지 않게). 자릿수가 같거나 수신증이 `failed`이면 원인도 `needs`도 없어 `ask`가 된다. 그 경우는 아직 유형이 없다는 뜻이고, #18~#21에서 유형이 늘면 거기서 판정된다. 시나리오 파일은 `expected`(기대 판정 · 원인 · needs)를 적고, `event-ops triage`는 실제 판정과 비교해 다르면 종료 코드 1을 낸다. `cause` · `needs`를 비우면(null) 비교하지 않고, `needs: []`는 '더 필요한 사실 없음'을 단언한다.
 
 **해석기**: 기본은 Claude Code CLI(`claude -p`, 구독 안 · 추가 비용 0), 테스트는 가짜 해석기(시나리오 파일의 `canned` 응답). API는 쓰지 않는다. LLM 출력은 JSON이며 `Interpretation` 모델 검증을 통과해야 한다.
 

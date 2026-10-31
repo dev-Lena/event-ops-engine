@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from .capacity import SessionStatus, capacity_status
-from .decision import Decision, Verdict
+from .decision import Decision, Verdict, VerdictKind
 from .engine import Engine
 from .facts import scenario_facts
 from .harness import differences, run_triage
@@ -19,11 +19,11 @@ from .loader import load_scenario, load_triage_scenario
 from .model import TriageScenario
 from .promotion import promotion_decisions
 
-VERDICT_LABELS = {
-    "accept": "원인 확정",
-    "ask": "확인 요청",
-    "abstain": "판정 보류",
-    "reject": "해석 거부",
+VERDICT_LABELS: dict[VerdictKind, str] = {
+    VerdictKind.ACCEPT: "원인 확정",
+    VerdictKind.ASK: "확인 요청",
+    VerdictKind.ABSTAIN: "판정 보류",
+    VerdictKind.REJECT: "해석 거부",
 }
 INTERPRETERS: dict[str, type[Interpreter]] = {
     "fake": FakeInterpreter,
