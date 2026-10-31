@@ -11,7 +11,16 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import bands, clock
-from .model import UNKNOWN, Member, Registration, Scenario, Session
+from .model import (
+    UNKNOWN,
+    CandidateFact,
+    Member,
+    Question,
+    Registration,
+    Scenario,
+    Session,
+    TriageScenario,
+)
 from .policy import POLICY_KEYS, resolve_ratios, resolve_targets
 
 Row = tuple[Any, ...]
@@ -104,3 +113,47 @@ def scenario_facts(scenario: Scenario) -> Facts:
     for registration in scenario.registrations:
         facts.extend(registration_facts(scenario, registration))
     return facts
+
+
+# --- module ① inquiry triage (docs/design.md 13) -------------------------------------
+
+TOPICS = ("payment", "delivery", "duplicate", "deadline", "seat")
+"""`supported_topic` facts. A topic is answered only once its type rules exist (#15-#21)."""
+
+CANDIDATE_RELATIONS = {
+    "asks_about": "topic",
+    "about_registration": "registration",
+    "about_session": "session",
+    "about_event": "log",
+}
+"""Relations the interpreter may propose, and what their single argument must name."""
+
+
+def log_facts(scenario: TriageScenario) -> Facts:
+    facts = Facts()
+    for event in scenario.log:
+        facts.add(
+            "log_event", event.id, event.registration or "", event.kind, clock.to_epoch(event.at)
+        )
+        for key, value in event.attrs.items():
+            facts.add("log_attr", event.id, key, str(value))
+    return facts
+
+
+def question_facts(question: Question) -> Facts:
+    facts = Facts()
+    facts.add("question", question.id)
+    for topic in TOPICS:
+        facts.add("supported_topic", topic)
+    return facts
+
+
+def triage_facts(scenario: TriageScenario) -> Facts:
+    facts = scenario_facts(scenario)
+    facts.extend(log_facts(scenario))
+    facts.extend(question_facts(scenario.question))
+    return facts
+
+
+def candidate_id(question_id: str, fact: CandidateFact) -> str:
+    return evidence_id("candidate", question_id, fact.relation, *fact.args)
