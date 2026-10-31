@@ -31,6 +31,11 @@ make check        # lint + typecheck + test
 
 Intel Mac은 엔진을 한 번 빌드해야 한다 ([README](README.md) "설치").
 
+## 기록 언어
+
+이슈 제목 · 본문과 PR 본문은 한국어 + 영어(한 본문, 한국어 → `---` → 영어), 판단 근거 · 리뷰 기록 코멘트는 언어별로 따로 올린다.
+영어는 번역이 아니라 현업 표현으로 따로 쓴다 ([git-workflow.md 5절](docs/standards/git-workflow.md#5-언어)). 공개 저장소를 한국어 · 영어 독자가 함께 보기 때문이다.
+
 ## PR 전 확인
 
 `make check`가 모두 통과해야 한다. 실행하지 못한 확인은 PR에 "실행하지 못했다"고 적는다.
