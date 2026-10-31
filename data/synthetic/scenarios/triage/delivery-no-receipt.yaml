@@ -1,0 +1,22 @@
+# ① 유형 2의 ask 경로 (#16). 발송이 timeout으로 끝났고 업체 수신증이 아직 없다.
+# 원인을 가리려면 provider_receipt가 더 필요하다.
+policy: ../../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-21 }
+registrations:
+  - { id: r1, session: s1, members: [{ gender: male, birth_year: 1993 }],
+      status_events: [{ at: 2026-11-01T10:00:00+09:00, status: pending_payment }] }
+log:
+  - { id: e1, at: 2026-11-01T10:00:05+09:00, kind: message_sent, registration: r1,
+      attrs: { channel: sms, result: timeout } }
+question:
+  id: q1
+  text: "r1 신청자 안내 문자가 timeout으로 떠요. 다시 보내야 하나요?"
+  canned:
+    facts:
+      - { relation: asks_about, args: [delivery],
+          provenance: { source: question, quote: "안내 문자가 timeout으로 떠요" }, confidence: 0.9 }
+      - { relation: about_event, args: [e1],
+          provenance: { source: question, quote: "timeout" }, confidence: 0.6 }
+expected: { kind: ask, needs: [provider_receipt] }
