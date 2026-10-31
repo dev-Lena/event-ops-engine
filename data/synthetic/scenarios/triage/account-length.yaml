@@ -21,4 +21,4 @@ question:
           provenance: { source: question, quote: "입금하려는데 계좌가 없다고" }, confidence: 0.9 }
       - { relation: about_registration, args: [r1],
           provenance: { source: question, quote: "r1 신청자" }, confidence: 0.95 }
-expected: { kind: accept, cause: user_input }
+expected: { kind: accept, cause: user_input, needs: [] }
