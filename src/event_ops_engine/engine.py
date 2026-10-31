@@ -19,7 +19,7 @@ from typing import Any, Self
 from .facts import Facts, Row
 
 RULES_DIR = Path(__file__).resolve().parents[2] / "rules"
-RULE_FILES = ("ontology.dl", "capacity.dl", "promotion.dl")
+RULE_FILES = ("ontology.dl", "capacity.dl", "promotion.dl", "triage.dl")
 LINE_COMMENT = re.compile(r"//[^\n]*")
 QUOTED_CONSTANT = re.compile(r'"([^"\n]*)"')
 WIRELOG_LIB_ENV = "WIRELOG_LIB"
