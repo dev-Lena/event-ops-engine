@@ -1,0 +1,24 @@
+# ① 유형 1 사용자 입력 실수 (계좌 자릿수, #15). 질문 · 로그 · id는 모두 합성이다.
+# 발급된 가상계좌는 14자리인데 신청자가 13자리를 입력했다 → 정상, 안내 필요.
+policy: ../../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-21 }
+registrations:
+  - { id: r1, session: s1, members: [{ gender: female, birth_year: 1998 }],
+      status_events: [{ at: 2026-11-02T09:00:00+09:00, status: pending_payment }] }
+log:
+  - { id: e1, at: 2026-11-02T09:00:01+09:00, kind: account_issued, registration: r1,
+      attrs: { bank: synthetic, digits: 14 } }
+  - { id: e2, at: 2026-11-02T09:40:00+09:00, kind: account_entered, registration: r1,
+      attrs: { digits: 13, result: rejected } }
+question:
+  id: q1
+  text: "r1 신청자가 입금하려는데 계좌가 없다고 나온대요. 계좌 발급이 잘못됐나요?"
+  canned:
+    facts:
+      - { relation: asks_about, args: [payment],
+          provenance: { source: question, quote: "입금하려는데 계좌가 없다고" }, confidence: 0.9 }
+      - { relation: about_registration, args: [r1],
+          provenance: { source: question, quote: "r1 신청자" }, confidence: 0.95 }
+expected: { kind: accept, cause: user_input, needs: [] }

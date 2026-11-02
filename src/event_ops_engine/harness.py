@@ -12,7 +12,7 @@ from .decision import Verdict, VerdictKind
 from .engine import Engine
 from .facts import CANDIDATE_RELATIONS, TOPICS, Facts, candidate_id, evidence_id, triage_facts
 from .interpreter import InterpretationError, InterpretContext, Interpreter
-from .model import CandidateFact, Interpretation, TriageScenario
+from .model import CandidateFact, ExpectedVerdict, Interpretation, TriageScenario
 
 
 def _squash(text: str) -> str:
@@ -82,7 +82,9 @@ def decide(
     in_scope = bool(engine.rows("in_scope", q))
     cause_rows = engine.rows("cause", q)
     causes = sorted({str(row[1]) for row in cause_rows})
-    needs = sorted({str(row[1]) for row in engine.rows("needs", q)})
+    # `needs` only matters while no cause is derived; a cause from one event must not drag
+    # along "still missing" facts about another.
+    needs = [] if causes else sorted({str(row[1]) for row in engine.rows("needs", q)})
     logs = sorted({evidence_id("log", str(row[2])) for row in cause_rows})
     trace.append(f"REASON: in_scope={in_scope}, causes={causes}, needs={needs}")
     base = tuple(candidate_ids) or (evidence_id("question", q),)
@@ -174,3 +176,19 @@ def run_triage(
     finally:
         engine.retract(candidates)
         engine.retract(facts)
+
+
+def differences(verdict: Verdict, expected: ExpectedVerdict) -> list[str]:
+    """How the verdict departs from what the scenario expects (empty list = as expected).
+
+    A field the scenario leaves out (`cause: null`, `needs: null`) is not compared;
+    `needs: []` asserts that nothing is missing.
+    """
+    found: list[str] = []
+    if verdict.kind != expected.kind:
+        found.append(f"kind: expected {expected.kind}, got {verdict.kind}")
+    if expected.cause is not None and verdict.cause != expected.cause:
+        found.append(f"cause: expected {expected.cause}, got {verdict.cause}")
+    if expected.needs is not None and tuple(sorted(expected.needs)) != verdict.needs:
+        found.append(f"needs: expected {list(expected.needs)}, got {list(verdict.needs)}")
+    return found

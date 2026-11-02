@@ -45,10 +45,26 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
   gender=male: 확정 1 · 대기 1 · 목표 6~6 · 부족 5
   홍보 권고: 회차 임박: 30s 2명 부족, 홍보가 필요합니다. (이유: lead_time, slow_trend; 근거: session_capacity/s2, days_left/s2, target/s2/age_band/30s, policy/s2/lead_days, ...)
   홍보 권고: 회차 임박: female 3명 부족, 홍보가 필요합니다. (이유: lead_time, slow_trend; 근거: ...)
-  홍보 권고: 비율 불균형: male 쪽이 5명 적습니다. (이유: imbalance, lead_time, slow_trend; 근거: ...)
+  홍보 권고: 회차 임박: male 5명 부족, 홍보가 필요합니다. (이유: imbalance, lead_time, slow_trend; 근거: ...)
 ```
 
 시나리오 파일 형식은 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`을 보세요. 홍보 기준값은 모두 **가정값**입니다.
+
+### 운영 문의 판정 (①)
+
+```bash
+event-ops triage data/synthetic/scenarios/triage/account-length.yaml
+```
+
+```
+[문의 q1] r1 신청자가 입금하려는데 계좌가 없다고 나온대요. 계좌 발급이 잘못됐나요?
+  판정: 원인 확정 (accept) · 원인: user_input
+  설명: 원인: user_input. 근거 로그: log/e1, log/e2
+  근거: candidate/q1/about_registration/r1, candidate/q1/asks_about/payment, log/e1, log/e2
+  기대 판정: accept · 일치
+```
+
+문의 시나리오(`data/synthetic/scenarios/triage/*.yaml`)는 질문 · 이벤트 로그 · 기대 판정을 담습니다. 기본은 파일의 `canned` 해석을 쓰는 가짜 해석기이고, `--interpreter claude`를 주면 Claude Code CLI(`claude -p`, 구독 안에서 추가 비용 없음)가 질문을 후보 사실로 바꿉니다. 판정은 네 가지입니다: `accept`(원인 1개 + 근거 로그), `ask`(더 필요한 사실 또는 사람이 가릴 후보), `abstain`(지원하지 않는 주제), `reject`(해석기가 입력에 없는 사실을 만든 경우). 기대 판정과 다르면 종료 코드 1입니다. `--trace`로 단계별 기록을 볼 수 있습니다. 설계는 [docs/design.md 13절](docs/design.md)입니다.
 
 ## 개발
 
