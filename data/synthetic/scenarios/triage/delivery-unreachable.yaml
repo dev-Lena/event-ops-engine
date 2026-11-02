@@ -1,0 +1,24 @@
+# ① 유형 2b 외부 연결 실패 (#47). 질문 · 로그 · id는 모두 합성이다.
+# 발송이 timeout으로 끝났고, 업체 로그를 조회했더니 기록이 없다 → 업체에 닿지 못한 것, 재발송.
+policy: ../../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-21 }
+registrations:
+  - { id: r1, session: s1, members: [{ gender: female, birth_year: 1997 }],
+      status_events: [{ at: 2026-11-01T00:02:00+09:00, status: pending_payment }] }
+log:
+  - { id: e1, at: 2026-11-01T00:02:05+09:00, kind: message_sent, registration: r1,
+      attrs: { channel: kakao, result: timeout } }
+  - { id: e2, at: 2026-11-01T09:30:00+09:00, kind: provider_lookup, registration: r1,
+      attrs: { channel: kakao, result: none } }
+question:
+  id: q1
+  text: "r1 신청자 접수 확인 카톡이 안 간 것 같아요. 업체 로그에도 기록이 없는데 왜 그럴까요?"
+  canned:
+    facts:
+      - { relation: asks_about, args: [delivery],
+          provenance: { source: question, quote: "카톡이 안 간 것 같아요" }, confidence: 0.9 }
+      - { relation: about_registration, args: [r1],
+          provenance: { source: question, quote: "r1 신청자" }, confidence: 0.95 }
+expected: { kind: accept, cause: external_failure, needs: [] }

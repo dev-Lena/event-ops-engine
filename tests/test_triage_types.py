@@ -108,7 +108,7 @@ def test_another_registrations_receipt_does_not_count() -> None:
     scenario = scenario.model_copy(
         update={"registrations": (*scenario.registrations, other), "log": (*scenario.log, receipt)}
     )
-    assert verdict_for(scenario) == (VerdictKind.ASK, None, ("provider_receipt",))
+    assert verdict_for(scenario) == (VerdictKind.ASK, None, ("provider_lookup",))
 
 
 # --- several events per registration (PR #39 review) ---------------------------------------
@@ -165,6 +165,84 @@ def test_accept_never_carries_needs_from_another_event() -> None:
 
 def test_every_verdict_kind_has_a_label() -> None:
     assert set(VERDICT_LABELS) == set(VerdictKind)
+
+
+# --- type 2b (PR for #47) ---------------------------------------------------------------
+
+UNREACHABLE = TRIAGE / "delivery-unreachable.yaml"
+
+
+def test_timeout_with_no_provider_record_is_an_external_failure() -> None:
+    verdict = run_triage(load_triage_scenario(UNREACHABLE), FakeInterpreter())
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "external_failure")
+    assert {"log/e1", "log/e2"} <= set(verdict.evidence)
+
+
+def test_lookup_that_finds_the_message_counts_as_delivery_proof() -> None:
+    scenario = load_triage_scenario(UNREACHABLE)
+    sent, lookup = scenario.log
+    found = lookup.model_copy(update={"attrs": {**lookup.attrs, "result": "found"}})
+    verdict = run_triage(scenario.model_copy(update={"log": (sent, found)}), FakeInterpreter())
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "external_delay")
+
+
+def test_lookup_before_the_send_does_not_count() -> None:
+    scenario = load_triage_scenario(UNREACHABLE)
+    sent, lookup = scenario.log
+    early = lookup.model_copy(update={"at": sent.at - timedelta(hours=1)})
+    assert verdict_for(scenario.model_copy(update={"log": (sent, early)})) == (
+        VerdictKind.ASK,
+        None,
+        (),
+    )
+
+
+def test_old_proof_for_an_earlier_send_does_not_block_type_2b() -> None:
+    scenario = load_triage_scenario(UNREACHABLE)
+    sent, lookup = scenario.log
+    old_send = sent.model_copy(
+        update={"id": "e0", "at": sent.at - timedelta(days=1), "attrs": {"result": "ok"}}
+    )
+    old_receipt = old_send.model_copy(
+        update={
+            "id": "e0r",
+            "kind": "provider_receipt",
+            "at": old_send.at + timedelta(minutes=2),
+            "attrs": {"result": "delivered"},
+        }
+    )
+    verdict = run_triage(
+        scenario.model_copy(update={"log": (old_send, old_receipt, sent, lookup)}),
+        FakeInterpreter(),
+    )
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "external_failure")
+
+
+def test_resend_guard_applies_to_lookup_proof_too() -> None:
+    scenario = load_triage_scenario(UNREACHABLE)
+    sent, lookup = scenario.log
+    resend = sent.model_copy(
+        update={"id": "e3", "at": sent.at + timedelta(minutes=30), "attrs": {"result": "ok"}}
+    )
+    found = lookup.model_copy(update={"attrs": {**lookup.attrs, "result": "found"}})
+    assert verdict_for(scenario.model_copy(update={"log": (sent, resend, found)})) == (
+        VerdictKind.ASK,
+        None,
+        (),
+    )
+
+
+def test_every_needs_value_in_the_rules_has_a_verifier() -> None:
+    import re
+
+    from event_ops_engine.engine import RULES_DIR
+    from event_ops_engine.harness import NEEDS_VERIFIER, needs_label
+
+    rules = (RULES_DIR / "triage.dl").read_text(encoding="utf-8")
+    literals = set(re.findall(r'needs\(Q, "([a-z_]+)"\)', rules))
+    assert literals and literals <= set(NEEDS_VERIFIER)
+    assert needs_label("provider_lookup").startswith("provider_lookup (외부")
+    assert needs_label("unlisted") == "unlisted"
 
 
 # --- type 3 ---------------------------------------------------------------------------
