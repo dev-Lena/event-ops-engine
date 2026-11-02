@@ -98,3 +98,25 @@ def test_past_full_session_gets_no_hold(engine: Engine) -> None:
     assert engine.rows("session_full", "s5c")  # capacity 1, one confirmed
     assert engine.rows("gap", "s5c", "gender", "male") == [("s5c", "gender", "male", 1)]
     assert session_promotion(engine, "s5c") == []
+
+
+def test_session_full_by_pending_payments_also_blocks_promotion(engine: Engine) -> None:
+    # single: capacity 12, 4 confirmed, 1 pending. Fill the rest with pending registrations.
+    from datetime import datetime, timezone
+
+    from event_ops_engine.facts import registration_facts
+    from event_ops_engine.model import Member, Registration, StatusEvent
+
+    data = loaded(engine, "single")
+    at = datetime(2026, 11, 5, tzinfo=timezone.utc)
+    for i in range(7):
+        extra = Registration(
+            id=f"p{i}",
+            session="s1",
+            members=(Member(gender="female", birth_year=1995),),
+            status_events=(StatusEvent(at=at, status="pending_payment"),),
+        )
+        engine.load(registration_facts(data, extra))
+    assert engine.rows("session_full", "s1")
+    decisions = by_value(session_promotion(engine, "s1"))
+    assert decisions and all(d.kind == "hold" for d in decisions.values())
