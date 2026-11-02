@@ -6,6 +6,7 @@ Registrations with unknown composition get attendees whose attributes are all "u
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
@@ -32,8 +33,17 @@ DIM_JOB_GROUP = "job_group"
 
 
 def confidence_pct(confidence: float) -> int:
-    """Rules compare integers: 0.0~1.0 becomes 0~100."""
-    return int(round(confidence * 100))
+    """Rules compare integers at 1% resolution: 0.0~1.0 becomes 0~100, rounded **down**.
+
+    Rounding down on both sides keeps `candidate >= threshold` true only when the real
+    values satisfy it (0.695 must not pass 0.7). The epsilon absorbs float error (0.29*100).
+    """
+    return int(math.floor(confidence * 100 + 1e-9))
+
+
+def squash(text: str) -> str:
+    """Collapse runs of whitespace so a quote is still 'verbatim' across line breaks."""
+    return " ".join(text.split())
 
 
 @dataclass

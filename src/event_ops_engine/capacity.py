@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 
 from .decision import Decision, DecisionKind
@@ -50,17 +51,23 @@ REVIEW_MESSAGES = {
 }
 
 
-def _review(engine: Engine, session_id: str, reg: str, reason: str) -> Decision:
+def rejected_candidates(engine: Engine) -> dict[str, list[str]]:
+    """Evidence ids of candidates the rules did not promote, per registration."""
+    promoted = {(str(row[0]), str(row[1])): str(row[2]) for row in engine.snapshot("attendee_attr")}
+    rejected: dict[str, list[str]] = defaultdict(list)
+    for attendee, dim, value, _confidence, evidence in engine.snapshot("candidate_attr"):
+        if promoted.get((str(attendee), str(dim))) != str(value):
+            rejected[str(attendee).split("#")[0]].append(str(evidence))
+    return rejected
+
+
+def _review(session_id: str, reg: str, reason: str, rejected: dict[str, list[str]]) -> Decision:
     """One `needs_review` row as a Decision; evidence names the facts the rule looked at."""
     evidence = [evidence_id("registration", reg)]
     if reason == "unknown_party":
         evidence.append(evidence_id("unknown_party", reg))
     else:
-        evidence.extend(
-            str(row[4])
-            for row in engine.snapshot("candidate_attr")
-            if str(row[0]).startswith(f"{reg}#")
-        )
+        evidence.extend(rejected.get(reg, []))
     return Decision(
         kind=DecisionKind.ASK,
         session=session_id,
@@ -107,8 +114,9 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
             )
         )
 
+    rejected = rejected_candidates(engine)
     reviews = tuple(
-        _review(engine, session_id, str(row[1]), str(row[2]))
+        _review(session_id, str(row[1]), str(row[2]), rejected)
         for row in engine.rows("needs_review", session_id)
     )
     return SessionStatus(

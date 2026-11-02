@@ -242,11 +242,11 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 |---|---|---|
 | 정책 | `dimensions.job_group: { values: [...], normalize: llm, min_confidence: 0.7 }` (기준값은 가정값) | `model.py` `JobGroupDimension` |
 | 정규화 | 신청자의 `job` 문구마다 정규화기가 `NormalizedValue(value, confidence, quote)`를 제안. `quote`가 문구에 없거나 답이 없으면 `unknown` · 확신도 0 | `normalizer.py` `normalize_members` (Claude Code CLI · 가짜) |
-| 사실 | 후보는 `candidate_attr(attendee, job_group, value, 확신도%, job/<attendee>)`, 문구가 없으면 `given_attr(…, job_group, unknown)` | `facts.py` |
+| 사실 | 후보는 `candidate_attr(attendee, job_group, value, 확신도%, job/<attendee>)`, 문구가 없으면 `given_attr(…, job_group, unknown)`. 확신도는 1% 해상도로 **내림**(0.695는 0.7 기준을 넘지 못한다) | `facts.py` |
 | 규칙 | 확신도 ≥ 기준이고 값이 허용 목록에 있으면 `attendee_attr`로 올린다. 기준 미만이면 `unknown` + `needs_review(…, "low_confidence")`, 목록 밖 값이면 `unknown` + `needs_review(…, "unknown_value")`. 네 규칙은 서로 배타적이라 참가자마다 값이 하나다(wirelog는 중복을 남기므로 `count`가 두 번 셀 수 있다) | `capacity.dl` |
 | 결과 | ② 현황이 `job_group` 목표를 보통 속성처럼 계산하고, 확인 요청에 근거 `job/<attendee>`가 붙는다 | `capacity.py` |
 
-`attendee_attr`는 이제 파생 관계다(wirelog는 한 관계에 입력과 규칙을 섞지 못한다, 9절). 입력은 `given_attr`로 들어온다. `event-ops report --normalizer claude`가 실제 CLI를 쓰고, 기본 `fake`는 시나리오의 `canned_job_groups`를 쓴다. `job` 문구는 합성이며 이름 · 연락처를 두지 않는다(8절).
+`attendee_attr`는 이제 파생 관계다(wirelog는 한 관계에 입력과 규칙을 섞지 못한다, 9절). 입력은 `given_attr`로 들어온다. `event-ops report --normalizer claude`(triage도 같은 옵션)가 실제 CLI를 쓰고, 기본 `fake`는 시나리오의 `canned_job_groups`를 쓴다. `job` 문구는 합성이며 이름 · 연락처를 두지 않는다(8절).
 
 ## 기록
 
