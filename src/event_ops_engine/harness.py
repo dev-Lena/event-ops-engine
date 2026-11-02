@@ -95,7 +95,7 @@ def decide(
     log_ids = {event.id for event in scenario.log}
     # A cause's evidence is a log event id, or the name of the rule-derived fact (an
     # invariant, a module ② relation) when no single log event explains the verdict.
-    logs = sorted(
+    derived = sorted(
         {
             evidence_id("log" if str(row[2]) in log_ids else "rule", str(row[2]))
             for row in cause_rows
@@ -122,8 +122,8 @@ def decide(
         trace.append(f"DECIDE: accept ({causes[0]})")
         kind, message, evidence = (
             VerdictKind.ACCEPT,
-            f"원인: {causes[0]}. 근거: " + ", ".join(logs),
-            base + tuple(logs),
+            f"원인: {causes[0]}. 근거: " + ", ".join(derived),
+            base + tuple(derived),
         )
     elif not causes:
         trace.append("DECIDE: ask (no cause derived)")
@@ -138,7 +138,7 @@ def decide(
         kind, message, evidence = (
             VerdictKind.ASK,
             "원인 후보가 여럿입니다. 사람이 가려야 합니다: " + ", ".join(causes),
-            base + tuple(logs),
+            base + tuple(derived),
         )
     trace.append("ACT: dry run, nothing executed")
     return Verdict(

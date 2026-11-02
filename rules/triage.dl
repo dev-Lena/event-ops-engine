@@ -126,3 +126,5 @@ cause(Q, "seat_full", "full") :- seat_question(Q, S, D, V), full(S, D, V), !over
 cause(Q, "over_capacity", "over_capacity") :- seat_question(Q, S, D, V), over_capacity(S, D, V, _).
 needs(Q, "session") :- asks_about(Q, "seat"), !about_session(Q, _).
 needs(Q, "attribute_value") :- asks_about(Q, "seat"), !about_value(Q, _, _).
+// A value without a target has no quota to be full: the policy must say first.
+needs(Q, "target") :- seat_question(Q, S, D, V), !target(S, D, V, _, _).

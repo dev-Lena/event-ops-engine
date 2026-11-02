@@ -397,6 +397,21 @@ def test_value_with_seats_left_derives_nothing() -> None:
     assert verdict_for(fewer) == (VerdictKind.ASK, None, ())
 
 
+def test_seat_question_about_a_value_without_target_asks_for_one() -> None:
+    scenario = load_triage_scenario(SEAT)
+    canned = scenario.question.canned
+    assert canned is not None
+    untargeted = canned.facts[2].model_copy(update={"args": ("age_band", "40s_plus")})
+    question = scenario.question.model_copy(
+        update={"canned": canned.model_copy(update={"facts": (*canned.facts[:2], untargeted)})}
+    )
+    assert verdict_for(scenario.model_copy(update={"question": question})) == (
+        VerdictKind.ASK,
+        None,
+        ("target",),
+    )
+
+
 def test_seat_question_without_session_or_value_names_them() -> None:
     scenario = load_triage_scenario(SEAT)
     only_topic = scenario.question.model_copy(
