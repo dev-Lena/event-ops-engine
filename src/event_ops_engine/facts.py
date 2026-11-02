@@ -28,6 +28,12 @@ Row = tuple[Any, ...]
 
 DIM_GENDER = "gender"
 DIM_AGE_BAND = "age_band"
+DIM_JOB_GROUP = "job_group"
+
+
+def confidence_pct(confidence: float) -> int:
+    """Rules compare integers: 0.0~1.0 becomes 0~100."""
+    return int(round(confidence * 100))
 
 
 @dataclass
@@ -71,17 +77,25 @@ def session_facts(scenario: Scenario, session: Session) -> Facts:
 
 
 def member_attributes(member: Member | None, scenario: Scenario, session: Session) -> list[Row]:
-    """(dim, value) pairs for one attendee; `member is None` means unknown composition."""
+    """`given_attr` (dim, value) pairs for one attendee; `member is None` means unknown composition.
+
+    A job_group comes from the normalizer as a `candidate_attr` instead (see
+    `registration_facts`); here it is only `unknown` when there is no candidate.
+    """
+    dimensions = scenario.policy.dimensions
     if member is None:
         pairs: list[Row] = [(DIM_GENDER, UNKNOWN)]
-        if scenario.policy.dimensions.age_band is not None:
+        if dimensions.age_band is not None:
             pairs.append((DIM_AGE_BAND, UNKNOWN))
+        if dimensions.job_group is not None:
+            pairs.append((DIM_JOB_GROUP, UNKNOWN))
         return pairs
     pairs = [(DIM_GENDER, member.gender.value)]
-    age_dimension = scenario.policy.dimensions.age_band
-    if age_dimension is not None:
-        band = bands.age_band(member.birth_year, session.date.year, age_dimension.bands)
+    if dimensions.age_band is not None:
+        band = bands.age_band(member.birth_year, session.date.year, dimensions.age_band.bands)
         pairs.append((DIM_AGE_BAND, band))
+    if dimensions.job_group is not None and member.job_group is None:
+        pairs.append((DIM_JOB_GROUP, UNKNOWN))
     return pairs
 
 
@@ -100,15 +114,38 @@ def registration_facts(scenario: Scenario, registration: Registration) -> Facts:
         attendee = attendee_id(registration.id, index)
         facts.add("attendee", registration.id, attendee)
         for dim, value in member_attributes(member, scenario, session):
-            facts.add("attendee_attr", attendee, dim, value)
+            facts.add("given_attr", attendee, dim, value)
+        if member is not None and member.job_group is not None:
+            candidate = member.job_group
+            facts.add(
+                "candidate_attr",
+                attendee,
+                DIM_JOB_GROUP,
+                candidate.value,
+                confidence_pct(candidate.confidence),
+                evidence_id("job", attendee),
+            )
     for event in registration.status_events:
         facts.add("status_event", registration.id, clock.to_epoch(event.at), event.status.value)
     return facts
 
 
+def normalization_facts(scenario: Scenario) -> Facts:
+    """Threshold and allowed values the rules use to promote `candidate_attr` rows."""
+    facts = Facts()
+    job_group = scenario.policy.dimensions.job_group
+    if job_group is not None:
+        facts.add("normalize_threshold", DIM_JOB_GROUP, confidence_pct(job_group.min_confidence))
+        for value in job_group.values:
+            facts.add("dimension_value", DIM_JOB_GROUP, value)
+    return facts
+
+
 def scenario_facts(scenario: Scenario) -> Facts:
+    """Facts for a scenario whose job texts are already normalized (`normalize_members`)."""
     facts = Facts()
     facts.add("now", clock.to_epoch(scenario.now))
+    facts.extend(normalization_facts(scenario))
     for session in scenario.sessions:
         facts.extend(session_facts(scenario, session))
     for registration in scenario.registrations:
@@ -132,10 +169,12 @@ CANDIDATE_RELATIONS: dict[str, tuple[str, ...]] = {
 
 
 def dimension_values(policy: EventPolicy) -> tuple[tuple[str, str], ...]:
-    """Every (dim, value) pair a question may point at: gender values and age band names."""
+    """Every (dim, value) pair a question may point at: gender, age bands, job groups."""
     pairs = [(DIM_GENDER, gender.value) for gender in policy.dimensions.gender.values]
     if policy.dimensions.age_band is not None:
         pairs += [(DIM_AGE_BAND, band.name) for band in policy.dimensions.age_band.bands]
+    if policy.dimensions.job_group is not None:
+        pairs += [(DIM_JOB_GROUP, value) for value in policy.dimensions.job_group.values]
     return tuple(pairs)
 
 
