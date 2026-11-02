@@ -61,7 +61,7 @@ event-ops triage data/synthetic/scenarios/triage/account-length.yaml
 ```
 [문의 q1] r1 신청자가 입금하려는데 계좌가 없다고 나온대요. 계좌 발급이 잘못됐나요?
   판정: 원인 확정 (accept) · 원인: user_input
-  설명: 원인: user_input. 근거 로그: log/e1, log/e2
+  설명: 원인: user_input. 근거: log/e1, log/e2
   근거: candidate/q1/about_registration/r1, candidate/q1/asks_about/payment, log/e1, log/e2
   기대 판정: accept · 일치
 ```
@@ -98,10 +98,10 @@ flowchart LR
 
 | 폴더 | 내용 |
 |---|---|
-| `rules/` | Datalog 규칙: `ontology.dl`(사실 스키마) · `capacity.dl`(②) · `promotion.dl`(③) · `triage.dl`(① 계약 + 유형 1~4 규칙) |
+| `rules/` | Datalog 규칙: `ontology.dl`(사실 스키마) · `capacity.dl`(②) · `promotion.dl`(③) · `triage.dl`(① 계약 + 유형 1~6 규칙) |
 | `src/event_ops_engine/` | lib(`model` `bands` `clock` `facts` `policy` `loader` `decision`) · services(`engine` `interpreter`) · features(`capacity` `promotion` `harness` `cli`) |
 | `policy/events/` | 모임 정책 YAML (합성 예시, 기준값은 가정값) |
-| `data/synthetic/scenarios/` | 합성 시나리오: 현황 · 홍보 5개, 문의(`triage/`) 6개 |
+| `data/synthetic/scenarios/` | 합성 시나리오: 현황 · 홍보 5개, 문의(`triage/`) 8개 |
 | `tests/` | pytest. 계산 로직은 같은 PR에 테스트를 올립니다. README 출력 예시도 테스트합니다 |
 | `scripts/` | 엔진 빌드 · wirelog 문법 검증 |
 | `docs/` | 설계 · 용어 · 결정 기록 · 공용 기준 사본 |

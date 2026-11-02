@@ -15,7 +15,10 @@ from tests.conftest import SCENARIOS
 
 TRIAGE = SCENARIOS / "triage" / "delivery-timeout.yaml"
 
-ONE_CAUSE = (
+GENERIC = "generic"
+GENERIC_RULES = 'supported_topic("generic").\n'
+"""A supported topic with no type rule, so tests can add their own cause rules."""
+ONE_CAUSE = GENERIC_RULES + (
     'cause(Q, "test_cause", E) :- '
     'about_registration(Q, R), log_event(E, R, "provider_receipt", _).\n'
 )
@@ -23,8 +26,9 @@ TWO_CAUSES = ONE_CAUSE + (
     'cause(Q, "other_cause", E) :- '
     'about_registration(Q, R), log_event(E, R, "message_sent", _).\n'
 )
-NEEDS = 'needs(Q, "provider_receipt") :- asks_about(Q, "seat"), !cause(Q, _, _).\n'
-GENERIC = "seat"  # supported topic with no type rule yet: tests add their own cause rules
+NEEDS = GENERIC_RULES + (
+    'needs(Q, "provider_receipt") :- asks_about(Q, "generic"), !cause(Q, _, _).\n'
+)
 
 
 def scenario_with(facts: list[dict[str, object]], text: str | None = None) -> TriageScenario:
@@ -108,6 +112,8 @@ def test_example_scenario_loads_with_log_and_canned_answer() -> None:
         (fact("about_registration", "r9"), "unknown registration id"),
         (fact("about_event", "e9"), "unknown log id"),
         (fact("about_session", "s1", quote="없는 문장"), "quote not found"),
+        ({**fact("about_value", "x"), "args": ["gender", "other"]}, "unknown attribute value"),
+        ({**fact("about_value", "x"), "args": ["female"]}, "expected 2 argument(s)"),
     ],
 )
 def test_invented_facts_are_rejected(bad: dict[str, object], problem: str) -> None:
@@ -201,7 +207,7 @@ def test_quote_matches_across_whitespace_differences() -> None:
 
 
 def test_about_event_and_about_session_reach_the_rules() -> None:
-    rules = (
+    rules = GENERIC_RULES + (
         'cause(Q, "by_event", E) :- about_event(Q, E), log_event(E, _, "provider_receipt", _).\n'
         'cause(Q, "by_session", "e1") :- about_session(Q, S), registration(_, S).\n'
     )

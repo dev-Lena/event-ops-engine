@@ -158,6 +158,7 @@ data/synthetic/scenarios/   single.yaml pair-mixed.yaml group.yaml ratio.yaml bo
                             triage/  account-length.yaml account-missing-entry.yaml
                                      delivery-timeout.yaml delivery-no-receipt.yaml
                                      duplicate-reregistration.yaml deadline-expired.yaml
+                                     bug-confirmed-without-payment.yaml seat-full.yaml
 tests/            test_<module>.py (lib · 규칙 · CLI · 해석기 · 문의 판정) test_readme.py (README 출력 예시 대조)
 scripts/          build-wirelog.sh  verify_wirelog.py
 docs/             design.md glossary.md decisions/ standards/
@@ -189,8 +190,8 @@ docs/             design.md glossary.md decisions/ standards/
 | ACT | 결과 · 근거 · 단계별 trace 출력. 실행 없음(dry-run, 사람 확인) | `harness.py` · CLI |
 
 **후보 사실** (`CandidateFact`): `relation`, `args`, `provenance(source, quote)`, `confidence`(0~1).
-- `relation`은 후보 관계 네 개 중 하나만: `asks_about(q, topic)` · `about_registration(q, reg)` · `about_session(q, session)` · `about_event(q, log_id)`. 그 밖의 관계는 LLM이 **새 사실을 만든 것**이므로 `reject`.
-- `provenance.quote`는 질문 원문의 일부여야 한다. `args`가 가리키는 신청 · 회차 · 로그 id가 입력에 없으면 `reject` ("로그에 없는 사실").
+- `relation`은 후보 관계 다섯 개 중 하나만: `asks_about(q, topic)` · `about_registration(q, reg)` · `about_session(q, session)` · `about_event(q, log_id)` · `about_value(q, dim, value)`. 그 밖의 관계는 LLM이 **새 사실을 만든 것**이므로 `reject`.
+- `provenance.quote`는 질문 원문의 일부여야 한다. `args`가 가리키는 신청 · 회차 · 로그 id · 속성 값(정책의 `dim=value`)이 입력에 없으면 `reject` ("로그에 없는 사실").
 - 해석기는 사실을 **제안**만 한다. 원인 판정은 규칙만 한다.
 
 **이벤트 로그** (`LogEvent`): `id`, `at`, `kind`, `registration`(선택), `attrs{key: value}`. 종류(`kind`)와 속성은 유형 규칙과 함께 정한다 (#15~#21). 합성 로그만 둔다.
@@ -211,7 +212,7 @@ cause(Q, C, E)   -- 유형 규칙이 파생. C는 원인 이름, E는 근거 로
 needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필요한 사실
 ```
 
-지원 주제(`supported_topic`)는 `payment` · `delivery` · `duplicate` · `deadline` · `seat` 다섯 개이고, 유형 규칙이 붙을 때마다 실제로 판정되는 주제가 늘어난다. 모든 `Verdict`에는 근거 id가 1개 이상 붙는다 (후보 사실 id `candidate/<q>/<relation>/<args>`, 로그 id `log/<id>`).
+지원 주제(`supported_topic`)는 `payment` · `delivery` · `duplicate` · `deadline` · `seat` 다섯 개이고, 유형 규칙이 붙을 때마다 실제로 판정되는 주제가 늘어난다. 모든 `Verdict`에는 근거 id가 1개 이상 붙는다 (후보 사실 id `candidate/<q>/<relation>/<args>`, 로그 id `log/<id>`, 로그 하나로 설명되지 않는 원인은 규칙이 파생한 사실 이름 `rule/<name>`).
 
 **질문 대상** (`subject(q, reg)`): 질문이 신청을 직접 가리키거나(`about_registration`) 그 신청의 로그 이벤트를 가리키면(`about_event`) 유형 규칙은 같은 신청을 본다.
 
@@ -223,8 +224,10 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2 외부 요인 (#16) | `delivery` | `message_sent{result: timeout}` · 그 뒤의 `provider_receipt{result: delivered}` (둘 사이에 재발송이 없을 때, `resent_between`) | `external_delay` | 발송 · 수신증 id | timeout 뒤 수신증이 없으면 `provider_receipt` |
 | 3 정책상 정상 (#18) | `duplicate` | `registration_submitted{participant}` (질문 대상과 같은 회차의 다른 신청) | 같은 회차에 같은 참가자 키가 둘이면 `policy_normal` | 두 제출 이벤트 id | 질문 대상에 제출 기록이 없으면 `registration_submitted` |
 | 4 기한 만료 (#19) | `deadline` | `payment_due`(가장 최근) · `payment_attempt{result: rejected}` | 거절된 시도 시각 > 기한 + `grace_minutes`이면 `expired` (은행이 받아 준 시도는 제외) | 기한 · 시도 id | 둘 중 없는 것 |
+| 5 버그 의심 (#20) | 주제 무관 (`in_scope`이면) | 불변식 세 개: 확정인데 `payment_received` 없음 · `payment_received`가 최신 기한 + `grace_minutes` 뒤 · 확정 참가자의 속성 값이 ② `over_capacity` | `suspected_bug` | `rule/<불변식 이름>` | — (사람이 본다) |
+| 6 자리 문의 (#21) | `seat` | 후보 사실 `about_session` · `about_value` + ② `full` · `over_capacity` | 마감이면 `seat_full`, 초과면 `over_capacity` (하나만) | `rule/full` · `rule/over_capacity` + 후보 사실 id | 회차 · 속성 값이 없으면 `session` · `attribute_value` |
 
-`triage_policy(key, n)`은 유형 규칙의 정책값(`policy/events/*.yaml`의 `triage:`, 가정값). 지금은 `grace_minutes` 하나다. 참가자 키(`participant`)는 합성 식별자이며 실명 · 연락처를 두지 않는다. 원인이 하나라도 파생되면 `needs`는 비운다 (다른 이벤트의 '아직 없는 사실'이 확정된 원인에 끌려 나오지 않게). 자릿수가 같거나 수신증이 `failed`이면 원인도 `needs`도 없어 `ask`가 된다. 그 경우는 아직 유형이 없다는 뜻이고, #18~#21에서 유형이 늘면 거기서 판정된다. 시나리오 파일은 `expected`(기대 판정 · 원인 · needs)를 적고, `event-ops triage`는 실제 판정과 비교해 다르면 종료 코드 1을 낸다. `cause` · `needs`를 비우면(null) 비교하지 않고, `needs: []`는 '더 필요한 사실 없음'을 단언한다.
+`triage_policy(key, n)`은 유형 규칙의 정책값(`policy/events/*.yaml`의 `triage:`, 가정값). 지금은 `grace_minutes` 하나다. 참가자 키(`participant`)는 합성 식별자이며 실명 · 연락처를 두지 않는다. 유형 5 때문에 문의 시나리오의 확정 신청에는 `payment_received` 로그가 있어야 한다(없으면 그 신청에 대한 모든 문의가 `suspected_bug`). 같은 질문에 유형 5와 다른 유형이 함께 걸리면 원인이 둘이라 `ask`가 되고, 이것은 의도한 동작이다. 원인이 하나라도 파생되면 `needs`는 비운다 (다른 이벤트의 '아직 없는 사실'이 확정된 원인에 끌려 나오지 않게). 자릿수가 같거나 수신증이 `failed`이면 원인도 `needs`도 없어 `ask`가 된다. 그 경우는 아직 유형이 없다는 뜻이고, #18~#21에서 유형이 늘면 거기서 판정된다. 시나리오 파일은 `expected`(기대 판정 · 원인 · needs)를 적고, `event-ops triage`는 실제 판정과 비교해 다르면 종료 코드 1을 낸다. `cause` · `needs`를 비우면(null) 비교하지 않고, `needs: []`는 '더 필요한 사실 없음'을 단언한다.
 
 **해석기**: 기본은 Claude Code CLI(`claude -p`, 구독 안 · 추가 비용 0), 테스트는 가짜 해석기(시나리오 파일의 `canned` 응답). API는 쓰지 않는다. LLM 출력은 JSON이며 `Interpretation` 모델 검증을 통과해야 한다.
 
@@ -239,3 +242,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-10-31 | 13절 유형 1 · 2 규칙, 질문 대상, 기대 판정 (#15 · #16 · #17) |
 | 2026-11-02 | 1절 · 10절을 ① 구현 이후 상태로 갱신 (#26) |
 | 2026-11-02 | 13절 유형 3 · 4 규칙, `triage_policy` (#18 · #19) |
+| 2026-11-02 | 13절 유형 5 · 6 규칙, 후보 관계 `about_value`, 근거 `rule/<name>` (#20 · #21) |
