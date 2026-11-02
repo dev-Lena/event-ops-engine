@@ -94,12 +94,13 @@ seat(S, A)                  :- registration(R, S), attendee(R, A), confirmed(R).
 filled_raw(S, D, V, count(A)) :- seat(S, A), attendee_attr(A, D, V).
 filled(S, D, V, F)          :- tracked(S, D, V), filled_raw(S, D, V, F).
 filled(S, D, V, 0)          :- tracked(S, D, V), !filled_raw(S, D, V, _).
-remaining(S, D, V, Hi - F)  :- target(S, D, V, _, Hi), filled(S, D, V, F).
-gap(S, D, V, Lo - F)        :- target(S, D, V, Lo, _), filled(S, D, V, F), Lo - F > 0.
+remaining(S, D, V, Hi - F - P) :- target(S, D, V, _, Hi), filled(S, D, V, F), pending(S, D, V, P).
+gap(S, D, V, Lo - F - P)    :- target(S, D, V, Lo, _), filled(S, D, V, F), pending(S, D, V, P), Lo - F - P > 0.
 full(S, D, V)               :- remaining(S, D, V, R), R <= 0.
 imbalance(S, D, B, Fa - Fb) :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb), Fa - Fb > Max.
 ```
 
+- **입금 대기도 자리를 차지한다.** 남은 자리 · 남은 목표 자리 · 부족분은 확정과 입금 대기를 모두 뺀 값이다 (운영사 규칙: 남은 자리 = 정원 − 확정 − 입금 대기, 운영 자료 T0455 · T0558). `filled`(확정)과 `pending`은 따로 보여 준다. 비율 불균형(`imbalance`) · 최근 추세 · 정원 초과(`over_capacity`)는 확정만 센다: 입금 대기로 `full`이 될 수는 있어도 `over_capacity`는 확정이 상한을 넘을 때만이다.
 - **취소 = 자리 반환.** 두 가지 표현을 모두 지원한다: (a) `status_event`에 `cancelled`가 가장 최근으로 들어오면 `confirmed(R)`이 사라진다. (b) 신청 사실을 `remove`하면(철회) 같은 결과가 증분으로 나온다. 테스트는 둘 다 확인한다.
 - `pending_payment`는 `filled`에 넣지 않고 `pending(S, D, V, N)`으로 따로 낸다.
 - `unknown` 값은 `tracked`가 아니므로 목표 집계에서 빠지고, `needs_review(S, R, reason)`로 운영자에게 올라간다. 단, 사람 수이므로 `session_filled`에는 들어간다.
@@ -226,11 +227,11 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 1 사용자 입력 실수 (#15) | `payment` | `account_issued{digits}` · `account_entered{digits}` | **가장 최근** 발급과 **가장 최근** 입력의 자릿수가 다르면 `user_input` (`superseded`로 이전 이벤트 제외) | 두 이벤트 id | `account_issued`가 없으면 그것, 있는데 `account_entered`가 없으면 그것 |
 | 2 외부 요인 (#16) | `delivery` | `message_sent{result: timeout}` · 그 뒤의 `provider_receipt{result: delivered}` (둘 사이에 재발송이 없을 때, `resent_between`) | `external_delay` | 발송 · 수신증 id | timeout 뒤 수신증이 없으면 `provider_receipt` |
 | 3 정책상 정상 (#18) | `duplicate` | `registration_submitted{participant}` (질문 대상과 같은 회차의 다른 신청) | 같은 회차에 같은 참가자 키가 둘이면 `policy_normal` | 두 제출 이벤트 id | 질문 대상에 제출 기록이 없으면 `registration_submitted` |
-| 4 기한 만료 (#19) | `deadline` | `payment_due`(가장 최근) · `payment_attempt{result: rejected}` | 거절된 시도 시각 > 기한 + `grace_minutes`이면 `expired` (은행이 받아 준 시도는 제외) | 기한 · 시도 id | 둘 중 없는 것 |
+| 4 기한 만료 (#19) | `deadline` | `payment_attempt{result: rejected}` · 기한은 `due_time`: 최신 `payment_due` 로그, 없으면 입금 대기 시작 + `payment_deadline_hours`(회차 override 가능) | 거절된 시도 시각 > 기한 + `grace_minutes`이면 `expired` (은행이 받아 준 시도는 제외) | 시도 id + 기한 로그 id 또는 `rule/due_time` | 기한을 알 수 없으면 `payment_due`, 시도가 없으면 `payment_attempt` |
 | 5 버그 의심 (#20) | 주제 무관 (`in_scope`이면) | 불변식 세 개: 확정인데 `payment_received` 없음 · `payment_received`가 최신 기한 + `grace_minutes` 뒤 · 확정 참가자의 속성 값이 ② `over_capacity` | `suspected_bug` | `rule/<불변식 이름>` | — (사람이 본다) |
-| 6 자리 문의 (#21) | `seat` | 후보 사실 `about_session` · `about_value` + ② `full` · `over_capacity` | 마감이면 `seat_full`, 초과면 `over_capacity` (하나만) | `rule/full` · `rule/over_capacity` + 후보 사실 id | 회차 · 속성 값이 없으면 `session` · `attribute_value`, 그 값에 목표가 없으면 `target` |
+| 6 자리 문의 (#21) | `seat` | 후보 사실 `about_session` · `about_value` + ② `full` · `over_capacity` | 마감(확정 + 입금 대기가 상한에 닿음)이면 `seat_full`, 확정이 상한을 넘으면 `over_capacity` (하나만) | `rule/full` · `rule/over_capacity` + 후보 사실 id | 회차 · 속성 값이 없으면 `session` · `attribute_value`, 그 값에 목표가 없으면 `target` |
 
-`triage_policy(key, n)`은 유형 규칙의 정책값(`policy/events/*.yaml`의 `triage:`, 가정값). 지금은 `grace_minutes` 하나다. 참가자 키(`participant`)는 합성 식별자이며 실명 · 연락처를 두지 않는다. 유형 5의 `over_capacity` 근거는 불변식 이름뿐이라 어느 속성 값이 초과인지는 `event-ops report`로 본다(규칙 안에서 문자열을 만들 수 없어서, 9절). 유형 5 때문에 문의 시나리오의 확정 신청에는 `payment_received` 로그가 있어야 한다(없으면 그 신청에 대한 모든 문의가 `suspected_bug`). 같은 질문에 유형 5와 다른 유형이 함께 걸리면 원인이 둘이라 `ask`가 되고, 이것은 의도한 동작이다. 원인이 하나라도 파생되면 `needs`는 비운다 (다른 이벤트의 '아직 없는 사실'이 확정된 원인에 끌려 나오지 않게). 자릿수가 같거나 수신증이 `failed`이면 원인도 `needs`도 없어 `ask`가 된다. 그 경우는 아직 유형이 없다는 뜻이고, #18~#21에서 유형이 늘면 거기서 판정된다. 시나리오 파일은 `expected`(기대 판정 · 원인 · needs)를 적고, `event-ops triage`는 실제 판정과 비교해 다르면 종료 코드 1을 낸다. `cause` · `needs`를 비우면(null) 비교하지 않고, `needs: []`는 '더 필요한 사실 없음'을 단언한다.
+`triage_policy(key, n)`은 유형 규칙의 정책값(`policy/events/*.yaml`의 `triage:`): `grace_minutes`(기본 0, 은행이 기한 시각에 바로 막는다는 운영 자료 T0549에 따름)와 `payment_deadline_hours`(기본 24, 선별 뒤 N시간, 회차별 `payment_deadline_hours`로 덮어씀, 운영 자료 T0577 · 회차 설정 32개). 이 둘은 가정값이 아니라 **자료로 확인한 값**이다. 참가자 키(`participant`)는 합성 식별자이며 실명 · 연락처를 두지 않는다. 유형 5의 `over_capacity` 근거는 불변식 이름뿐이라 어느 속성 값이 초과인지는 `event-ops report`로 본다(규칙 안에서 문자열을 만들 수 없어서, 9절). 유형 5 때문에 문의 시나리오의 확정 신청에는 `payment_received` 로그가 있어야 한다(없으면 그 신청에 대한 모든 문의가 `suspected_bug`). 같은 질문에 유형 5와 다른 유형이 함께 걸리면 원인이 둘이라 `ask`가 되고, 이것은 의도한 동작이다. 원인이 하나라도 파생되면 `needs`는 비운다 (다른 이벤트의 '아직 없는 사실'이 확정된 원인에 끌려 나오지 않게). 자릿수가 같거나 수신증이 `failed`이면 원인도 `needs`도 없어 `ask`가 된다. 그 경우는 아직 유형이 없다는 뜻이고, #18~#21에서 유형이 늘면 거기서 판정된다. 시나리오 파일은 `expected`(기대 판정 · 원인 · needs)를 적고, `event-ops triage`는 실제 판정과 비교해 다르면 종료 코드 1을 낸다. `cause` · `needs`를 비우면(null) 비교하지 않고, `needs: []`는 '더 필요한 사실 없음'을 단언한다.
 
 **해석기**: 기본은 Claude Code CLI(`claude -p`, 구독 안 · 추가 비용 0), 테스트는 가짜 해석기(시나리오 파일의 `canned` 응답). API는 쓰지 않는다. LLM 출력은 JSON이며 `Interpretation` 모델 검증을 통과해야 한다.
 
@@ -261,3 +262,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-02 | 13절 유형 3 · 4 규칙, `triage_policy` (#18 · #19) |
 | 2026-11-02 | 13절 유형 5 · 6 규칙, 후보 관계 `about_value`, 근거 `rule/<name>` (#20 · #21) |
 | 2026-11-02 | 14절 속성 정규화(`job_group`), 5절 `given_attr` · `candidate_attr`, `attendee_attr` 파생으로 (#22~#25) |
+| 2026-11-02 | 운영 자료 반영: 입금 대기를 자리로 셈(6절), 기한 = 선별 후 N시간 · 유예 0 (13절 유형 4) (#45 · #46) |

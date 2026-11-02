@@ -29,4 +29,5 @@ promotion:
   trend_min_per_week: 3   # 가정값: 최근 1주 확정이 3명 미만이면 추세 느림
 
 triage:
-  grace_minutes: 10       # 가정값: 입금 기한 뒤 10분까지는 기한 안으로 본다 (유형 4)
+  grace_minutes: 0            # 은행이 기한 시각에 바로 막는다 (운영 자료 확인, 유형 4)
+  payment_deadline_hours: 24  # 선별(입금 대기) 뒤 24시간. 회차마다 바꿀 수 있다 (운영 자료 확인)

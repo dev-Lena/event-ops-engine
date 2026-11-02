@@ -25,3 +25,4 @@
 .decl target(session: symbol, dim: symbol, value: symbol, lo: int64, hi: int64)
 .decl ratio_target(session: symbol, dim: symbol, value_a: symbol, value_b: symbol, max_diff: int64)
 .decl policy(session: symbol, key: symbol, n: int64)
+.decl deadline_hours(session: symbol, hours: int64)
