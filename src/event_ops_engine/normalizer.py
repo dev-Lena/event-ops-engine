@@ -14,7 +14,7 @@ from typing import Protocol, TypeVar
 
 from pydantic import ValidationError
 
-from .facts import DIM_JOB_GROUP
+from .facts import DIM_JOB_GROUP, squash
 from .interpreter import InterpretationError, Runner, json_object, run_subprocess
 from .model import UNKNOWN, Member, NormalizedValue, Registration, Scenario
 
@@ -99,17 +99,13 @@ NORMALIZERS: dict[str, NormalizerFactory] = {
 }
 
 
-def _squash(text: str) -> str:
-    return " ".join(text.split())
-
-
 def normalize_member(member: Member, normalizer: Normalizer, context: NormalizeContext) -> Member:
     """The member with `job_group` filled. A failed or unquotable answer becomes unknown/0."""
     if member.job is None or member.job_group is not None:
         return member
     try:
         answer = normalizer.normalize(member.job, context)
-        if _squash(answer.quote) not in _squash(member.job):
+        if squash(answer.quote) not in squash(member.job):
             raise NormalizationError("quote not found in the job text")
     except NormalizationError:
         answer = NormalizedValue(value=UNKNOWN, confidence=0.0, quote=member.job)

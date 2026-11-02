@@ -10,14 +10,17 @@ from __future__ import annotations
 
 from .decision import Verdict, VerdictKind
 from .engine import Engine
-from .facts import CANDIDATE_RELATIONS, TOPICS, Facts, candidate_id, evidence_id, triage_facts
+from .facts import (
+    CANDIDATE_RELATIONS,
+    TOPICS,
+    Facts,
+    candidate_id,
+    evidence_id,
+    squash,
+    triage_facts,
+)
 from .interpreter import InterpretationError, InterpretContext, Interpreter
 from .model import CandidateFact, ExpectedVerdict, Interpretation, TriageScenario
-
-
-def _squash(text: str) -> str:
-    """Collapse runs of whitespace so a quote is still 'verbatim' across line breaks."""
-    return " ".join(text.split())
 
 
 def validate(
@@ -32,7 +35,7 @@ def validate(
         "session": set(context.sessions),
         "log": set(context.log_ids),
     }
-    question = _squash(scenario.question.text)
+    question = squash(scenario.question.text)
     problems: list[str] = []
     for fact in interpretation.facts:
         kinds = CANDIDATE_RELATIONS.get(fact.relation)
@@ -46,7 +49,7 @@ def validate(
             continue
         if fact.provenance.source != "question":
             problems.append(f"{fact.relation}: provenance source must be the question")
-        if _squash(fact.provenance.quote) not in question:
+        if squash(fact.provenance.quote) not in question:
             problems.append(f"{fact.relation}: quote not found in the question")
         if kinds == ("dim", "value"):
             if (fact.args[0], fact.args[1]) not in context.values:

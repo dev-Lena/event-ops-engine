@@ -90,3 +90,29 @@ def test_dimension_values_include_job_groups() -> None:
 
     assert ("job_group", "design") in dimension_values(normalized().policy)
     assert JobGroupDimension(values=("x",)).normalize == "llm"
+
+
+def test_threshold_boundary_is_at_one_percent_resolution_rounded_down() -> None:
+    from event_ops_engine.facts import confidence_pct
+
+    assert confidence_pct(0.7) == 70 and confidence_pct(0.695) == 69
+    assert confidence_pct(0.29) == 29 and confidence_pct(1.0) == 100
+
+
+def test_two_member_registration_reviews_once_and_cites_only_rejected_candidates() -> None:
+    from event_ops_engine.model import Member, NormalizedValue
+
+    scenario = load_scenario(SCENARIOS / "job-group.yaml")
+    r3 = next(r for r in scenario.registrations if r.id == "r3")
+    assert r3.members is not None
+    pair = r3.model_copy(
+        update={"members": (r3.members[0], Member(job="백엔드 3년차")), "party_size": 2}
+    )
+    scenario = scenario.model_copy(
+        update={"registrations": tuple(pair if r.id == "r3" else r for r in scenario.registrations)}
+    )
+    (status,) = capacity_status(normalize_members(scenario, FakeNormalizer.from_scenario(scenario)))
+    reviews = [d for d in status.needs_review if d.evidence[0] == "registration/r3"]
+    assert len(reviews) == 1 and reviews[0].reasons == ("low_confidence",)
+    assert reviews[0].evidence == ("registration/r3", "job/r3#1")  # r3#2 passed
+    assert isinstance(NormalizedValue, type)
