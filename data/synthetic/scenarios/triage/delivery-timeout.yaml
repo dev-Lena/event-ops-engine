@@ -1,5 +1,5 @@
-# ① 문의 판정 시나리오 형식. 질문 · 로그 · id는 모두 합성이다.
-# 유형 규칙(#16 외부 요인)이 붙기 전까지는 원인이 파생되지 않아 `ask`가 나온다.
+# ① 유형 2 외부 요인 (발송 업체 지연, #16). 질문 · 로그 · id는 모두 합성이다.
+# 발송이 timeout으로 끝났지만 업체 수신증이 delivered로 도착했다 → 정상, 재발송 불필요.
 policy: ../../../../policy/events/synthetic-example.yaml
 now: 2026-11-07T10:00:00+09:00
 sessions:
@@ -21,3 +21,4 @@ question:
           provenance: { source: question, quote: "문자를 못 받았다는데" }, confidence: 0.9 }
       - { relation: about_registration, args: [r1],
           provenance: { source: question, quote: "r1 신청자" }, confidence: 0.95 }
+expected: { kind: accept, cause: external_delay, needs: [] }

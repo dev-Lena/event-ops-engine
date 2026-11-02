@@ -12,6 +12,8 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .decision import VerdictKind
+
 UNKNOWN = "unknown"
 """Reserved attribute value: the attribute is not known (glossary '미상')."""
 
@@ -246,11 +248,23 @@ class Question(StrictModel):
     canned: Interpretation | None = None
 
 
+class ExpectedVerdict(StrictModel):
+    """What the scenario author expects. `event-ops triage` reports any difference.
+
+    `cause` and `needs` left as None are not compared; `needs: []` means "nothing missing".
+    """
+
+    kind: VerdictKind
+    cause: str | None = None
+    needs: tuple[str, ...] | None = None
+
+
 class TriageScenario(Scenario):
-    """A capacity scenario plus an event log and one question."""
+    """A capacity scenario plus an event log, one question and the expected verdict."""
 
     log: tuple[LogEvent, ...] = ()
     question: Question
+    expected: ExpectedVerdict | None = None
 
     @model_validator(mode="after")
     def _log_consistent(self) -> Self:
