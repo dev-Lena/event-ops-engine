@@ -1,15 +1,18 @@
-"""Type rules: 1 user input (account length, #15) and 2 external delay (#16), end to end."""
+"""Type rules end to end: 1 user input (#15), 2 external delay (#16), 3 duplicate (#18),
+4 expired deadline (#19)."""
 
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from event_ops_engine.cli import VERDICT_LABELS
 from event_ops_engine.decision import VerdictKind
 from event_ops_engine.harness import differences, run_triage
 from event_ops_engine.interpreter import FakeInterpreter
 from event_ops_engine.loader import load_triage_scenario
-from event_ops_engine.model import LogEvent, TriageScenario
+from event_ops_engine.model import EventPolicy, LogEvent, TriagePolicy, TriageScenario
 from tests.conftest import SCENARIOS
 
 TRIAGE = SCENARIOS / "triage"
@@ -156,6 +159,120 @@ def test_accept_never_carries_needs_from_another_event() -> None:
 
 def test_every_verdict_kind_has_a_label() -> None:
     assert set(VERDICT_LABELS) == set(VerdictKind)
+
+
+# --- type 3 ---------------------------------------------------------------------------
+
+DUPLICATE = TRIAGE / "duplicate-reregistration.yaml"
+
+
+def test_duplicate_in_the_same_session_is_policy_normal_with_both_submissions() -> None:
+    verdict = run_triage(load_triage_scenario(DUPLICATE), FakeInterpreter())
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "policy_normal")
+    assert {"log/e1", "log/e2"} <= set(verdict.evidence)
+
+
+def test_same_participant_in_another_session_is_not_a_duplicate() -> None:
+    scenario = load_triage_scenario(DUPLICATE)
+    other_session = scenario.sessions[0].model_copy(update={"id": "s2"})
+    moved = scenario.registrations[0].model_copy(update={"session": "s2"})
+    scenario = scenario.model_copy(
+        update={
+            "sessions": (*scenario.sessions, other_session),
+            "registrations": (moved, scenario.registrations[1]),
+        }
+    )
+    assert verdict_for(scenario) == (VerdictKind.ASK, None, ())
+
+
+def test_different_participant_keys_derive_nothing() -> None:
+    scenario = load_triage_scenario(DUPLICATE)
+    first, second = scenario.log
+    other = first.model_copy(update={"attrs": {"participant": "p2"}})
+    assert verdict_for(scenario.model_copy(update={"log": (other, second)})) == (
+        VerdictKind.ASK,
+        None,
+        (),
+    )
+
+
+def test_missing_submission_event_asks_for_it() -> None:
+    scenario = load_triage_scenario(DUPLICATE)
+    scenario = scenario.model_copy(update={"log": (scenario.log[0],)})  # r2 has none
+    assert verdict_for(scenario) == (VerdictKind.ASK, None, ("registration_submitted",))
+
+
+# --- type 4 ---------------------------------------------------------------------------
+
+DEADLINE = TRIAGE / "deadline-expired.yaml"
+
+
+def attempt_at(scenario: TriageScenario, offset_seconds: int) -> TriageScenario:
+    due, attempt = scenario.log
+    moved = attempt.model_copy(update={"at": due.at + timedelta(seconds=offset_seconds)})
+    return scenario.model_copy(update={"log": (due, moved)})
+
+
+@pytest.mark.parametrize(
+    "offset_seconds, expected",
+    [(0, VerdictKind.ASK), (600, VerdictKind.ASK), (601, VerdictKind.ACCEPT)],
+    ids=["at_due", "grace_end", "past_grace"],
+)
+def test_grace_boundary(offset_seconds: int, expected: VerdictKind) -> None:
+    scenario = attempt_at(load_triage_scenario(DEADLINE), offset_seconds)
+    kind, cause, _ = verdict_for(scenario)
+    assert kind == expected and cause == ("expired" if expected == VerdictKind.ACCEPT else None)
+
+
+def test_grace_comes_from_the_policy() -> None:
+    scenario = attempt_at(load_triage_scenario(DEADLINE), 1)
+    strict = scenario.policy.model_copy(update={"triage": TriagePolicy(grace_minutes=0)})
+    assert verdict_for(scenario.model_copy(update={"policy": strict}))[1] == "expired"
+
+
+def test_accepted_late_payment_is_not_expired() -> None:
+    scenario = attempt_at(load_triage_scenario(DEADLINE), 3600)
+    due, attempt = scenario.log
+    accepted = attempt.model_copy(update={"attrs": {"result": "ok"}})
+    assert verdict_for(scenario.model_copy(update={"log": (due, accepted)})) == (
+        VerdictKind.ASK,
+        None,
+        (),
+    )
+
+
+def test_extended_deadline_supersedes_the_old_one() -> None:
+    scenario = load_triage_scenario(DEADLINE)
+    due, attempt = scenario.log
+    extended = due.model_copy(update={"id": "e3", "at": attempt.at + timedelta(hours=1)})
+    assert verdict_for(scenario.model_copy(update={"log": (due, extended, attempt)})) == (
+        VerdictKind.ASK,
+        None,
+        (),
+    )
+
+
+@pytest.mark.parametrize(
+    "keep, needed",
+    [(1, "payment_due"), (0, "payment_attempt")],
+    ids=["no_due", "no_attempt"],
+)
+def test_missing_deadline_events_are_named(keep: int, needed: str) -> None:
+    scenario = load_triage_scenario(DEADLINE)
+    scenario = scenario.model_copy(update={"log": (scenario.log[keep],)})
+    assert verdict_for(scenario) == (VerdictKind.ASK, None, (needed,))
+
+
+def test_triage_policy_defaults_and_rejects_negative_grace() -> None:
+    policy = load_triage_scenario(DEADLINE).policy
+    assert (
+        EventPolicy.model_validate(
+            {**policy.model_dump(by_alias=True), "triage": {}}
+        ).triage.grace_minutes
+        == TriagePolicy().grace_minutes
+    )
+    with pytest.raises(ValidationError):
+        TriagePolicy(grace_minutes=-1)
 
 
 # --- expected verdict --------------------------------------------------------------------

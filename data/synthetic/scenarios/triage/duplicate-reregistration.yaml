@@ -1,0 +1,26 @@
+# ① 유형 3 정책상 정상 (중복 재신청, #18). 질문 · 로그 · id · 참가자 키는 모두 합성이다.
+# 같은 회차에 같은 참가자 키(p1)로 신청이 둘 → 정책상 허용, 중복 표시만 한다.
+policy: ../../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-21 }
+registrations:
+  - { id: r1, session: s1, members: [{ gender: female, birth_year: 1995 }],
+      status_events: [{ at: 2026-11-01T10:00:00+09:00, status: cancelled }] }
+  - { id: r2, session: s1, members: [{ gender: female, birth_year: 1995 }],
+      status_events: [{ at: 2026-11-03T10:00:00+09:00, status: pending_payment }] }
+log:
+  - { id: e1, at: 2026-10-30T09:00:00+09:00, kind: registration_submitted, registration: r1,
+      attrs: { participant: p1 } }
+  - { id: e2, at: 2026-11-03T10:00:00+09:00, kind: registration_submitted, registration: r2,
+      attrs: { participant: p1 } }
+question:
+  id: q1
+  text: "r2 신청자가 r1이랑 같은 사람 같은데, 중복 신청이면 막아야 하나요?"
+  canned:
+    facts:
+      - { relation: asks_about, args: [duplicate],
+          provenance: { source: question, quote: "중복 신청이면" }, confidence: 0.9 }
+      - { relation: about_registration, args: [r2],
+          provenance: { source: question, quote: "r2 신청자" }, confidence: 0.95 }
+expected: { kind: accept, cause: policy_normal, needs: [] }

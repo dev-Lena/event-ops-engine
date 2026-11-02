@@ -6,6 +6,7 @@
 .decl supported_topic(topic: symbol)
 .decl log_event(id: symbol, reg: symbol, kind: symbol, ts: int64)
 .decl log_attr(id: symbol, attr: symbol, value: symbol)
+.decl triage_policy(key: symbol, n: int64)
 
 // --- candidate facts proposed by the interpreter (validated in harness.py) ---------
 .decl asks_about(q: symbol, topic: symbol)
@@ -69,3 +70,31 @@ needs(Q, "provider_receipt") :-
     asks(Q, R, "delivery"),
     log_event(S, R, "message_sent", _), log_attr(S, "result", "timeout"),
     !log_event(_, R, "provider_receipt", _).
+
+// --- type 3: allowed by policy, duplicate re-registration (#18) --------------------
+// Two registrations for the same session carry the same participant key: policy allows
+// it (the operator only marks the duplicate). Evidence: both submission events.
+.decl same_participant(reg: symbol, submitted: symbol, other_submitted: symbol)
+same_participant(R, E, E2) :-
+    registration(R, S), registration(R2, S), R != R2,
+    log_event(E, R, "registration_submitted", _), log_attr(E, "participant", P),
+    log_event(E2, R2, "registration_submitted", _), log_attr(E2, "participant", P).
+cause(Q, "policy_normal", E) :- asks(Q, R, "duplicate"), same_participant(R, E, _).
+cause(Q, "policy_normal", E2) :- asks(Q, R, "duplicate"), same_participant(R, _, E2).
+needs(Q, "registration_submitted") :-
+    asks(Q, R, "duplicate"), !log_event(_, R, "registration_submitted", _).
+
+// --- type 4: expired deadline, payment attempted after the due time (#19) ---------
+// A rejected transfer after the due time plus the grace period (policy value) is the bank
+// doing its job. The latest due time counts (an extended deadline supersedes the old one).
+// An attempt the bank accepted is never "expired", whatever its time.
+.decl expired_attempt(q: symbol, due: symbol, attempt: symbol)
+expired_attempt(Q, D, A) :-
+    asks(Q, R, "deadline"),
+    log_event(D, R, "payment_due", TD), !superseded(D),
+    log_event(A, R, "payment_attempt", TA), log_attr(A, "result", "rejected"),
+    triage_policy("grace_minutes", G), TA > TD + G * 60.
+cause(Q, "expired", D) :- expired_attempt(Q, D, _).
+cause(Q, "expired", A) :- expired_attempt(Q, _, A).
+needs(Q, "payment_due") :- asks(Q, R, "deadline"), !log_event(_, R, "payment_due", _).
+needs(Q, "payment_attempt") :- asks(Q, R, "deadline"), !log_event(_, R, "payment_attempt", _).
