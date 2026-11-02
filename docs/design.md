@@ -157,6 +157,7 @@ src/event_ops_engine/
 data/synthetic/scenarios/   single.yaml pair-mixed.yaml group.yaml ratio.yaml boundary.yaml
                             triage/  account-length.yaml account-missing-entry.yaml
                                      delivery-timeout.yaml delivery-no-receipt.yaml
+                                     duplicate-reregistration.yaml deadline-expired.yaml
 tests/            test_<module>.py (lib · 규칙 · CLI · 해석기 · 문의 판정) test_readme.py (README 출력 예시 대조)
 scripts/          build-wirelog.sh  verify_wirelog.py
 docs/             design.md glossary.md decisions/ standards/
@@ -220,8 +221,10 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 |---|---|---|---|---|---|
 | 1 사용자 입력 실수 (#15) | `payment` | `account_issued{digits}` · `account_entered{digits}` | **가장 최근** 발급과 **가장 최근** 입력의 자릿수가 다르면 `user_input` (`superseded`로 이전 이벤트 제외) | 두 이벤트 id | `account_issued`가 없으면 그것, 있는데 `account_entered`가 없으면 그것 |
 | 2 외부 요인 (#16) | `delivery` | `message_sent{result: timeout}` · 그 뒤의 `provider_receipt{result: delivered}` (둘 사이에 재발송이 없을 때, `resent_between`) | `external_delay` | 발송 · 수신증 id | timeout 뒤 수신증이 없으면 `provider_receipt` |
+| 3 정책상 정상 (#18) | `duplicate` | `registration_submitted{participant}` (질문 대상과 같은 회차의 다른 신청) | 같은 회차에 같은 참가자 키가 둘이면 `policy_normal` | 두 제출 이벤트 id | 질문 대상에 제출 기록이 없으면 `registration_submitted` |
+| 4 기한 만료 (#19) | `deadline` | `payment_due`(가장 최근) · `payment_attempt{result: rejected}` | 거절된 시도 시각 > 기한 + `grace_minutes`이면 `expired` (은행이 받아 준 시도는 제외) | 기한 · 시도 id | 둘 중 없는 것 |
 
-원인이 하나라도 파생되면 `needs`는 비운다 (다른 이벤트의 '아직 없는 사실'이 확정된 원인에 끌려 나오지 않게). 자릿수가 같거나 수신증이 `failed`이면 원인도 `needs`도 없어 `ask`가 된다. 그 경우는 아직 유형이 없다는 뜻이고, #18~#21에서 유형이 늘면 거기서 판정된다. 시나리오 파일은 `expected`(기대 판정 · 원인 · needs)를 적고, `event-ops triage`는 실제 판정과 비교해 다르면 종료 코드 1을 낸다. `cause` · `needs`를 비우면(null) 비교하지 않고, `needs: []`는 '더 필요한 사실 없음'을 단언한다.
+`triage_policy(key, n)`은 유형 규칙의 정책값(`policy/events/*.yaml`의 `triage:`, 가정값). 지금은 `grace_minutes` 하나다. 참가자 키(`participant`)는 합성 식별자이며 실명 · 연락처를 두지 않는다. 원인이 하나라도 파생되면 `needs`는 비운다 (다른 이벤트의 '아직 없는 사실'이 확정된 원인에 끌려 나오지 않게). 자릿수가 같거나 수신증이 `failed`이면 원인도 `needs`도 없어 `ask`가 된다. 그 경우는 아직 유형이 없다는 뜻이고, #18~#21에서 유형이 늘면 거기서 판정된다. 시나리오 파일은 `expected`(기대 판정 · 원인 · needs)를 적고, `event-ops triage`는 실제 판정과 비교해 다르면 종료 코드 1을 낸다. `cause` · `needs`를 비우면(null) 비교하지 않고, `needs: []`는 '더 필요한 사실 없음'을 단언한다.
 
 **해석기**: 기본은 Claude Code CLI(`claude -p`, 구독 안 · 추가 비용 0), 테스트는 가짜 해석기(시나리오 파일의 `canned` 응답). API는 쓰지 않는다. LLM 출력은 JSON이며 `Interpretation` 모델 검증을 통과해야 한다.
 
@@ -235,3 +238,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-10-31 | 13절 ① 운영 문의 판정: 하네스 5단계, 후보 사실, 결정 계약, 해석기 |
 | 2026-10-31 | 13절 유형 1 · 2 규칙, 질문 대상, 기대 판정 (#15 · #16 · #17) |
 | 2026-11-02 | 1절 · 10절을 ① 구현 이후 상태로 갱신 (#26) |
+| 2026-11-02 | 13절 유형 3 · 4 규칙, `triage_policy` (#18 · #19) |

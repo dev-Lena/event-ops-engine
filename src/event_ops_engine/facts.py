@@ -148,10 +148,15 @@ def question_facts(question: Question) -> Facts:
     return facts
 
 
+TRIAGE_POLICY_KEYS = ("grace_minutes",)
+
+
 def triage_facts(scenario: TriageScenario) -> Facts:
     facts = scenario_facts(scenario)
     facts.extend(log_facts(scenario))
     facts.extend(question_facts(scenario.question))
+    for key in TRIAGE_POLICY_KEYS:
+        facts.add("triage_policy", key, getattr(scenario.policy.triage, key))
     return facts
 
 
