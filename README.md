@@ -134,6 +134,20 @@ python scripts/verify_wirelog.py   # wirelog 문법 검증 25건 (24건 통과�
 
 브랜치 · 커밋 · PR 규칙과 이 프로젝트에서 다르게 하는 것은 [CONTRIBUTING.md](CONTRIBUTING.md)에 있습니다. 이슈 · PR · 코멘트는 한국어와 영어를 함께 씁니다.
 
+## 진행 상태 (2026-11-02, v0.1.0)
+
+| 영역 | 상태 | 어디서 보나 |
+|---|---|---|
+| ② 현황 · ③ 홍보 판단 | 구현. 홍보 기준값은 가정값 | [design.md 6 · 7절](docs/design.md) |
+| ① 문의 판정 유형 1~6 · 2b, 결정 계약 | 구현 | [design.md 13절](docs/design.md), `rules/triage.dl` |
+| 직군 정규화 (LLM 후보 → 확신도 기준) | 구현 | [design.md 14절](docs/design.md) |
+| 실제 운영 자료(가명화) 대조 | 높음 3건 반영. 중간 5건 예정 | [에픽 #44](https://github.com/dev-Lena/event-ops-engine/issues/44) |
+| 예정: `needs` 자동 재발송 처리 · 입금 반영 지연 · 성별 잠정 마감 · 홍보 기준 확인 | 11/8까지 | [마일스톤 M3](https://github.com/dev-Lena/event-ops-engine/milestones) |
+| 이후: 지역 · 참여 방식 속성, 복합 속성 목표, 동반자 추출, 수백 건 성능, 실제 연동 | 백로그 | [에픽 #7](https://github.com/dev-Lena/event-ops-engine/issues/7) |
+| 확인하지 못한 것: Claude CLI 실제 호출 1회 | 로그인 뒤 수동 확인 | [design.md 12절](docs/design.md) |
+
+전체 설계는 [docs/design.md](docs/design.md), 왜 이렇게 정했는지는 [docs/decisions/](docs/decisions/), 이슈 하나하나는 [Issues](https://github.com/dev-Lena/event-ops-engine/issues)에 있습니다.
+
 ## 읽는 순서
 
 1. 이 README — 문제 · 접근 · 실행

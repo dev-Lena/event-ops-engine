@@ -23,3 +23,7 @@ data/private/
 .DS_Store
 .idea/
 .vscode/
+
+# course deliverables stay outside the repo (issue #28)
+report/
+*activity-report*
