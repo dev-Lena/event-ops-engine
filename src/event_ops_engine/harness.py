@@ -35,19 +35,26 @@ def validate(
     question = _squash(scenario.question.text)
     problems: list[str] = []
     for fact in interpretation.facts:
-        kind = CANDIDATE_RELATIONS.get(fact.relation)
-        if kind is None:
+        kinds = CANDIDATE_RELATIONS.get(fact.relation)
+        if kinds is None:
             problems.append(f"unknown relation {fact.relation}")
             continue
-        if len(fact.args) != 1:
-            problems.append(f"{fact.relation}: expected one argument, got {len(fact.args)}")
+        if len(fact.args) != len(kinds):
+            problems.append(
+                f"{fact.relation}: expected {len(kinds)} argument(s), got {len(fact.args)}"
+            )
             continue
         if fact.provenance.source != "question":
             problems.append(f"{fact.relation}: provenance source must be the question")
         if _squash(fact.provenance.quote) not in question:
             problems.append(f"{fact.relation}: quote not found in the question")
-        if kind != "topic" and fact.args[0] not in known[kind]:
-            problems.append(f"{fact.relation}: unknown {kind} id {fact.args[0]}")
+        if kinds == ("dim", "value"):
+            if (fact.args[0], fact.args[1]) not in context.values:
+                problems.append(
+                    f"{fact.relation}: unknown attribute value {fact.args[0]}={fact.args[1]}"
+                )
+        elif kinds != ("topic",) and fact.args[0] not in known[kinds[0]]:
+            problems.append(f"{fact.relation}: unknown {kinds[0]} id {fact.args[0]}")
     return problems
 
 
@@ -64,14 +71,14 @@ def _reject(scenario: TriageScenario, reasons: list[str], trace: list[str]) -> V
 
 
 def candidate_facts(question_id: str, facts: tuple[CandidateFact, ...]) -> Facts:
-    """Engine rows for the candidates, one per distinct (relation, argument)."""
+    """Engine rows for the candidates, one per distinct (relation, arguments)."""
     rows = Facts()
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, tuple[str, ...]]] = set()
     for fact in facts:
-        key = (fact.relation, fact.args[0])
+        key = (fact.relation, fact.args)
         if key not in seen:
             seen.add(key)
-            rows.add(fact.relation, question_id, fact.args[0])
+            rows.add(fact.relation, question_id, *fact.args)
     return rows
 
 
@@ -85,7 +92,15 @@ def decide(
     # `needs` only matters while no cause is derived; a cause from one event must not drag
     # along "still missing" facts about another.
     needs = [] if causes else sorted({str(row[1]) for row in engine.rows("needs", q)})
-    logs = sorted({evidence_id("log", str(row[2])) for row in cause_rows})
+    log_ids = {event.id for event in scenario.log}
+    # A cause's evidence is a log event id, or the name of the rule-derived fact (an
+    # invariant, a module ② relation) when no single log event explains the verdict.
+    logs = sorted(
+        {
+            evidence_id("log" if str(row[2]) in log_ids else "rule", str(row[2]))
+            for row in cause_rows
+        }
+    )
     trace.append(f"REASON: in_scope={in_scope}, causes={causes}, needs={needs}")
     base = tuple(candidate_ids) or (evidence_id("question", q),)
 
@@ -107,7 +122,7 @@ def decide(
         trace.append(f"DECIDE: accept ({causes[0]})")
         kind, message, evidence = (
             VerdictKind.ACCEPT,
-            f"원인: {causes[0]}. 근거 로그: " + ", ".join(logs),
+            f"원인: {causes[0]}. 근거: " + ", ".join(logs),
             base + tuple(logs),
         )
     elif not causes:

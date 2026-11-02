@@ -14,6 +14,7 @@ from . import bands, clock
 from .model import (
     UNKNOWN,
     CandidateFact,
+    EventPolicy,
     Member,
     Question,
     Registration,
@@ -120,13 +121,22 @@ def scenario_facts(scenario: Scenario) -> Facts:
 TOPICS = ("payment", "delivery", "duplicate", "deadline", "seat")
 """`supported_topic` facts. A topic is answered only once its type rules exist (#15-#21)."""
 
-CANDIDATE_RELATIONS = {
-    "asks_about": "topic",
-    "about_registration": "registration",
-    "about_session": "session",
-    "about_event": "log",
+CANDIDATE_RELATIONS: dict[str, tuple[str, ...]] = {
+    "asks_about": ("topic",),
+    "about_registration": ("registration",),
+    "about_session": ("session",),
+    "about_event": ("log",),
+    "about_value": ("dim", "value"),
 }
-"""Relations the interpreter may propose, and what their single argument must name."""
+"""Relations the interpreter may propose, and what each argument must name."""
+
+
+def dimension_values(policy: EventPolicy) -> tuple[tuple[str, str], ...]:
+    """Every (dim, value) pair a question may point at: gender values and age band names."""
+    pairs = [(DIM_GENDER, gender.value) for gender in policy.dimensions.gender.values]
+    if policy.dimensions.age_band is not None:
+        pairs += [(DIM_AGE_BAND, band.name) for band in policy.dimensions.age_band.bands]
+    return tuple(pairs)
 
 
 def log_facts(scenario: TriageScenario) -> Facts:

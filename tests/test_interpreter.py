@@ -14,7 +14,12 @@ from event_ops_engine.interpreter import (
 )
 from event_ops_engine.model import Interpretation, Question
 
-CONTEXT = InterpretContext(registrations=("r1",), sessions=("s1",), log_ids=("e1", "e2"))
+CONTEXT = InterpretContext(
+    registrations=("r1",),
+    sessions=("s1",),
+    log_ids=("e1", "e2"),
+    values=(("gender", "female"),),
+)
 CANNED = Interpretation.model_validate(
     {
         "facts": [
@@ -68,4 +73,5 @@ def test_unusable_cli_output_is_an_interpretation_error(raw: str) -> None:
 def test_prompt_lists_allowed_relations_and_forbids_invented_ids() -> None:
     prompt = build_prompt(Question(id="q", text="hi"), CONTEXT)
     assert "asks_about(q, topic)" in prompt and "about_event(q, log)" in prompt
+    assert "about_value(q, dim, value)" in prompt and "gender=female" in prompt
     assert "Never invent an id" in prompt

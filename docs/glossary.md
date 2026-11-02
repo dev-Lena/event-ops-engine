@@ -38,7 +38,8 @@
 | 규칙이 문의에서 가려낸 원인 | 원인 / cause | `cause(q, cause, evidence)` | 결론 | 유형 규칙이 파생. 한 문의에 원인이 하나일 때만 accept |
 | 문의 판정 결과 | 판정 / verdict | `Verdict` (`accept` · `ask` · `abstain` · `reject`) | 답변 | [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
 | 질문이 가리키는 신청 | 질문 대상 / subject | `subject(q, reg)` | — | `about_registration`이거나 `about_event`의 로그가 속한 신청 |
-| 문의 유형 하나를 판정하는 규칙 묶음 | 유형 규칙 / type rule | `rules/triage.dl` 유형 1 · 2 (`user_input` · `external_delay`) | 분류기 | 주제별로 `cause`와 `needs`를 파생. [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
+| 문의 유형 하나를 판정하는 규칙 묶음 | 유형 규칙 / type rule | `rules/triage.dl` 유형 1~6 (`user_input` · `external_delay` · `policy_normal` · `expired` · `suspected_bug` · `seat_full`/`over_capacity`) | 분류기 | 주제별로 `cause`와 `needs`를 파생. [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
+| 규칙으로 설명할 수 없어야 정상인 조건. 깨지면 버그 의심 | 불변식 / invariant | `invariant_violated(reg, invariant)` | 제약 | 확정인데 결제 없음 · 기한 뒤 결제로 확정 · 속성 정원 초과. 위반은 `suspected_bug`로 사람에게 넘긴다 |
 | 유형 규칙이 쓰는 설정값 | 문의 기준 / triage policy | `triage_policy(key, n)` | 임계값 | `grace_minutes`. 값은 **가정값** |
 | 시나리오 작성자가 적어 둔 기대 결과 | 기대 판정 / expected verdict | `ExpectedVerdict` (kind · cause · needs) | 정답 | `event-ops triage`가 실제 판정과 비교한다 |
 | 해석기가 질문을 후보 사실로 바꾸는 부품 | 해석기 / interpreter | `Interpreter` (Claude Code CLI · 가짜) | 모델, 에이전트 | 사실을 만들지 않고 제안만 한다 |
@@ -79,3 +80,4 @@
 | 2026-10-31 | ① 용어 추가: 문의 · 후보 사실 · 근거 출처 · 이벤트 로그 · 원인 · 판정 · 해석기 |
 | 2026-10-31 | ① 용어 추가: 질문 대상 · 유형 규칙 · 기대 판정 |
 | 2026-11-02 | ① 용어 추가: 문의 기준 |
+| 2026-11-02 | ① 용어 추가: 불변식 |
