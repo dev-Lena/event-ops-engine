@@ -13,6 +13,7 @@
 .decl about_registration(q: symbol, reg: symbol)
 .decl about_session(q: symbol, session: symbol)
 .decl about_event(q: symbol, id: symbol)
+.decl about_value(q: symbol, dim: symbol, value: symbol)
 
 // --- derived ---------------------------------------------------------------------
 .decl in_scope(q: symbol)
@@ -98,3 +99,32 @@ cause(Q, "expired", D) :- expired_attempt(Q, D, _).
 cause(Q, "expired", A) :- expired_attempt(Q, _, A).
 needs(Q, "payment_due") :- asks(Q, R, "deadline"), !log_event(_, R, "payment_due", _).
 needs(Q, "payment_attempt") :- asks(Q, R, "deadline"), !log_event(_, R, "payment_attempt", _).
+
+// --- type 5: suspected bug, an invariant the rules cannot explain (#20) ------------
+// Fires for any in-scope question about the registration, whatever the topic: a person
+// must look. Evidence is the violated invariant's name (the harness renders `rule/<name>`).
+// A confirmed registration in a triage scenario therefore needs a `payment_received` log.
+.decl invariant_violated(reg: symbol, invariant: symbol)
+invariant_violated(R, "confirmed_without_payment") :-
+    confirmed(R), !log_event(_, R, "payment_received", _).
+invariant_violated(R, "confirmed_after_expiry") :-
+    confirmed(R),
+    log_event(D, R, "payment_due", TD), !superseded(D),
+    log_event(P, R, "payment_received", TP),
+    triage_policy("grace_minutes", G), TP > TD + G * 60.
+invariant_violated(R, "over_capacity") :-
+    registration(R, S), confirmed(R), attendee(R, A), attendee_attr(A, D, V),
+    over_capacity(S, D, V, _).
+cause(Q, "suspected_bug", I) :- subject(Q, R), in_scope(Q), invariant_violated(R, I).
+
+// --- type 6: seat inquiry, answered from module ② (#21) --------------------------
+// "Why is the women's quota full?": the question names a session and an attribute value;
+// module ②'s `full` / `over_capacity` is the answer and the evidence.
+.decl seat_question(q: symbol, session: symbol, dim: symbol, value: symbol)
+seat_question(Q, S, D, V) :- asks_about(Q, "seat"), about_session(Q, S), about_value(Q, D, V).
+cause(Q, "seat_full", "full") :- seat_question(Q, S, D, V), full(S, D, V), !over_capacity(S, D, V, _).
+cause(Q, "over_capacity", "over_capacity") :- seat_question(Q, S, D, V), over_capacity(S, D, V, _).
+needs(Q, "session") :- asks_about(Q, "seat"), !about_session(Q, _).
+needs(Q, "attribute_value") :- asks_about(Q, "seat"), !about_value(Q, _, _).
+// A value without a target has no quota to be full: the policy must say first.
+needs(Q, "target") :- seat_question(Q, S, D, V), !target(S, D, V, _, _).

@@ -1,5 +1,5 @@
 """Type rules end to end: 1 user input (#15), 2 external delay (#16), 3 duplicate (#18),
-4 expired deadline (#19)."""
+4 expired deadline (#19), 5 suspected bug (#20), 6 seat inquiry (#21)."""
 
 from datetime import timedelta
 from pathlib import Path
@@ -12,7 +12,13 @@ from event_ops_engine.decision import VerdictKind
 from event_ops_engine.harness import differences, run_triage
 from event_ops_engine.interpreter import FakeInterpreter
 from event_ops_engine.loader import load_triage_scenario
-from event_ops_engine.model import EventPolicy, LogEvent, TriagePolicy, TriageScenario
+from event_ops_engine.model import (
+    EventPolicy,
+    LogEvent,
+    Provenance,
+    TriagePolicy,
+    TriageScenario,
+)
 from tests.conftest import SCENARIOS
 
 TRIAGE = SCENARIOS / "triage"
@@ -273,6 +279,153 @@ def test_triage_policy_defaults_and_rejects_negative_grace() -> None:
     )
     with pytest.raises(ValidationError):
         TriagePolicy(grace_minutes=-1)
+
+
+# --- type 5 ---------------------------------------------------------------------------
+
+BUG = TRIAGE / "bug-confirmed-without-payment.yaml"
+
+
+def test_confirmed_without_payment_is_a_suspected_bug_named_by_invariant() -> None:
+    verdict = run_triage(load_triage_scenario(BUG), FakeInterpreter())
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "suspected_bug")
+    assert "rule/confirmed_without_payment" in verdict.evidence
+
+
+def test_payment_received_clears_the_invariant() -> None:
+    scenario = load_triage_scenario(BUG)
+    paid = scenario.log[0].model_copy(update={"id": "e2", "kind": "payment_received", "attrs": {}})
+    scenario = scenario.model_copy(update={"log": (*scenario.log, paid)})
+    kind, cause, needs = verdict_for(scenario)
+    assert (kind, cause) == (VerdictKind.ASK, None)  # type 1 then asks for the entry
+
+
+def test_payment_received_after_the_deadline_is_confirmed_after_expiry() -> None:
+    scenario = load_triage_scenario(BUG)
+    first = scenario.log[0]
+    due = first.model_copy(update={"id": "e2", "kind": "payment_due", "attrs": {}})
+    paid = first.model_copy(
+        update={
+            "id": "e3",
+            "kind": "payment_received",
+            "attrs": {},
+            "at": first.at + timedelta(hours=1),
+        }
+    )
+    verdict = run_triage(scenario.model_copy(update={"log": (first, due, paid)}), FakeInterpreter())
+    assert verdict.cause == "suspected_bug"
+    assert verdict.evidence[-1] == "rule/confirmed_after_expiry"
+
+
+def test_suspected_bug_fires_whatever_the_topic() -> None:
+    scenario = load_triage_scenario(BUG)
+    question = scenario.question.model_copy(
+        update={
+            "canned": scenario.question.canned.model_copy(
+                update={
+                    "facts": (
+                        scenario.question.canned.facts[0].model_copy(
+                            update={"args": ("delivery",)}
+                        ),
+                        scenario.question.canned.facts[1],
+                    )
+                }
+            )
+        }
+    )
+    assert verdict_for(scenario.model_copy(update={"question": question}))[1] == "suspected_bug"
+
+
+# --- type 6 ---------------------------------------------------------------------------
+
+SEAT = TRIAGE / "seat-full.yaml"
+
+
+def test_full_value_is_answered_from_module_two() -> None:
+    verdict = run_triage(load_triage_scenario(SEAT), FakeInterpreter())
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "seat_full")
+    assert {"rule/full", "candidate/q1/about_value/gender/female"} <= set(verdict.evidence)
+
+
+def with_extra_confirmed_female(scenario: TriageScenario) -> TriageScenario:
+    extra = scenario.registrations[0].model_copy(update={"id": "r8"})
+    paid = scenario.log[0].model_copy(update={"id": "e8", "registration": "r8"})
+    return scenario.model_copy(
+        update={
+            "registrations": (*scenario.registrations, extra),
+            "log": (*scenario.log, paid),
+        }
+    )
+
+
+def test_over_capacity_is_the_anomaly_path_with_one_cause() -> None:
+    verdict = run_triage(with_extra_confirmed_female(load_triage_scenario(SEAT)), FakeInterpreter())
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "over_capacity")
+    assert "rule/over_capacity" in verdict.evidence and "rule/full" not in verdict.evidence
+
+
+def test_over_capacity_registration_is_also_a_suspected_bug_for_its_own_question() -> None:
+    scenario = with_extra_confirmed_female(load_triage_scenario(SEAT))
+    question = scenario.question.model_copy(
+        update={
+            "text": "r8 신청자 확정이 맞나요? 여성 자리가 왜 마감이에요?",
+            "canned": scenario.question.canned.model_copy(
+                update={
+                    "facts": (
+                        scenario.question.canned.facts[0],
+                        scenario.question.canned.facts[1].model_copy(
+                            update={
+                                "relation": "about_registration",
+                                "args": ("r8",),
+                                "provenance": Provenance(quote="r8 신청자"),
+                            }
+                        ),
+                    )
+                }
+            ),
+        }
+    )
+    kind, cause, _ = verdict_for(scenario.model_copy(update={"question": question}))
+    assert (kind, cause) == (VerdictKind.ACCEPT, "suspected_bug")
+
+
+def test_value_with_seats_left_derives_nothing() -> None:
+    scenario = load_triage_scenario(SEAT)
+    fewer = scenario.model_copy(
+        update={"registrations": scenario.registrations[1:], "log": scenario.log[1:]}
+    )
+    assert verdict_for(fewer) == (VerdictKind.ASK, None, ())
+
+
+def test_seat_question_about_a_value_without_target_asks_for_one() -> None:
+    scenario = load_triage_scenario(SEAT)
+    canned = scenario.question.canned
+    assert canned is not None
+    untargeted = canned.facts[2].model_copy(update={"args": ("age_band", "40s_plus")})
+    question = scenario.question.model_copy(
+        update={"canned": canned.model_copy(update={"facts": (*canned.facts[:2], untargeted)})}
+    )
+    assert verdict_for(scenario.model_copy(update={"question": question})) == (
+        VerdictKind.ASK,
+        None,
+        ("target",),
+    )
+
+
+def test_seat_question_without_session_or_value_names_them() -> None:
+    scenario = load_triage_scenario(SEAT)
+    only_topic = scenario.question.model_copy(
+        update={
+            "canned": scenario.question.canned.model_copy(
+                update={"facts": scenario.question.canned.facts[:1]}
+            )
+        }
+    )
+    assert verdict_for(scenario.model_copy(update={"question": only_topic})) == (
+        VerdictKind.ASK,
+        None,
+        ("attribute_value", "session"),
+    )
 
 
 # --- expected verdict --------------------------------------------------------------------
