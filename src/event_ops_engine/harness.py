@@ -22,6 +22,24 @@ from .facts import (
 from .interpreter import InterpretationError, InterpretContext, Interpreter
 from .model import CandidateFact, ExpectedVerdict, Interpretation, TriageScenario
 
+NEEDS_VERIFIER: dict[str, str] = {
+    "provider_lookup": "외부: 발송 업체 로그",
+    "account_issued": "내부: 계좌 발급 기록",
+    "account_entered": "내부: 입금 시도 기록",
+    "payment_due": "내부: 선별 · 기한 기록",
+    "payment_attempt": "내부: 입금 시도 기록",
+    "registration_submitted": "내부: 신청 제출 기록",
+    "session": "질문: 어느 회차인지",
+    "attribute_value": "질문: 어느 속성 값인지",
+    "target": "정책: 그 값의 목표",
+}
+"""Who can supply each `needs` value: an external provider, internal records, the asker
+or the policy. The admin alert is a conservative to-do note; the provider log is the truth."""
+
+
+def needs_label(what: str) -> str:
+    return f"{what} ({NEEDS_VERIFIER[what]})" if what in NEEDS_VERIFIER else what
+
 
 def validate(
     interpretation: Interpretation,
@@ -133,7 +151,7 @@ def decide(
         kind, message, evidence = (
             VerdictKind.ASK,
             "판정하려면 더 필요합니다: "
-            + (", ".join(needs) or "유형 규칙 없음 또는 관련 로그 없음"),
+            + (", ".join(needs_label(n) for n in needs) or "유형 규칙 없음 또는 관련 로그 없음"),
             base,
         )
     else:
