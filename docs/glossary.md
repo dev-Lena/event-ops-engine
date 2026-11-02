@@ -16,9 +16,9 @@
 | 회차 · 속성 값마다 정한 인원 하한 · 상한 | 목표 / target | `target(session, dim, value, lo, hi)` | 쿼터, 할당 | wirelog 예약어 때문에 열 이름은 `min` · `max`가 아니라 `lo` · `hi` |
 | 같은 속성의 두 값 사이 허용 차이 (예: 성별 1:1) | 비율 목표 / ratio target | `ratio_target(session, dim, value_a, value_b, max_diff)` | 균형 조건 | `max_diff`는 허용하는 인원 차 |
 | 확정된 참가자가 차지한 자리 수 | 차지한 자리 / filled | `filled` | 현재 인원, 모집 인원 | 입금 대기는 포함하지 않는다 |
-| 목표 하한까지 더 필요한 사람 수 | 부족분 / gap | `gap` | 미달, 결원 | `lo - filled`, 0보다 클 때만 |
-| 목표 상한까지 더 받을 수 있는 사람 수 | 남은 목표 자리 / remaining | `remaining` | — | `hi - filled` (음수면 초과) |
-| 회차 정원에서 남은 사람 수 | 남은 자리 / remaining seats | `remaining_seats` | 잔여석 | `session_capacity - session_filled` |
+| 목표 하한까지 더 필요한 사람 수 | 부족분 / gap | `gap` | 미달, 결원 | `lo - filled - pending`, 0보다 클 때만. 입금 대기도 자리를 차지한 것으로 본다 |
+| 목표 상한까지 더 받을 수 있는 사람 수 | 남은 목표 자리 / remaining | `remaining` | — | `hi - filled - pending` (음수면 초과) |
+| 회차 정원에서 남은 사람 수 | 남은 자리 / remaining seats | `remaining_seats` | 잔여석 | `session_capacity - session_filled - session_pending` (운영사 규칙) |
 | 신청했으나 아직 입금하지 않은 상태 | 입금 대기 / pending payment | `pending_payment` | 미입금, 대기 | 자리를 차지하지 않는다. 현황에는 따로 보여 준다 |
 | 입금이 확인되어 자리가 확정된 상태 | 확정 / confirmed | `confirmed` | 승인, 완료 | `filled`에 세는 유일한 상태 |
 | 신청자가 취소하거나 운영사가 취소 처리한 상태 | 취소 / cancelled | `cancelled` | 철회, 반려 | 자리를 돌려준다. 규칙에서는 "최신 상태가 cancelled" 또는 사실 철회(remove)로 표현 |
@@ -40,7 +40,7 @@
 | 질문이 가리키는 신청 | 질문 대상 / subject | `subject(q, reg)` | — | `about_registration`이거나 `about_event`의 로그가 속한 신청 |
 | 문의 유형 하나를 판정하는 규칙 묶음 | 유형 규칙 / type rule | `rules/triage.dl` 유형 1~6 (`user_input` · `external_delay` · `policy_normal` · `expired` · `suspected_bug` · `seat_full`/`over_capacity`) | 분류기 | 주제별로 `cause`와 `needs`를 파생. [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
 | 규칙으로 설명할 수 없어야 정상인 조건. 깨지면 버그 의심 | 불변식 / invariant | `invariant_violated(reg, invariant)` | 제약 | 확정인데 결제 없음 · 기한 뒤 결제로 확정 · 속성 정원 초과. 위반은 `suspected_bug`로 사람에게 넘긴다 |
-| 유형 규칙이 쓰는 설정값 | 문의 기준 / triage policy | `triage_policy(key, n)` | 임계값 | `grace_minutes`. 값은 **가정값** |
+| 유형 규칙이 쓰는 설정값 | 문의 기준 / triage policy | `triage_policy(key, n)` | 임계값 | `grace_minutes`(0) · `payment_deadline_hours`(24). 운영 자료로 확인한 값 |
 | 시나리오 작성자가 적어 둔 기대 결과 | 기대 판정 / expected verdict | `ExpectedVerdict` (kind · cause · needs) | 정답 | `event-ops triage`가 실제 판정과 비교한다 |
 | 자유 입력을 속성 값 후보로 바꾸는 부품 | 정규화기 / normalizer | `Normalizer` (Claude Code CLI · 가짜), `NormalizedValue(value, confidence, quote)` | 분류기, 태거 | 제안만 한다. 받아들이는 것은 규칙 |
 | 정규화기가 제안한 속성 값. 검증 전 | 후보 속성 / candidate attribute | `candidate_attr(attendee, dim, value, confidence, evidence)` | — | 확신도는 0~100 정수. `attendee_attr`와 구분한다 |
@@ -86,3 +86,4 @@
 | 2026-11-02 | ① 용어 추가: 문의 기준 |
 | 2026-11-02 | ① 용어 추가: 불변식 |
 | 2026-11-02 | 용어 추가: 정규화기 · 후보 속성 · 확신도 기준, 속성 표에 `job_group` |
+| 2026-11-02 | 부족분 · 남은 자리에 입금 대기 반영, 문의 기준 값 갱신 (#45 · #46) |

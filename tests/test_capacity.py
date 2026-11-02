@@ -17,11 +17,12 @@ def value(status: SessionStatus, dim: str, val: str) -> tuple[int, int, int, int
 def test_single_registrations_count_one_seat_each(engine: Engine) -> None:
     loaded(engine, "single")
     status = session_status(engine, "s1")
-    assert (status.capacity, status.filled, status.pending, status.remaining_seats) == (12, 4, 1, 8)
+    # a seat awaiting payment is taken: remaining = capacity - confirmed - pending, gap likewise
+    assert (status.capacity, status.filled, status.pending, status.remaining_seats) == (12, 4, 1, 7)
     assert not status.is_full
-    assert value(status, "gender", "female") == (3, 1, 3, 3, False)
+    assert value(status, "gender", "female") == (3, 1, 2, 2, False)
     assert value(status, "gender", "male") == (1, 0, 5, 5, False)
-    assert value(status, "age_band", "20s") == (1, 1, 1, 11, False)
+    assert value(status, "age_band", "20s") == (1, 1, 0, 10, False)
     assert value(status, "age_band", "30s") == (3, 0, 1, 9, False)
 
 
@@ -43,7 +44,7 @@ def test_cancellation_by_retracting_facts_updates_counts(engine: Engine) -> None
     data = loaded(engine, "single")
     engine.retract(registration_facts(data, data.registrations[0]))  # r1, female
     status = session_status(engine, "s1")
-    assert value(status, "gender", "female") == (2, 1, 4, 4, False)
+    assert value(status, "gender", "female") == (2, 1, 3, 3, False)
     assert status.filled == 3
 
 
@@ -52,7 +53,7 @@ def test_mixed_pair_splits_into_one_female_and_one_male(engine: Engine) -> None:
     status = session_status(engine, "s2")
     assert status.filled == 4
     assert value(status, "gender", "female") == (3, 0, 3, 3, False)
-    assert value(status, "gender", "male") == (1, 1, 5, 5, False)
+    assert value(status, "gender", "male") == (1, 1, 4, 4, False)
     assert value(status, "age_band", "20s") == (2, 0, 0, 10, False)
 
 

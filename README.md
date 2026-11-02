@@ -39,17 +39,17 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
 ```
 
 ```
-[회차 s2] 정원 12 · 확정 4 · 입금 대기 1 · 남은 자리 8
+[회차 s2] 정원 12 · 확정 4 · 입금 대기 1 · 남은 자리 7
   age_band=20s: 확정 2 · 대기 0 · 목표 2~12
   age_band=30s: 확정 2 · 대기 0 · 목표 4~12 · 부족 2
   gender=female: 확정 3 · 대기 0 · 목표 6~6 · 부족 3
-  gender=male: 확정 1 · 대기 1 · 목표 6~6 · 부족 5
+  gender=male: 확정 1 · 대기 1 · 목표 6~6 · 부족 4
   홍보 권고: 회차 임박: 30s 2명 부족, 홍보가 필요합니다. (이유: lead_time, slow_trend; 근거: session_capacity/s2, days_left/s2, target/s2/age_band/30s, policy/s2/lead_days, ...)
   홍보 권고: 회차 임박: female 3명 부족, 홍보가 필요합니다. (이유: lead_time, slow_trend; 근거: ...)
-  홍보 권고: 회차 임박: male 5명 부족, 홍보가 필요합니다. (이유: imbalance, lead_time, slow_trend; 근거: ...)
+  홍보 권고: 회차 임박: male 4명 부족, 홍보가 필요합니다. (이유: imbalance, lead_time, slow_trend; 근거: ...)
 ```
 
-시나리오는 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`입니다. 홍보 기준값(`lead_days` 등)은 모두 **가정값**입니다. 직군 정규화가 있는 시나리오(`job-group.yaml`)는 기본으로 파일의 `canned_job_groups` 답을 쓰고, `--normalizer claude`를 주면 Claude Code CLI가 자유 입력을 분류합니다.
+시나리오는 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`입니다. 홍보 기준값(`lead_days` 등)은 모두 **가정값**입니다. 입금 대기 중인 자리는 차지한 것으로 보아 남은 자리 · 부족분에서 뺍니다(운영사 규칙). 직군 정규화가 있는 시나리오(`job-group.yaml`)는 기본으로 파일의 `canned_job_groups` 답을 쓰고, `--normalizer claude`를 주면 Claude Code CLI가 자유 입력을 분류합니다.
 
 ### 운영 문의 판정 (①)
 
