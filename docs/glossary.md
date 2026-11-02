@@ -1,6 +1,6 @@
 # 용어집
 
-기준: [docs/standards/terminology.md](standards/terminology.md). 한 개념 = 한 이름. 코드 · 규칙 파일 · 문서 · 테스트가 모두 이 표를 따른다.
+기준: 공용 용어 기준([CONTRIBUTING.md](../CONTRIBUTING.md)). 한 개념 = 한 이름. 코드 · 규칙 파일 · 문서 · 테스트가 모두 이 표를 따른다.
 용어를 바꾸면 문구 · 코드 · 규칙 · 문서를 **같은 PR에서** 함께 바꾼다.
 
 ## 용어

@@ -1,16 +1,13 @@
 # 기여 안내
 
-이 저장소는 `~/Projects/dev-standards`의 공용 기준을 그대로 따른다. 사본은 [docs/standards/](docs/standards/)에 있다.
+이 저장소는 팀 공용 개발 기준(작업 원칙 · 브랜치/커밋/PR · 코드 구조 · 테스트 · 비밀값/개인정보 · 용어)을 따른다. 공용 기준 문서는 별도 비공개 저장소에 있고 이 저장소에는 두지 않는다. 이 프로젝트에 적용된 내용은 아래와 [docs/design.md](docs/design.md) · [docs/glossary.md](docs/glossary.md)에 적혀 있다.
 
-| 무엇 | 문서 |
-|---|---|
-| 작업 원칙 (이유와 함께 제안 · 실제 실행 확인 · 품질 · 토큰) | [working-principles.md](docs/standards/working-principles.md) |
-| 브랜치 · 커밋 · PR | [git-workflow.md](docs/standards/git-workflow.md) |
-| 코드 구조 · 클린 코드 | [code-standards.md](docs/standards/code-standards.md) |
-| 테스트 | [testing-standards.md](docs/standards/testing-standards.md) |
-| 비밀값 · 개인정보 | [security-standards.md](docs/standards/security-standards.md) |
-| 작업 시작 전 환경 · 계정 | [environment-setup.md](docs/standards/environment-setup.md) |
-| 용어 기준 | [terminology.md](docs/standards/terminology.md) → 이 프로젝트 용어는 [docs/glossary.md](docs/glossary.md) |
+핵심만 요약하면:
+
+- 작업 원칙: 무엇을 · 왜 · 검토한 대안을 먼저 보여주고, 완료라고 말하기 전에 실제로 실행 · 테스트한다. 확인하지 못한 것은 확인하지 못했다고 적는다.
+- 브랜치 `type/short-desc`, 커밋 `type: subject`(영어), main 직접 push 금지, PR은 ~300줄 한 기능, 사람이 머지한다.
+- 계산 로직은 같은 PR에 테스트를 올린다. 비밀값은 환경변수로만, 저장소에는 합성 데이터만.
+- 용어는 한 개념 = 한 이름([docs/glossary.md](docs/glossary.md)).
 
 ## 이 프로젝트에서 다르게 하는 것
 
@@ -34,7 +31,7 @@ Intel Mac은 엔진을 한 번 빌드해야 한다 ([README](README.md) "설치"
 ## 기록 언어
 
 이슈 제목 · 본문과 PR 본문은 한국어 + 영어(한 본문, 한국어 → `---` → 영어), 판단 근거 · 리뷰 기록 코멘트는 언어별로 따로 올린다.
-영어는 번역이 아니라 현업 표현으로 따로 쓴다 ([git-workflow.md 5절](docs/standards/git-workflow.md#5-언어)). 공개 저장소를 한국어 · 영어 독자가 함께 보기 때문이다.
+영어는 번역이 아니라 현업 표현으로 따로 쓴다 . 공개 저장소를 한국어 · 영어 독자가 함께 보기 때문이다.
 
 ## PR 전 확인
 

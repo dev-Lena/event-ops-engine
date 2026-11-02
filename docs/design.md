@@ -23,7 +23,7 @@ YAML 시나리오 ─► Python 모델(검증) ─► 사실(fact) ─► wirelo
                                       clock.py
 ```
 
-계층 ([standards/code-standards.md](standards/code-standards.md) 1번):
+계층 (공용 코드 기준 1번, [CONTRIBUTING.md](../CONTRIBUTING.md)):
 
 | 계층 | 모듈 | 규칙 |
 |---|---|---|
@@ -134,7 +134,7 @@ blocked(S, D, V, G, "session_full")  :- gap(S, D, V, G), active(S), session_full
 - 저장소에는 **합성 데이터만** 둔다 (`data/synthetic/`). 실제 데이터는 `data/private/`(gitignore)에만 두고 LLM에 보내지 않는다.
 - 모델에 개인 식별 칸이 없다 (3절). 시나리오 파일의 id는 `r1`, `s1` 같은 합성 id다.
 - 운영사 이름 · 고객 코드 · 내부 문서는 저장소 어디에도 적지 않는다. 정책 파일의 예시 모임 이름도 합성이다.
-- 비밀값은 환경변수로만. `.env.example`에는 이름만 ([standards/security-standards.md](standards/security-standards.md)).
+- 비밀값은 환경변수로만. `.env.example`에는 이름만 (공용 보안 기준).
 - 엔진 출력 · 로그에는 참가자 id와 집계 숫자만 나온다.
 
 ## 9. wirelog 0.70.0 제약과 우회 (2026-10-29 Intel Mac 검증)
@@ -166,12 +166,12 @@ data/synthetic/scenarios/   single.yaml pair-mixed.yaml group.yaml ratio.yaml bo
                                      delivery-unreachable.yaml
 tests/            test_<module>.py (lib · 규칙 · CLI · 해석기 · 문의 판정) test_readme.py (README 출력 예시 대조)
 scripts/          build-wirelog.sh  verify_wirelog.py
-docs/             design.md glossary.md decisions/ standards/
+docs/             design.md glossary.md decisions/
 ```
 
 ## 11. 테스트 전략
 
-- 계산 로직은 같은 PR에 단위 테스트를 올린다 ([standards/testing-standards.md](standards/testing-standards.md) 1번).
+- 계산 로직은 같은 PR에 단위 테스트를 올린다 (공용 테스트 기준 1번).
 - lib 모듈은 순수 함수 테스트. 규칙은 시나리오 5개(1인 · 2인 혼성 · 단체 · 1:1 비율 · 경계)를 엔진에 넣고 파생 관계와 `Decision`을 확인한다.
 - 취소는 (a) 상태 이력 (b) 사실 철회 두 경로를 모두 테스트한다.
 - 엔진 라이브러리: `WIRELOG_LIB`가 비어 있고 `vendor/wirelog/build/libwirelog.1.dylib`가 있으면 `tests/conftest.py`가 자동으로 잡는다. 둘 다 없으면 wheel에 든 엔진을 쓴다(Linux CI).
