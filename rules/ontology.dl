@@ -9,9 +9,17 @@
 // --- registration -> attendees ----------------------------------------------
 .decl registration(reg: symbol, session: symbol)
 .decl attendee(reg: symbol, attendee: symbol)
-.decl attendee_attr(attendee: symbol, dim: symbol, value: symbol)
+.decl given_attr(attendee: symbol, dim: symbol, value: symbol)
 .decl status_event(reg: symbol, ts: int64, status: symbol)
 .decl unknown_party(reg: symbol, party_size: int64)
+
+// --- attributes proposed by a normalizer (docs/design.md 14) ----------------
+// `attendee_attr` is derived in capacity.dl: given directly, or promoted from a candidate
+// whose confidence (0~100) reaches the dimension's threshold and whose value is allowed.
+.decl candidate_attr(attendee: symbol, dim: symbol, value: symbol, confidence: int64, evidence: symbol)
+.decl normalize_threshold(dim: symbol, min_pct: int64)
+.decl dimension_value(dim: symbol, value: symbol)
+.decl attendee_attr(attendee: symbol, dim: symbol, value: symbol)
 
 // --- targets and policy -----------------------------------------------------
 .decl target(session: symbol, dim: symbol, value: symbol, lo: int64, hi: int64)

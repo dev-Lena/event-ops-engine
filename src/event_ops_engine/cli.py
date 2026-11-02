@@ -17,6 +17,7 @@ from .harness import differences, run_triage
 from .interpreter import ClaudeCliInterpreter, FakeInterpreter, Interpreter
 from .loader import load_scenario, load_triage_scenario
 from .model import TriageScenario
+from .normalizer import NORMALIZERS, normalize_members
 from .promotion import promotion_decisions
 
 VERDICT_LABELS: dict[VerdictKind, str] = {
@@ -58,8 +59,9 @@ def format_decision(decision: Decision) -> str:
     )
 
 
-def report(scenario_path: Path) -> list[str]:
-    scenario = load_scenario(scenario_path)
+def report(scenario_path: Path, normalizer: str = "fake") -> list[str]:
+    loaded = load_scenario(scenario_path)
+    scenario = normalize_members(loaded, NORMALIZERS[normalizer](loaded))
     lines: list[str] = []
     with Engine() as engine:
         engine.load(scenario_facts(scenario))
@@ -101,9 +103,13 @@ def format_verdict(
 
 
 def triage(
-    scenario_path: Path, interpreter: str = "fake", trace: bool = False
+    scenario_path: Path,
+    interpreter: str = "fake",
+    trace: bool = False,
+    normalizer: str = "fake",
 ) -> tuple[list[str], bool]:
-    scenario = load_triage_scenario(scenario_path)
+    loaded = load_triage_scenario(scenario_path)
+    scenario = normalize_members(loaded, NORMALIZERS[normalizer](loaded))
     verdict = run_triage(scenario, INTERPRETERS[interpreter]())
     return format_verdict(scenario, verdict, trace)
 
@@ -122,12 +128,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="fake: 시나리오의 canned 해석 (기본), claude: Claude Code CLI (`claude -p`)",
     )
     triage_parser.add_argument("--trace", action="store_true", help="단계별 trace도 출력")
+    for subparser in (report_parser, triage_parser):
+        subparser.add_argument(
+            "--normalizer",
+            choices=sorted(NORMALIZERS),
+            default="fake",
+            help="직군 정규화기. fake: 시나리오의 canned_job_groups (기본), claude: Claude Code CLI",
+        )
     args = parser.parse_args(argv)
     if args.command == "report":
-        print("\n".join(report(args.scenario)))
+        print("\n".join(report(args.scenario, args.normalizer)))
         return 0
     if args.command == "triage":
-        lines, matched = triage(args.scenario, args.interpreter, args.trace)
+        lines, matched = triage(args.scenario, args.interpreter, args.trace, args.normalizer)
         print("\n".join(lines))
         return 0 if matched else 1
     return 2

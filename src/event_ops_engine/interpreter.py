@@ -12,7 +12,7 @@ import json
 import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from pydantic import ValidationError
 
@@ -98,14 +98,22 @@ def build_prompt(question: Question, context: InterpretContext) -> str:
     )
 
 
-def parse_interpretation(raw: str) -> Interpretation:
-    """Accept the first JSON object in the output; anything else is an error."""
+def json_object(raw: str) -> Any:
+    """The outermost JSON object in a model's output, or ValueError."""
     start, end = raw.find("{"), raw.rfind("}")
     if start < 0 or end <= start:
-        raise InterpretationError("no JSON object in interpreter output")
+        raise ValueError("no JSON object in the output")
     try:
-        return Interpretation.model_validate(json.loads(raw[start : end + 1]))
-    except (json.JSONDecodeError, ValidationError) as error:
+        return json.loads(raw[start : end + 1])
+    except json.JSONDecodeError as error:
+        raise ValueError(f"malformed JSON: {error}") from error
+
+
+def parse_interpretation(raw: str) -> Interpretation:
+    """Accept the first JSON object in the output; anything else is an error."""
+    try:
+        return Interpretation.model_validate(json_object(raw))
+    except (ValueError, ValidationError) as error:
         raise InterpretationError(
             f"interpreter output does not match the schema: {error}"
         ) from error
