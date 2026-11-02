@@ -10,7 +10,7 @@
 |---|---|---|---|
 | ② 현황 (capacity) | 회차 · 속성 값마다 `filled` · `gap` · `remaining` · 입금 대기 · 정원 대비 남은 자리 | 없음 | 구현 |
 | ③ 홍보 판단 (promotion) | 부족분 · 남은 날 · 최근 추세 · 비율 불균형으로 홍보 **권고** 또는 **보류** | 없음 | 구현 |
-| ① 운영 문의 판정 (triage) | 문의 글을 유형으로 해석(LLM) → 규칙으로 판정 → accept / ask / abstain / reject | 있음 | 계약 · 해석기 · 하네스(13절), 유형 규칙은 다음 PR |
+| ① 운영 문의 판정 (triage) | 문의 글을 유형으로 해석(LLM) → 규칙으로 판정 → accept / ask / abstain / reject | 있음 | 계약 · 해석기 · 하네스 · 유형 1 · 2(13절). 유형 3~ 는 #18~#21 |
 
 엔진은 **권고만** 한다. 홍보 실행 · 개별 신청 거절은 사람이 한다. 개별 신청자를 자동으로 거절하는 규칙은 두지 않는다.
 
@@ -148,14 +148,16 @@ blocked(S, D, V, G, "session_full")  :- gap(S, D, V, G), active(S), session_full
 ## 10. 저장소 구조
 
 ```
-rules/            ontology.dl  capacity.dl  promotion.dl      (triage.dl은 다음 PR)
+rules/            ontology.dl  capacity.dl  promotion.dl  triage.dl
 policy/events/    synthetic-example.yaml                      속성 정의 · 목표 · 홍보 기준(가정값)
 src/event_ops_engine/
-                  model.py bands.py clock.py facts.py policy.py   lib
-                  engine.py                                       services
-                  capacity.py promotion.py cli.py                 features
+                  model.py bands.py clock.py facts.py policy.py loader.py decision.py   lib
+                  engine.py interpreter.py                                            services
+                  capacity.py promotion.py harness.py cli.py                          features
 data/synthetic/scenarios/   single.yaml pair-mixed.yaml group.yaml ratio.yaml boundary.yaml
-tests/            test_bands.py test_facts.py test_policy.py test_capacity.py test_promotion.py
+                            triage/  account-length.yaml account-missing-entry.yaml
+                                     delivery-timeout.yaml delivery-no-receipt.yaml
+tests/            test_<module>.py (lib · 규칙 · CLI · 해석기 · 문의 판정) test_readme.py (README 출력 예시 대조)
 scripts/          build-wirelog.sh  verify_wirelog.py
 docs/             design.md glossary.md decisions/ standards/
 ```
@@ -232,3 +234,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-10-29 | Linux CI(ubuntu, pyrewire 1.1.3 manylinux wheel 엔진)에서 테스트 60개 통과 확인 → 12절에서 제거 |
 | 2026-10-31 | 13절 ① 운영 문의 판정: 하네스 5단계, 후보 사실, 결정 계약, 해석기 |
 | 2026-10-31 | 13절 유형 1 · 2 규칙, 질문 대상, 기대 판정 (#15 · #16 · #17) |
+| 2026-11-02 | 1절 · 10절을 ① 구현 이후 상태로 갱신 (#26) |
