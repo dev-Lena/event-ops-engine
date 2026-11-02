@@ -85,19 +85,33 @@ cause(Q, "policy_normal", E2) :- asks(Q, R, "duplicate"), same_participant(R, _,
 needs(Q, "registration_submitted") :-
     asks(Q, R, "duplicate"), !log_event(_, R, "registration_submitted", _).
 
+// --- payment due time ---------------------------------------------------------------
+// The latest `payment_due` log wins (an extended deadline supersedes the old one). Without
+// one, the deadline is the policy's hours after the registration last entered
+// pending_payment (operator rule: "N hours after selection", per session).
+.decl pending_start(reg: symbol, ts: int64)
+.decl due_time(reg: symbol, ts: int64)
+.decl has_due_log(reg: symbol)
+has_due_log(R) :- log_event(_, R, "payment_due", _).
+pending_start(R, max(T)) :- status_event(R, T, "pending_payment").
+due_time(R, TD) :- log_event(D, R, "payment_due", TD), !superseded(D).
+due_time(R, T + H * 3600) :-
+    !has_due_log(R), pending_start(R, T), registration(R, S), deadline_hours(S, H).
+
 // --- type 4: expired deadline, payment attempted after the due time (#19) ---------
-// A rejected transfer after the due time plus the grace period (policy value) is the bank
-// doing its job. The latest due time counts (an extended deadline supersedes the old one).
-// An attempt the bank accepted is never "expired", whatever its time.
-.decl expired_attempt(q: symbol, due: symbol, attempt: symbol)
-expired_attempt(Q, D, A) :-
-    asks(Q, R, "deadline"),
-    log_event(D, R, "payment_due", TD), !superseded(D),
+// A rejected transfer after the due time plus the grace period (policy value, 0 by default:
+// the bank blocks at the due time itself) is the bank doing its job. An attempt the bank
+// accepted is never "expired", whatever its time.
+.decl expired_attempt(q: symbol, attempt: symbol)
+expired_attempt(Q, A) :-
+    asks(Q, R, "deadline"), due_time(R, TD),
     log_event(A, R, "payment_attempt", TA), log_attr(A, "result", "rejected"),
     triage_policy("grace_minutes", G), TA > TD + G * 60.
-cause(Q, "expired", D) :- expired_attempt(Q, D, _).
-cause(Q, "expired", A) :- expired_attempt(Q, _, A).
-needs(Q, "payment_due") :- asks(Q, R, "deadline"), !log_event(_, R, "payment_due", _).
+cause(Q, "expired", A) :- expired_attempt(Q, A).
+cause(Q, "expired", D) :-
+    expired_attempt(Q, _), asks(Q, R, "deadline"), log_event(D, R, "payment_due", _), !superseded(D).
+cause(Q, "expired", "due_time") :- expired_attempt(Q, _), asks(Q, R, "deadline"), !has_due_log(R).
+needs(Q, "payment_due") :- asks(Q, R, "deadline"), !due_time(R, _).
 needs(Q, "payment_attempt") :- asks(Q, R, "deadline"), !log_event(_, R, "payment_attempt", _).
 
 // --- type 5: suspected bug, an invariant the rules cannot explain (#20) ------------
@@ -108,8 +122,7 @@ needs(Q, "payment_attempt") :- asks(Q, R, "deadline"), !log_event(_, R, "payment
 invariant_violated(R, "confirmed_without_payment") :-
     confirmed(R), !log_event(_, R, "payment_received", _).
 invariant_violated(R, "confirmed_after_expiry") :-
-    confirmed(R),
-    log_event(D, R, "payment_due", TD), !superseded(D),
+    confirmed(R), due_time(R, TD),
     log_event(P, R, "payment_received", TP),
     triage_policy("grace_minutes", G), TP > TD + G * 60.
 invariant_violated(R, "over_capacity") :-

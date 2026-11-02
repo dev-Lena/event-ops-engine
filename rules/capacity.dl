@@ -43,7 +43,8 @@ session_filled(S, 0) :- session_capacity(S, _), !session_filled_raw(S, _).
 session_pending_raw(S, count(A)) :- pending_seat(S, A).
 session_pending(S, N) :- session_capacity(S, _), session_pending_raw(S, N).
 session_pending(S, 0) :- session_capacity(S, _), !session_pending_raw(S, _).
-remaining_seats(S, Cap - F) :- session_capacity(S, Cap), session_filled(S, F).
+// A seat awaiting payment is taken too (operator rule: remaining = capacity - confirmed - pending).
+remaining_seats(S, Cap - F - P) :- session_capacity(S, Cap), session_filled(S, F), session_pending(S, P).
 session_full(S) :- remaining_seats(S, R), R <= 0.
 
 // --- per-attribute headcount against targets --------------------------------
@@ -70,8 +71,8 @@ pending_raw(S, D, V, count(A)) :- pending_seat(S, A), attendee_attr(A, D, V).
 pending(S, D, V, N) :- tracked(S, D, V), pending_raw(S, D, V, N).
 pending(S, D, V, 0) :- tracked(S, D, V), !pending_raw(S, D, V, _).
 
-remaining(S, D, V, Hi - F) :- target(S, D, V, _, Hi), filled(S, D, V, F).
-gap(S, D, V, Lo - F) :- target(S, D, V, Lo, _), filled(S, D, V, F), Lo - F > 0.
+remaining(S, D, V, Hi - F - P) :- target(S, D, V, _, Hi), filled(S, D, V, F), pending(S, D, V, P).
+gap(S, D, V, Lo - F - P) :- target(S, D, V, Lo, _), filled(S, D, V, F), pending(S, D, V, P), Lo - F - P > 0.
 full(S, D, V) :- remaining(S, D, V, R), R <= 0.
 over_capacity(S, D, V, F - Hi) :- target(S, D, V, _, Hi), filled(S, D, V, F), F > Hi.
 

@@ -83,6 +83,8 @@ def session_facts(scenario: Scenario, session: Session) -> Facts:
         facts.add("ratio_target", session.id, dim, value_a, value_b, max_diff)
     for key in POLICY_KEYS:
         facts.add("policy", session.id, key, getattr(policy.promotion, key))
+    hours = session.payment_deadline_hours or policy.triage.payment_deadline_hours
+    facts.add("deadline_hours", session.id, hours)
     return facts
 
 

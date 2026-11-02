@@ -13,10 +13,10 @@ def by_value(decisions: list[Decision]) -> dict[tuple[str, str], Decision]:
 def test_slow_trend_and_imbalance_recommend_promotion(engine: Engine) -> None:
     loaded(engine, "single")  # 14 days left: outside lead_days
     decisions = by_value(session_promotion(engine, "s1"))
+    # 20s: 1 confirmed + 1 pending reaches lo 2, so there is no gap and nothing to promote
     assert {k for k, d in decisions.items() if d.kind == "recommend"} == {
         ("gender", "female"),
         ("gender", "male"),
-        ("age_band", "20s"),
         ("age_band", "30s"),
     }
     assert decisions[("gender", "female")].reasons == ("slow_trend",)
