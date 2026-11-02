@@ -188,8 +188,11 @@ class PromotionPolicy(StrictModel):
 class TriagePolicy(StrictModel):
     """Assumed values for module ① type rules (docs/design.md 13)."""
 
-    grace_minutes: int = Field(default=10, ge=0)
-    """A payment attempt this long after the due time still counts as on time."""
+    grace_minutes: int = Field(default=0, ge=0)
+    """A payment attempt this long after the due time still counts as on time. The bank
+    blocks the account at the due time itself, so the default is 0."""
+    payment_deadline_hours: int = Field(default=24, ge=1)
+    """Hours after selection (pending_payment) a registration may pay. Sessions override it."""
 
 
 class EventPolicy(StrictModel):
@@ -206,6 +209,7 @@ class Session(StrictModel):
     capacity: int | None = Field(default=None, ge=1)
     targets: Targets | None = None
     ratios: tuple[RatioTarget, ...] | None = None
+    payment_deadline_hours: int | None = Field(default=None, ge=1)
 
 
 class Scenario(StrictModel):

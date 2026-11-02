@@ -219,15 +219,31 @@ def attempt_at(scenario: TriageScenario, offset_seconds: int) -> TriageScenario:
     return scenario.model_copy(update={"log": (due, moved)})
 
 
+def with_grace(scenario: TriageScenario, minutes: int) -> TriageScenario:
+    policy = scenario.policy.model_copy(
+        update={"triage": scenario.policy.triage.model_copy(update={"grace_minutes": minutes})}
+    )
+    return scenario.model_copy(update={"policy": policy})
+
+
 @pytest.mark.parametrize(
-    "offset_seconds, expected",
-    [(0, VerdictKind.ASK), (600, VerdictKind.ASK), (601, VerdictKind.ACCEPT)],
-    ids=["at_due", "grace_end", "past_grace"],
+    "grace, offset_seconds, expected",
+    [
+        (0, 0, VerdictKind.ASK),
+        (0, 1, VerdictKind.ACCEPT),
+        (10, 600, VerdictKind.ASK),
+        (10, 601, VerdictKind.ACCEPT),
+    ],
+    ids=["at_due", "one_second_late", "grace_end", "past_grace"],
 )
-def test_grace_boundary(offset_seconds: int, expected: VerdictKind) -> None:
-    scenario = attempt_at(load_triage_scenario(DEADLINE), offset_seconds)
+def test_grace_boundary(grace: int, offset_seconds: int, expected: VerdictKind) -> None:
+    scenario = with_grace(attempt_at(load_triage_scenario(DEADLINE), offset_seconds), grace)
     kind, cause, _ = verdict_for(scenario)
     assert kind == expected and cause == ("expired" if expected == VerdictKind.ACCEPT else None)
+
+
+def test_bank_blocks_at_the_due_time_by_default() -> None:
+    assert load_triage_scenario(DEADLINE).policy.triage.grace_minutes == 0
 
 
 def test_grace_comes_from_the_policy() -> None:
@@ -258,15 +274,44 @@ def test_extended_deadline_supersedes_the_old_one() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "keep, needed",
-    [(1, "payment_due"), (0, "payment_attempt")],
-    ids=["no_due", "no_attempt"],
-)
-def test_missing_deadline_events_are_named(keep: int, needed: str) -> None:
+def test_missing_attempt_is_named() -> None:
     scenario = load_triage_scenario(DEADLINE)
-    scenario = scenario.model_copy(update={"log": (scenario.log[keep],)})
-    assert verdict_for(scenario) == (VerdictKind.ASK, None, (needed,))
+    scenario = scenario.model_copy(update={"log": (scenario.log[0],)})
+    assert verdict_for(scenario) == (VerdictKind.ASK, None, ("payment_attempt",))
+
+
+def test_due_time_comes_from_policy_hours_when_there_is_no_due_log() -> None:
+    # pending_payment started 11-01 10:00, policy 24 h -> due 11-02 10:00; attempt 11-04 00:15
+    scenario = load_triage_scenario(DEADLINE)
+    verdict = run_triage(scenario.model_copy(update={"log": (scenario.log[1],)}), FakeInterpreter())
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "expired")
+    assert "rule/due_time" in verdict.evidence and "log/e1" not in verdict.evidence
+
+
+def test_session_overrides_the_deadline_hours() -> None:
+    scenario = load_triage_scenario(DEADLINE)
+    patient = scenario.sessions[0].model_copy(update={"payment_deadline_hours": 72})
+    scenario = scenario.model_copy(
+        update={"sessions": (patient,), "log": (scenario.log[1],)}
+    )  # due 11-04 10:00, attempt 11-04 00:15 is on time
+    assert verdict_for(scenario) == (VerdictKind.ASK, None, ())
+
+
+def test_no_due_log_and_never_pending_asks_for_the_due_time() -> None:
+    scenario = load_triage_scenario(DEADLINE)
+    reg = scenario.registrations[0]
+    never_pending = reg.model_copy(
+        update={"status_events": reg.status_events[1:]}
+    )  # cancelled only
+    scenario = scenario.model_copy(
+        update={"registrations": (never_pending,), "log": (scenario.log[1],)}
+    )
+    assert verdict_for(scenario) == (VerdictKind.ASK, None, ("payment_due",))
+
+
+def test_deadline_hours_are_rejected_below_one() -> None:
+    with pytest.raises(ValidationError):
+        TriagePolicy(payment_deadline_hours=0)
 
 
 def test_triage_policy_defaults_and_rejects_negative_grace() -> None:
