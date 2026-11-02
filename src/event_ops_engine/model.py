@@ -8,7 +8,7 @@ from __future__ import annotations
 import datetime as dt
 from datetime import datetime
 from enum import StrEnum
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -38,11 +38,28 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+class NormalizedValue(StrictModel):
+    """A normalizer's answer for one free-text input: the category, how sure, which words.
+
+    `quote` must be part of the input text; the harness rejects anything else.
+    """
+
+    value: str = Field(min_length=1)
+    confidence: float = Field(ge=0.0, le=1.0)
+    quote: str = Field(min_length=1)
+
+
 class Member(StrictModel):
-    """One person on a registration: the registrant or a companion."""
+    """One person on a registration: the registrant or a companion.
+
+    `job` is the free-text role the person typed (synthetic in this repo, never a name);
+    `job_group` is the normalizer's candidate for it, filled by `normalizer.normalize_members`.
+    """
 
     gender: Gender = Gender.UNKNOWN
     birth_year: int | None = Field(default=None, ge=1900, le=2100)
+    job: str | None = Field(default=None, min_length=1)
+    job_group: NormalizedValue | None = None
 
 
 class StatusEvent(StrictModel):
@@ -109,9 +126,27 @@ class GenderDimension(StrictModel):
     values: tuple[Gender, ...] = (Gender.FEMALE, Gender.MALE)
 
 
+class JobGroupDimension(StrictModel):
+    """Free-text job → one of `values`, proposed by an LLM normalizer (docs/design.md 14)."""
+
+    values: tuple[str, ...] = Field(min_length=1)
+    normalize: Literal["llm"] = "llm"
+    min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
+    """Assumed value: a candidate below it is counted as unknown and sent to needs_review."""
+
+    @model_validator(mode="after")
+    def _values_distinct_and_not_unknown(self) -> Self:
+        if len(set(self.values)) != len(self.values):
+            raise ValueError("job_group values must be distinct")
+        if UNKNOWN in self.values:
+            raise ValueError(f"job_group values must not include {UNKNOWN!r}")
+        return self
+
+
 class Dimensions(StrictModel):
     gender: GenderDimension = GenderDimension()
     age_band: AgeBandDimension | None = None
+    job_group: JobGroupDimension | None = None
 
 
 class TargetRange(StrictModel):
@@ -178,6 +213,8 @@ class Scenario(StrictModel):
     now: datetime
     sessions: tuple[Session, ...] = Field(min_length=1)
     registrations: tuple[Registration, ...] = ()
+    canned_job_groups: dict[str, NormalizedValue] = Field(default_factory=dict)
+    """Fake normalizer answers keyed by the member's `job` text. Synthetic scenarios only."""
 
     @model_validator(mode="after")
     def _consistent(self) -> Self:

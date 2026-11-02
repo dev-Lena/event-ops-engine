@@ -84,7 +84,9 @@ def test_registration_must_point_at_a_known_session() -> None:
 def test_model_has_no_personal_identifier_fields() -> None:
     from event_ops_engine.model import Member
 
-    assert set(Member.model_fields) == {"gender", "birth_year"}
+    # `job` is a free-text role ("백엔드 3년차"), never a name or contact; `job_group` is the
+    # normalizer's candidate for it.
+    assert set(Member.model_fields) == {"gender", "birth_year", "job", "job_group"}
     assert set(Registration.model_fields) == {
         "id",
         "session",

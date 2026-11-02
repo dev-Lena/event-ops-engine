@@ -12,14 +12,14 @@ def test_single_registration_is_one_attendee_with_registrant_gender() -> None:
     data = scenario("single")
     facts = registration_facts(data, data.registrations[0]).rows
     assert rows(facts, "attendee") == [("r1", "r1#1")]
-    assert ("r1#1", "gender", "female") in rows(facts, "attendee_attr")
-    assert ("r1#1", "age_band", "20s") in rows(facts, "attendee_attr")
+    assert ("r1#1", "gender", "female") in rows(facts, "given_attr")
+    assert ("r1#1", "age_band", "20s") in rows(facts, "given_attr")
 
 
 def test_mixed_pair_is_one_female_and_one_male() -> None:
     data = scenario("pair-mixed")
     facts = registration_facts(data, data.registrations[0]).rows
-    genders = sorted(v for a, d, v in rows(facts, "attendee_attr") if d == "gender")
+    genders = sorted(v for a, d, v in rows(facts, "given_attr") if d == "gender")
     assert genders == ["female", "male"]
     assert len(rows(facts, "attendee")) == 2
 
@@ -27,7 +27,7 @@ def test_mixed_pair_is_one_female_and_one_male() -> None:
 def test_same_gender_pair_counts_two_of_that_gender() -> None:
     data = scenario("pair-mixed")
     facts = registration_facts(data, data.registrations[1]).rows
-    genders = [v for a, d, v in rows(facts, "attendee_attr") if d == "gender"]
+    genders = [v for a, d, v in rows(facts, "given_attr") if d == "gender"]
     assert genders == ["female", "female"]
 
 
@@ -43,7 +43,7 @@ def test_unknown_party_gets_unknown_attributes_and_a_review_fact() -> None:
     facts = registration_facts(data, data.registrations[1]).rows
     assert rows(facts, "unknown_party") == [("r2", 2)]
     assert len(rows(facts, "attendee")) == 2
-    values = {(d, v) for a, d, v in rows(facts, "attendee_attr")}
+    values = {(d, v) for a, d, v in rows(facts, "given_attr")}
     assert values == {("gender", "unknown"), ("age_band", "unknown")}
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 
 from .decision import Decision, DecisionKind
@@ -43,6 +44,41 @@ def _single_int(engine: Engine, relation: str, *key: str) -> int:
     return int(rows[0][len(key)])
 
 
+REVIEW_MESSAGES = {
+    "unknown_party": "신청 {reg}: 인원 구성이 미상입니다. 참가자 성별·출생 연도를 확인해 주세요.",
+    "low_confidence": "신청 {reg}: 직군 정규화 확신도가 기준 미만입니다. 직군을 확인해 주세요.",
+    "unknown_value": "신청 {reg}: 정규화된 직군 값이 정책 목록에 없습니다. 직군을 확인해 주세요.",
+}
+
+
+def rejected_candidates(engine: Engine) -> dict[str, list[str]]:
+    """Evidence ids of candidates the rules did not promote, per registration."""
+    promoted = {(str(row[0]), str(row[1])): str(row[2]) for row in engine.snapshot("attendee_attr")}
+    rejected: dict[str, list[str]] = defaultdict(list)
+    for attendee, dim, value, _confidence, evidence in engine.snapshot("candidate_attr"):
+        if promoted.get((str(attendee), str(dim))) != str(value):
+            rejected[str(attendee).split("#")[0]].append(str(evidence))
+    return rejected
+
+
+def _review(session_id: str, reg: str, reason: str, rejected: dict[str, list[str]]) -> Decision:
+    """One `needs_review` row as a Decision; evidence names the facts the rule looked at."""
+    evidence = [evidence_id("registration", reg)]
+    if reason == "unknown_party":
+        evidence.append(evidence_id("unknown_party", reg))
+    else:
+        evidence.extend(rejected.get(reg, []))
+    return Decision(
+        kind=DecisionKind.ASK,
+        session=session_id,
+        reasons=(reason,),
+        evidence=tuple(evidence),
+        message=REVIEW_MESSAGES.get(reason, "신청 {reg}: 확인이 필요합니다 ({reason}).").format(
+            reg=reg, reason=reason
+        ),
+    )
+
+
 def session_status(engine: Engine, session_id: str) -> SessionStatus:
     capacity = _single_int(engine, "session_capacity", session_id)
     targets = {
@@ -78,14 +114,9 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
             )
         )
 
+    rejected = rejected_candidates(engine)
     reviews = tuple(
-        Decision(
-            kind=DecisionKind.ASK,
-            session=session_id,
-            reasons=(str(row[2]),),
-            evidence=(evidence_id("registration", row[1]), evidence_id("unknown_party", row[1])),
-            message=f"신청 {row[1]}: 인원 구성이 미상입니다. 참가자 성별·출생 연도를 확인해 주세요.",
-        )
+        _review(session_id, str(row[1]), str(row[2]), rejected)
         for row in engine.rows("needs_review", session_id)
     )
     return SessionStatus(
@@ -101,7 +132,11 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
 
 
 def capacity_status(scenario: Scenario, engine: Engine | None = None) -> list[SessionStatus]:
-    """Load the scenario (unless an engine is supplied) and report every session."""
+    """Load the scenario (unless an engine is supplied) and report every session.
+
+    Job texts must already be normalized (`normalizer.normalize_members`); unnormalized
+    members count as `unknown` in the job_group dimension.
+    """
     if engine is None:
         with Engine() as own:
             own.load(scenario_facts(scenario))
