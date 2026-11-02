@@ -1,0 +1,24 @@
+# ① 유형 4 기한 만료 (#19). 질문 · 로그 · id는 모두 합성이다.
+# 입금 기한 23:59, 유예 10분(정책 가정값) 뒤인 00:15에 입금 시도 → 은행이 막은 것이 정상.
+policy: ../../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-21 }
+registrations:
+  - { id: r1, session: s1, members: [{ gender: male, birth_year: 1991 }],
+      status_events: [{ at: 2026-11-01T10:00:00+09:00, status: pending_payment },
+                      { at: 2026-11-04T00:30:00+09:00, status: cancelled }] }
+log:
+  - { id: e1, at: 2026-11-03T23:59:00+09:00, kind: payment_due, registration: r1 }
+  - { id: e2, at: 2026-11-04T00:15:00+09:00, kind: payment_attempt, registration: r1,
+      attrs: { result: rejected } }
+question:
+  id: q1
+  text: "r1 신청자가 입금을 했는데 은행에서 거절됐다고 합니다. 계좌 문제인가요?"
+  canned:
+    facts:
+      - { relation: asks_about, args: [deadline],
+          provenance: { source: question, quote: "은행에서 거절됐다고" }, confidence: 0.7 }
+      - { relation: about_registration, args: [r1],
+          provenance: { source: question, quote: "r1 신청자" }, confidence: 0.95 }
+expected: { kind: accept, cause: expired, needs: [] }
