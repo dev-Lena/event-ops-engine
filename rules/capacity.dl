@@ -11,6 +11,17 @@ current_status(R, St) :- latest_ts(R, T), status_event(R, T, St).
 confirmed(R) :- current_status(R, "confirmed").
 pending_payment(R) :- current_status(R, "pending_payment").
 
+// --- attributes: given directly, or promoted from normalizer candidates -----------
+// The four candidate rules are mutually exclusive so an attendee gets exactly one value
+// per dimension (wirelog keeps duplicates, and `count` would see them).
+attendee_attr(A, D, V) :- given_attr(A, D, V).
+attendee_attr(A, D, V) :-
+    candidate_attr(A, D, V, C, _), normalize_threshold(D, Min), C >= Min, dimension_value(D, V).
+attendee_attr(A, D, "unknown") :-
+    candidate_attr(A, D, _, C, _), normalize_threshold(D, Min), C < Min.
+attendee_attr(A, D, "unknown") :-
+    candidate_attr(A, D, V, C, _), normalize_threshold(D, Min), C >= Min, !dimension_value(D, V).
+
 // --- seats: one row per attendee that occupies a seat ------------------------
 .decl seat(session: symbol, attendee: symbol)
 .decl pending_seat(session: symbol, attendee: symbol)
@@ -68,6 +79,15 @@ imbalance(S, D, B, Fa - Fb) :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa
 imbalance(S, D, A, Fb - Fa) :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb), Fb - Fa > Max.
 
 // --- registrations an operator must look at ----------------------------------
+// Only registrations that occupy a seat (confirmed or waiting for payment) matter.
+.decl occupies(reg: symbol)
 .decl needs_review(session: symbol, reg: symbol, reason: symbol)
-needs_review(S, R, "unknown_party") :- registration(R, S), unknown_party(R, _), confirmed(R).
-needs_review(S, R, "unknown_party") :- registration(R, S), unknown_party(R, _), pending_payment(R).
+occupies(R) :- confirmed(R).
+occupies(R) :- pending_payment(R).
+needs_review(S, R, "unknown_party") :- registration(R, S), occupies(R), unknown_party(R, _).
+needs_review(S, R, "low_confidence") :-
+    registration(R, S), occupies(R), attendee(R, A),
+    candidate_attr(A, D, _, C, _), normalize_threshold(D, Min), C < Min.
+needs_review(S, R, "unknown_value") :-
+    registration(R, S), occupies(R), attendee(R, A),
+    candidate_attr(A, D, V, C, _), normalize_threshold(D, Min), C >= Min, !dimension_value(D, V).

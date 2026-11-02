@@ -28,8 +28,8 @@ YAML 시나리오 ─► Python 모델(검증) ─► 사실(fact) ─► wirelo
 | 계층 | 모듈 | 규칙 |
 |---|---|---|
 | lib (순수) | `model.py` `bands.py` `clock.py` `facts.py` `policy.py` | 외부 라이브러리 · 시각을 모른다. 현재 시각은 인자로 받는다 |
-| services | `engine.py` | PyreWire를 감싼다. wirelog 제약(9절)을 여기서 모두 흡수한다 |
-| features | `capacity.py` `promotion.py` `cli.py` | 사실 적재 → 스냅샷 → `Decision` 조립 |
+| services | `engine.py` `interpreter.py` `normalizer.py` | PyreWire를 감싼다. wirelog 제약(9절)을 여기서 모두 흡수한다. LLM 호출(Claude Code CLI · 가짜)도 여기 |
+| features | `capacity.py` `promotion.py` `harness.py` `cli.py` | 사실 적재 → 스냅샷 → `Decision` · `Verdict` 조립 |
 
 ## 3. 데이터 모델 (Python, `model.py`)
 
@@ -74,7 +74,10 @@ Member
 | `now(ts)` | 기준 시각 (epoch 초) | `clock.py` |
 | `registration(reg, session)` | 신청이 속한 회차 | 시나리오 |
 | `attendee(reg, attendee)` | 신청을 펼친 참가자 | `facts.py` |
-| `attendee_attr(attendee, dim, value)` | 참가자 속성 | `facts.py` + `bands.py` |
+| `given_attr(attendee, dim, value)` | 입력에서 바로 아는 참가자 속성 (성별 · 나이 구간, 정규화 없는 직군은 `unknown`) | `facts.py` + `bands.py` |
+| `candidate_attr(attendee, dim, value, confidence, evidence)` | 정규화기가 제안한 속성 후보 (확신도 0~100) | `facts.py` ← `normalizer.py` |
+| `normalize_threshold(dim, min_pct)` · `dimension_value(dim, value)` | 후보를 받아들이는 기준과 허용 값 | 정책 `dimensions.job_group` |
+| `attendee_attr(attendee, dim, value)` | 참가자 속성 (**파생**: `given_attr`이거나 기준 이상 후보, 14절) | `capacity.dl` |
 | `status_event(reg, ts, status)` | 상태 이력 | 시나리오 |
 | `unknown_party(reg, party_size)` | 구성 미상 신청 | `facts.py` |
 | `target(session, dim, value, lo, hi)` | 속성 값 목표 | `policy.py` |
@@ -149,12 +152,12 @@ blocked(S, D, V, G, "session_full")  :- gap(S, D, V, G), active(S), session_full
 
 ```
 rules/            ontology.dl  capacity.dl  promotion.dl  triage.dl
-policy/events/    synthetic-example.yaml                      속성 정의 · 목표 · 홍보 기준(가정값)
+policy/events/    synthetic-example.yaml synthetic-job-group.yaml   속성 정의 · 목표 · 홍보 기준(가정값)
 src/event_ops_engine/
                   model.py bands.py clock.py facts.py policy.py loader.py decision.py   lib
-                  engine.py interpreter.py                                            services
+                  engine.py interpreter.py normalizer.py                              services
                   capacity.py promotion.py harness.py cli.py                          features
-data/synthetic/scenarios/   single.yaml pair-mixed.yaml group.yaml ratio.yaml boundary.yaml
+data/synthetic/scenarios/   single.yaml pair-mixed.yaml group.yaml ratio.yaml boundary.yaml job-group.yaml
                             triage/  account-length.yaml account-missing-entry.yaml
                                      delivery-timeout.yaml delivery-no-receipt.yaml
                                      duplicate-reregistration.yaml deadline-expired.yaml
@@ -231,6 +234,20 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 
 **해석기**: 기본은 Claude Code CLI(`claude -p`, 구독 안 · 추가 비용 0), 테스트는 가짜 해석기(시나리오 파일의 `canned` 응답). API는 쓰지 않는다. LLM 출력은 JSON이며 `Interpretation` 모델 검증을 통과해야 한다.
 
+## 14. 속성 정규화 (`job_group`, `normalizer.py`, `capacity.dl`)
+
+자유 입력(예: "백엔드 3년차")을 정책의 범주 값 중 하나로 바꾼다. ①과 같은 원칙이다: **LLM은 제안만, 규칙이 받아들인다.**
+
+| 단계 | 하는 일 | 코드 |
+|---|---|---|
+| 정책 | `dimensions.job_group: { values: [...], normalize: llm, min_confidence: 0.7 }` (기준값은 가정값) | `model.py` `JobGroupDimension` |
+| 정규화 | 신청자의 `job` 문구마다 정규화기가 `NormalizedValue(value, confidence, quote)`를 제안. `quote`가 문구에 없거나 답이 없으면 `unknown` · 확신도 0 | `normalizer.py` `normalize_members` (Claude Code CLI · 가짜) |
+| 사실 | 후보는 `candidate_attr(attendee, job_group, value, 확신도%, job/<attendee>)`, 문구가 없으면 `given_attr(…, job_group, unknown)` | `facts.py` |
+| 규칙 | 확신도 ≥ 기준이고 값이 허용 목록에 있으면 `attendee_attr`로 올린다. 기준 미만이면 `unknown` + `needs_review(…, "low_confidence")`, 목록 밖 값이면 `unknown` + `needs_review(…, "unknown_value")`. 네 규칙은 서로 배타적이라 참가자마다 값이 하나다(wirelog는 중복을 남기므로 `count`가 두 번 셀 수 있다) | `capacity.dl` |
+| 결과 | ② 현황이 `job_group` 목표를 보통 속성처럼 계산하고, 확인 요청에 근거 `job/<attendee>`가 붙는다 | `capacity.py` |
+
+`attendee_attr`는 이제 파생 관계다(wirelog는 한 관계에 입력과 규칙을 섞지 못한다, 9절). 입력은 `given_attr`로 들어온다. `event-ops report --normalizer claude`가 실제 CLI를 쓰고, 기본 `fake`는 시나리오의 `canned_job_groups`를 쓴다. `job` 문구는 합성이며 이름 · 연락처를 두지 않는다(8절).
+
 ## 기록
 
 | 날짜 | 내용 |
@@ -243,3 +260,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-02 | 1절 · 10절을 ① 구현 이후 상태로 갱신 (#26) |
 | 2026-11-02 | 13절 유형 3 · 4 규칙, `triage_policy` (#18 · #19) |
 | 2026-11-02 | 13절 유형 5 · 6 규칙, 후보 관계 `about_value`, 근거 `rule/<name>` (#20 · #21) |
+| 2026-11-02 | 14절 속성 정규화(`job_group`), 5절 `given_attr` · `candidate_attr`, `attendee_attr` 파생으로 (#22~#25) |

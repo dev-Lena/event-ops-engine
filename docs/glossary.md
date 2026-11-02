@@ -42,6 +42,9 @@
 | 규칙으로 설명할 수 없어야 정상인 조건. 깨지면 버그 의심 | 불변식 / invariant | `invariant_violated(reg, invariant)` | 제약 | 확정인데 결제 없음 · 기한 뒤 결제로 확정 · 속성 정원 초과. 위반은 `suspected_bug`로 사람에게 넘긴다 |
 | 유형 규칙이 쓰는 설정값 | 문의 기준 / triage policy | `triage_policy(key, n)` | 임계값 | `grace_minutes`. 값은 **가정값** |
 | 시나리오 작성자가 적어 둔 기대 결과 | 기대 판정 / expected verdict | `ExpectedVerdict` (kind · cause · needs) | 정답 | `event-ops triage`가 실제 판정과 비교한다 |
+| 자유 입력을 속성 값 후보로 바꾸는 부품 | 정규화기 / normalizer | `Normalizer` (Claude Code CLI · 가짜), `NormalizedValue(value, confidence, quote)` | 분류기, 태거 | 제안만 한다. 받아들이는 것은 규칙 |
+| 정규화기가 제안한 속성 값. 검증 전 | 후보 속성 / candidate attribute | `candidate_attr(attendee, dim, value, confidence, evidence)` | — | 확신도는 0~100 정수. `attendee_attr`와 구분한다 |
+| 후보를 속성으로 받아들이는 최소 확신도 | 확신도 기준 / confidence threshold | `normalize_threshold(dim, min_pct)` ← `min_confidence` | 컷오프 | **가정값** 0.7. 미만이면 `unknown` + 확인 요청 |
 | 해석기가 질문을 후보 사실로 바꾸는 부품 | 해석기 / interpreter | `Interpreter` (Claude Code CLI · 가짜) | 모델, 에이전트 | 사실을 만들지 않고 제안만 한다 |
 
 ## 상태 값
@@ -61,6 +64,7 @@
 | `dim` | `value` | 출처 |
 |---|---|---|
 | `gender` | `female` · `male` · `unknown` | 신청폼 |
+| `job_group` | 정책 파일 `dimensions.job_group.values` (예: `engineering` · `design` · `product` · `other`) · `unknown` | 자유 입력 `job`을 정규화기가 제안, 확신도 기준 이상만 ([design.md 14](design.md#14-속성-정규화-job_group-normalizerpy-capacitydl)) |
 | `age_band` | 정책 파일 `dimensions.age_band.bands`의 이름 (예: `20s` · `30s` · `40s_plus`) · `unknown` | `birth_year`에서 계산 |
 
 ## 도메인 경계 규칙
@@ -81,3 +85,4 @@
 | 2026-10-31 | ① 용어 추가: 질문 대상 · 유형 규칙 · 기대 판정 |
 | 2026-11-02 | ① 용어 추가: 문의 기준 |
 | 2026-11-02 | ① 용어 추가: 불변식 |
+| 2026-11-02 | 용어 추가: 정규화기 · 후보 속성 · 확신도 기준, 속성 표에 `job_group` |

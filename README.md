@@ -26,8 +26,9 @@ LLM에게 통째로 맡기면 빠르지만, 근거 없이 "정상입니다"라�
 | ② 현황 | 회차 · 신청 · 정책(목표) | 속성 값마다 확정 · 대기 · 부족 · 남은 자리 | 현황 표, 확인 요청 |
 | ③ 홍보 판단 | ② + 남은 날 · 최근 추세 · 비율 목표 | 부족 · 임박 · 추세 느림 · 불균형 | 홍보 **권고** / **보류** / 확인 요청 |
 | ① 문의 판정 | 질문 + 이벤트 로그 | 원인(`cause`) · 더 필요한 사실(`needs`) | `accept` / `ask` / `abstain` / `reject` |
+| 직군 정규화 | 신청자의 자유 입력("백엔드 3년차") | 확신도 기준 이상인 후보만 속성으로 | ②에 `job_group` 목표 반영, 미만은 확인 요청 |
 
-①에서만 LLM을 씁니다. 역할은 질문을 **후보 사실**로 바꾸는 것까지입니다. 후보 사실은 관계 네 개만 허용되고, 입력에 없는 id나 질문에 없는 인용이 섞이면 규칙에 닿기 전에 `reject`됩니다. 원인은 규칙만 정하고, 원인이 하나일 때만 `accept`입니다. 설계는 [docs/design.md](docs/design.md), 결정 계약은 그 13절입니다.
+LLM은 ①과 직군 정규화에서만 쓰고, 역할은 **후보 사실을 제안**하는 것까지입니다. ①에서는 질문을 후보 사실로, 정규화에서는 자유 입력을 속성 값 후보(값 · 확신도 · 인용)로 바꿉니다. 후보 사실은 관계 네 개만 허용되고, 입력에 없는 id나 질문에 없는 인용이 섞이면 규칙에 닿기 전에 `reject`됩니다. 원인은 규칙만 정하고, 원인이 하나일 때만 `accept`입니다. 설계는 [docs/design.md](docs/design.md), 결정 계약은 그 13절입니다.
 
 ## 사용
 
@@ -48,7 +49,7 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
   홍보 권고: 회차 임박: male 5명 부족, 홍보가 필요합니다. (이유: imbalance, lead_time, slow_trend; 근거: ...)
 ```
 
-시나리오는 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`입니다. 홍보 기준값(`lead_days` 등)은 모두 **가정값**입니다.
+시나리오는 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`입니다. 홍보 기준값(`lead_days` 등)은 모두 **가정값**입니다. 직군 정규화가 있는 시나리오(`job-group.yaml`)는 기본으로 파일의 `canned_job_groups` 답을 쓰고, `--normalizer claude`를 주면 Claude Code CLI가 자유 입력을 분류합니다.
 
 ### 운영 문의 판정 (①)
 
@@ -99,9 +100,9 @@ flowchart LR
 | 폴더 | 내용 |
 |---|---|
 | `rules/` | Datalog 규칙: `ontology.dl`(사실 스키마) · `capacity.dl`(②) · `promotion.dl`(③) · `triage.dl`(① 계약 + 유형 1~6 규칙) |
-| `src/event_ops_engine/` | lib(`model` `bands` `clock` `facts` `policy` `loader` `decision`) · services(`engine` `interpreter`) · features(`capacity` `promotion` `harness` `cli`) |
-| `policy/events/` | 모임 정책 YAML (합성 예시, 기준값은 가정값) |
-| `data/synthetic/scenarios/` | 합성 시나리오: 현황 · 홍보 5개, 문의(`triage/`) 8개 |
+| `src/event_ops_engine/` | lib(`model` `bands` `clock` `facts` `policy` `loader` `decision`) · services(`engine` `interpreter` `normalizer`) · features(`capacity` `promotion` `harness` `cli`) |
+| `policy/events/` | 모임 정책 YAML 2개 (합성 예시, 기준값은 가정값). `synthetic-job-group.yaml`은 LLM이 정규화하는 `job_group` 차원 예시 |
+| `data/synthetic/scenarios/` | 합성 시나리오: 현황 · 홍보 6개(직군 정규화 포함), 문의(`triage/`) 8개 |
 | `tests/` | pytest. 계산 로직은 같은 PR에 테스트를 올립니다. README 출력 예시도 테스트합니다 |
 | `scripts/` | 엔진 빌드 · wirelog 문법 검증 |
 | `docs/` | 설계 · 용어 · 결정 기록 · 공용 기준 사본 |

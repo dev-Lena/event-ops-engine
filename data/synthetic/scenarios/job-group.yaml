@@ -1,0 +1,22 @@
+# 직군 정규화 시나리오 (docs/design.md 14). 사람 · 직업 문구 · id는 모두 합성이다.
+# `job`은 신청자가 적은 자유 입력, `canned_job_groups`는 가짜 정규화기의 답(실제로는 Claude Code CLI).
+policy: ../../../policy/events/synthetic-job-group.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-21 }
+registrations:
+  - { id: r1, session: s1, members: [{ gender: female, birth_year: 1996, job: "백엔드 3년차" }],
+      status_events: [{ at: 2026-11-01T10:00:00+09:00, status: confirmed }] }
+  - { id: r2, session: s1, members: [{ gender: male, birth_year: 1992, job: "UX 디자이너예요" }],
+      status_events: [{ at: 2026-11-02T10:00:00+09:00, status: confirmed }] }
+  - { id: r3, session: s1, members: [{ gender: female, birth_year: 1990, job: "마케팅 겸 기획 하고 있어요" }],
+      status_events: [{ at: 2026-11-03T10:00:00+09:00, status: pending_payment }] }
+  - { id: r4, session: s1, members: [{ gender: male, birth_year: 1998, job: "대학원생" }],
+      status_events: [{ at: 2026-11-04T10:00:00+09:00, status: confirmed }] }
+  - { id: r5, session: s1, members: [{ gender: female, birth_year: 1995 }],
+      status_events: [{ at: 2026-11-05T10:00:00+09:00, status: confirmed }] }
+canned_job_groups:
+  "백엔드 3년차":              { value: engineering, confidence: 0.95, quote: "백엔드" }
+  "UX 디자이너예요":           { value: design, confidence: 0.9, quote: "UX 디자이너" }
+  "마케팅 겸 기획 하고 있어요": { value: product, confidence: 0.55, quote: "기획" }   # 기준 미만 → 확인 요청
+  "대학원생":                 { value: student, confidence: 0.9, quote: "대학원생" }  # 목록 밖 값 → 확인 요청
