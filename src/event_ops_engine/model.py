@@ -150,11 +150,19 @@ class PromotionPolicy(StrictModel):
     trend_min_per_week: int = Field(ge=0)
 
 
+class TriagePolicy(StrictModel):
+    """Assumed values for module ① type rules (docs/design.md 13)."""
+
+    grace_minutes: int = Field(default=10, ge=0)
+    """A payment attempt this long after the due time still counts as on time."""
+
+
 class EventPolicy(StrictModel):
     event: str
     dimensions: Dimensions = Dimensions()
     defaults: SessionDefaults
     promotion: PromotionPolicy
+    triage: TriagePolicy = TriagePolicy()
 
 
 class Session(StrictModel):
