@@ -75,8 +75,8 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
 
 ```
 [문의 q1] r1 신청자 안내 문자가 timeout으로 떠요. 다시 보내야 하나요?
-  판정: 확인 요청 (ask) · 더 필요한 사실: provider_receipt
-  설명: 판정하려면 더 필요합니다: provider_receipt
+  판정: 확인 요청 (ask) · 더 필요한 사실: provider_lookup (외부: 발송 업체 로그)
+  설명: 판정하려면 더 필요합니다: provider_lookup (외부: 발송 업체 로그)
   근거: candidate/q1/about_event/e1, candidate/q1/asks_about/delivery
   기대 판정: ask · 일치
 ```
@@ -99,10 +99,10 @@ flowchart LR
 
 | 폴더 | 내용 |
 |---|---|
-| `rules/` | Datalog 규칙: `ontology.dl`(사실 스키마) · `capacity.dl`(②) · `promotion.dl`(③) · `triage.dl`(① 계약 + 유형 1~6 규칙) |
+| `rules/` | Datalog 규칙: `ontology.dl`(사실 스키마) · `capacity.dl`(②) · `promotion.dl`(③) · `triage.dl`(① 계약 + 유형 1~6 · 2b 규칙) |
 | `src/event_ops_engine/` | lib(`model` `bands` `clock` `facts` `policy` `loader` `decision`) · services(`engine` `interpreter` `normalizer`) · features(`capacity` `promotion` `harness` `cli`) |
 | `policy/events/` | 모임 정책 YAML 2개 (합성 예시, 기준값은 가정값). `synthetic-job-group.yaml`은 LLM이 정규화하는 `job_group` 차원 예시 |
-| `data/synthetic/scenarios/` | 합성 시나리오: 현황 · 홍보 6개(직군 정규화 포함), 문의(`triage/`) 8개 |
+| `data/synthetic/scenarios/` | 합성 시나리오: 현황 · 홍보 6개(직군 정규화 포함), 문의(`triage/`) 9개 |
 | `tests/` | pytest. 계산 로직은 같은 PR에 테스트를 올립니다. README 출력 예시도 테스트합니다 |
 | `scripts/` | 엔진 빌드 · wirelog 문법 검증 |
 | `docs/` | 설계 · 용어 · 결정 기록 · 공용 기준 사본 |

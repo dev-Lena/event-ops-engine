@@ -12,7 +12,7 @@ from pathlib import Path
 from .capacity import SessionStatus, capacity_status
 from .decision import Decision, Verdict, VerdictKind
 from .engine import Engine
-from .facts import scenario_facts
+from .facts import needs_label, scenario_facts
 from .harness import differences, run_triage
 from .interpreter import ClaudeCliInterpreter, FakeInterpreter, Interpreter
 from .loader import load_scenario, load_triage_scenario
@@ -87,7 +87,7 @@ def format_verdict(
     elif verdict.causes:
         head += " · 후보 원인: " + ", ".join(verdict.causes)
     if verdict.needs:
-        head += " · 더 필요한 사실: " + ", ".join(verdict.needs)
+        head += " · 더 필요한 사실: " + ", ".join(needs_label(n) for n in verdict.needs)
     lines += [head, f"  설명: {verdict.message}", "  근거: " + ", ".join(verdict.evidence)]
     matched = True
     if scenario.expected is not None:
