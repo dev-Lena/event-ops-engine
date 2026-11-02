@@ -197,11 +197,46 @@ def test_lookup_before_the_send_does_not_count() -> None:
     )
 
 
+def test_old_proof_for_an_earlier_send_does_not_block_type_2b() -> None:
+    scenario = load_triage_scenario(UNREACHABLE)
+    sent, lookup = scenario.log
+    old_send = sent.model_copy(
+        update={"id": "e0", "at": sent.at - timedelta(days=1), "attrs": {"result": "ok"}}
+    )
+    old_receipt = old_send.model_copy(
+        update={
+            "id": "e0r",
+            "kind": "provider_receipt",
+            "at": old_send.at + timedelta(minutes=2),
+            "attrs": {"result": "delivered"},
+        }
+    )
+    verdict = run_triage(
+        scenario.model_copy(update={"log": (old_send, old_receipt, sent, lookup)}),
+        FakeInterpreter(),
+    )
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "external_failure")
+
+
+def test_resend_guard_applies_to_lookup_proof_too() -> None:
+    scenario = load_triage_scenario(UNREACHABLE)
+    sent, lookup = scenario.log
+    resend = sent.model_copy(
+        update={"id": "e3", "at": sent.at + timedelta(minutes=30), "attrs": {"result": "ok"}}
+    )
+    found = lookup.model_copy(update={"attrs": {**lookup.attrs, "result": "found"}})
+    assert verdict_for(scenario.model_copy(update={"log": (sent, resend, found)})) == (
+        VerdictKind.ASK,
+        None,
+        (),
+    )
+
+
 def test_every_needs_value_in_the_rules_has_a_verifier() -> None:
     import re
 
     from event_ops_engine.engine import RULES_DIR
-    from event_ops_engine.facts import NEEDS_VERIFIER, needs_label
+    from event_ops_engine.harness import NEEDS_VERIFIER, needs_label
 
     rules = (RULES_DIR / "triage.dl").read_text(encoding="utf-8")
     literals = set(re.findall(r'needs\(Q, "([a-z_]+)"\)', rules))

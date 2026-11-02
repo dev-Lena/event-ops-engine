@@ -12,8 +12,8 @@ from pathlib import Path
 from .capacity import SessionStatus, capacity_status
 from .decision import Decision, Verdict, VerdictKind
 from .engine import Engine
-from .facts import needs_label, scenario_facts
-from .harness import differences, run_triage
+from .facts import scenario_facts
+from .harness import differences, needs_label, run_triage
 from .interpreter import ClaudeCliInterpreter, FakeInterpreter, Interpreter
 from .loader import load_scenario, load_triage_scenario
 from .model import TriageScenario

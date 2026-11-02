@@ -55,15 +55,15 @@ needs(Q, "account_issued") :- asks(Q, R, "payment"), !log_event(_, R, "account_i
 // Our send timed out, but the provider's receipt says delivered afterwards: the message
 // went out, no resend. A resend between the two would make the receipt ambiguous, so the
 // rule requires none. Evidence: the timed-out send and the receipt.
-.decl resent_between(sent: symbol, receipt: symbol)
-resent_between(S, P) :-
-    log_event(S, R, "message_sent", TS), log_event(P, R, "provider_receipt", TP),
-    log_event(S2, R, "message_sent", T2), S2 != S, T2 > TS, T2 <= TP.
 // Proof of delivery is either the provider's own receipt or the operator looking the
 // message up in the provider log and finding it (`provider_lookup{result: found}`).
 .decl delivered_proof(reg: symbol, proof: symbol, ts: int64)
 delivered_proof(R, P, T) :- log_event(P, R, "provider_receipt", T), log_attr(P, "result", "delivered").
 delivered_proof(R, P, T) :- log_event(P, R, "provider_lookup", T), log_attr(P, "result", "found").
+.decl resent_between(sent: symbol, proof: symbol)
+resent_between(S, P) :-
+    log_event(S, R, "message_sent", TS), delivered_proof(R, P, TP),
+    log_event(S2, R, "message_sent", T2), S2 != S, T2 > TS, T2 <= TP.
 .decl delivered_late(q: symbol, sent: symbol, receipt: symbol)
 delivered_late(Q, S, P) :-
     asks(Q, R, "delivery"),
@@ -76,12 +76,15 @@ cause(Q, "external_delay", P) :- delivered_late(Q, _, P).
 // --- type 2b: external failure, the provider never got the request (#47) ----------
 // The send timed out and the provider log has no record at all: the message did not go
 // out, resend. (Ops guideline: no record in the provider log → resend.)
+// A proof that came after this send; older proofs belong to earlier messages.
+.decl proof_after(sent: symbol)
+proof_after(S) :- log_event(S, R, "message_sent", TS), delivered_proof(R, _, TP), TP >= TS.
 .decl unreachable(q: symbol, sent: symbol, lookup: symbol)
 unreachable(Q, S, L) :-
     asks(Q, R, "delivery"),
     log_event(S, R, "message_sent", TS), log_attr(S, "result", "timeout"),
     log_event(L, R, "provider_lookup", TL), log_attr(L, "result", "none"), TL >= TS,
-    !delivered_proof(R, _, _).
+    !proof_after(S).
 cause(Q, "external_failure", S) :- unreachable(Q, S, _).
 cause(Q, "external_failure", L) :- unreachable(Q, _, L).
 // Neither a receipt nor a lookup yet: the provider log must be checked first.
