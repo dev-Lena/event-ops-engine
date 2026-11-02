@@ -41,6 +41,7 @@
 | 문의 유형 하나를 판정하는 규칙 묶음 | 유형 규칙 / type rule | `rules/triage.dl` 유형 1~6 (`user_input` · `external_delay` · `policy_normal` · `expired` · `suspected_bug` · `seat_full`/`over_capacity`) | 분류기 | 주제별로 `cause`와 `needs`를 파생. [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
 | 규칙으로 설명할 수 없어야 정상인 조건. 깨지면 버그 의심 | 불변식 / invariant | `invariant_violated(reg, invariant)` | 제약 | 확정인데 결제 없음 · 기한 뒤 결제로 확정 · 속성 정원 초과. 위반은 `suspected_bug`로 사람에게 넘긴다 |
 | 유형 규칙이 쓰는 설정값 | 문의 기준 / triage policy | `triage_policy(key, n)` | 임계값 | `grace_minutes`. 값은 **가정값** |
+| `needs`를 누가 채울 수 있는지 | 확인 주체 / verifier | `NEEDS_VERIFIER` (외부 · 내부 · 질문 · 정책) | — | 외부 = 발송 업체 로그가 진실, 내부 = 관리자 기록. 출력에 괄호로 붙는다 |
 | 시나리오 작성자가 적어 둔 기대 결과 | 기대 판정 / expected verdict | `ExpectedVerdict` (kind · cause · needs) | 정답 | `event-ops triage`가 실제 판정과 비교한다 |
 | 자유 입력을 속성 값 후보로 바꾸는 부품 | 정규화기 / normalizer | `Normalizer` (Claude Code CLI · 가짜), `NormalizedValue(value, confidence, quote)` | 분류기, 태거 | 제안만 한다. 받아들이는 것은 규칙 |
 | 정규화기가 제안한 속성 값. 검증 전 | 후보 속성 / candidate attribute | `candidate_attr(attendee, dim, value, confidence, evidence)` | — | 확신도는 0~100 정수. `attendee_attr`와 구분한다 |

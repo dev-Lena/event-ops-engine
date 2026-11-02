@@ -16,6 +16,7 @@ from .facts import (
     Facts,
     candidate_id,
     evidence_id,
+    needs_label,
     squash,
     triage_facts,
 )
@@ -133,7 +134,7 @@ def decide(
         kind, message, evidence = (
             VerdictKind.ASK,
             "판정하려면 더 필요합니다: "
-            + (", ".join(needs) or "유형 규칙 없음 또는 관련 로그 없음"),
+            + (", ".join(needs_label(n) for n in needs) or "유형 규칙 없음 또는 관련 로그 없음"),
             base,
         )
     else:
