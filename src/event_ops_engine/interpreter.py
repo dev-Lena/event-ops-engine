@@ -16,7 +16,7 @@ from typing import Protocol
 
 from pydantic import ValidationError
 
-from .facts import CANDIDATE_RELATIONS, TOPICS
+from .facts import CANDIDATE_RELATIONS, TOPICS, dimension_values
 from .model import Interpretation, Question, TriageScenario
 
 
@@ -31,6 +31,8 @@ class InterpretContext:
     registrations: tuple[str, ...]
     sessions: tuple[str, ...]
     log_ids: tuple[str, ...]
+    values: tuple[tuple[str, str], ...] = ()
+    """(dim, value) pairs the policy defines, e.g. ("gender", "female")."""
     topics: tuple[str, ...] = TOPICS
 
     @classmethod
@@ -39,6 +41,7 @@ class InterpretContext:
             registrations=tuple(r.id for r in scenario.registrations),
             sessions=tuple(s.id for s in scenario.sessions),
             log_ids=tuple(e.id for e in scenario.log),
+            values=dimension_values(scenario.policy),
         )
 
 
@@ -70,18 +73,22 @@ def run_subprocess(command: Sequence[str], stdin: str, timeout: float = 120.0) -
 
 
 def build_prompt(question: Question, context: InterpretContext) -> str:
-    relations = ", ".join(f"{name}(q, {kind})" for name, kind in CANDIDATE_RELATIONS.items())
+    relations = ", ".join(
+        f"{name}(q, {', '.join(kinds)})" for name, kinds in CANDIDATE_RELATIONS.items()
+    )
+    values = ", ".join(f"{dim}={value}" for dim, value in context.values) or "(none)"
     return "\n".join(
         [
             "You extract candidate facts from an event-operations inquiry. Propose facts only;",
             "you never decide the cause. Answer with one JSON object and nothing else:",
             '{"facts": [{"relation": "...", "args": ["..."], "provenance": {"source": "question",',
             '"quote": "..."}, "confidence": 0.0}], "note": ""}',
-            f"Allowed relations (each takes exactly one argument besides q): {relations}.",
+            f"Allowed relations and their arguments after q: {relations}.",
             f"Topics: {', '.join(context.topics)}. Use another topic word if none fits.",
             f"Known registration ids: {', '.join(context.registrations) or '(none)'}.",
             f"Known session ids: {', '.join(context.sessions) or '(none)'}.",
             f"Known log event ids: {', '.join(context.log_ids) or '(none)'}.",
+            f"Known attribute values (dim=value, two arguments for about_value): {values}.",
             "Rules: `quote` must be copied verbatim from the question. Never invent an id that is",
             "not listed. Omit a fact rather than guess. confidence is between 0 and 1.",
             "",

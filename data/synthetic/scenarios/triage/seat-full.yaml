@@ -1,0 +1,40 @@
+# ① 유형 6 자리 문의 (#21). 질문 · 신청 · id는 모두 합성이다.
+# 여성 목표 6~6에 여성 확정 6명 → ② `full(s1, gender, female)`이 답이자 근거.
+policy: ../../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-21 }
+registrations:
+  - { id: r1, session: s1, members: [{ gender: female, birth_year: 1996 }],
+      status_events: [{ at: 2026-10-25T10:00:00+09:00, status: confirmed }] }
+  - { id: r2, session: s1, members: [{ gender: female, birth_year: 1993 }],
+      status_events: [{ at: 2026-10-26T10:00:00+09:00, status: confirmed }] }
+  - { id: r3, session: s1, members: [{ gender: female, birth_year: 1990 }],
+      status_events: [{ at: 2026-10-27T10:00:00+09:00, status: confirmed }] }
+  - { id: r4, session: s1, members: [{ gender: female, birth_year: 1998 }],
+      status_events: [{ at: 2026-10-28T10:00:00+09:00, status: confirmed }] }
+  - { id: r5, session: s1, members: [{ gender: female, birth_year: 1988 }],
+      status_events: [{ at: 2026-10-29T10:00:00+09:00, status: confirmed }] }
+  - { id: r6, session: s1, members: [{ gender: female, birth_year: 1995 }],
+      status_events: [{ at: 2026-10-30T10:00:00+09:00, status: confirmed }] }
+  - { id: r7, session: s1, members: [{ gender: male, birth_year: 1992 }],
+      status_events: [{ at: 2026-11-01T10:00:00+09:00, status: pending_payment }] }
+log:
+  - { id: e1, at: 2026-10-25T10:00:00+09:00, kind: payment_received, registration: r1 }
+  - { id: e2, at: 2026-10-26T10:00:00+09:00, kind: payment_received, registration: r2 }
+  - { id: e3, at: 2026-10-27T10:00:00+09:00, kind: payment_received, registration: r3 }
+  - { id: e4, at: 2026-10-28T10:00:00+09:00, kind: payment_received, registration: r4 }
+  - { id: e5, at: 2026-10-29T10:00:00+09:00, kind: payment_received, registration: r5 }
+  - { id: e6, at: 2026-10-30T10:00:00+09:00, kind: payment_received, registration: r6 }
+question:
+  id: q1
+  text: "s1 회차 여성 자리가 왜 마감이에요? 신청이 더 들어오는데요."
+  canned:
+    facts:
+      - { relation: asks_about, args: [seat],
+          provenance: { source: question, quote: "자리가 왜 마감이에요" }, confidence: 0.9 }
+      - { relation: about_session, args: [s1],
+          provenance: { source: question, quote: "s1 회차" }, confidence: 0.95 }
+      - { relation: about_value, args: [gender, female],
+          provenance: { source: question, quote: "여성 자리" }, confidence: 0.9 }
+expected: { kind: accept, cause: seat_full, needs: [] }
