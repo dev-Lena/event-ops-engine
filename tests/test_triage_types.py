@@ -1,4 +1,5 @@
-"""Type rules: 1 user input (account length, #15) and 2 external delay (#16), end to end."""
+"""Type rules end to end: 1 user input (#15), 2 external delay (#16), 3 duplicate (#18),
+4 expired deadline (#19)."""
 
 from datetime import timedelta
 from pathlib import Path
@@ -227,6 +228,17 @@ def test_grace_comes_from_the_policy() -> None:
     scenario = attempt_at(load_triage_scenario(DEADLINE), 1)
     strict = scenario.policy.model_copy(update={"triage": TriagePolicy(grace_minutes=0)})
     assert verdict_for(scenario.model_copy(update={"policy": strict}))[1] == "expired"
+
+
+def test_accepted_late_payment_is_not_expired() -> None:
+    scenario = attempt_at(load_triage_scenario(DEADLINE), 3600)
+    due, attempt = scenario.log
+    accepted = attempt.model_copy(update={"attrs": {"result": "ok"}})
+    assert verdict_for(scenario.model_copy(update={"log": (due, accepted)})) == (
+        VerdictKind.ASK,
+        None,
+        (),
+    )
 
 
 def test_extended_deadline_supersedes_the_old_one() -> None:
