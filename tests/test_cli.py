@@ -60,7 +60,7 @@ def test_triage_main_returns_zero_on_match(capsys: pytest.CaptureFixture[str]) -
 def test_triage_groups_evidence_by_trust_tier() -> None:
     lines, _ = triage(TRIAGE / "seat-full.yaml")
     tiers = [line.split(":")[0].strip() for line in lines if line.strip().startswith("근거 ·")]
-    assert tiers == ["근거 · 규칙 추론", "근거 · LLM 제안(검증 통과)"]
+    assert tiers == ["근거 · 추론 사실", "근거 · LLM 추출 후보(검증 통과)"]
 
 
 def test_evidence_lines_keep_tier_order_and_unknown_prefixes() -> None:
@@ -68,8 +68,8 @@ def test_evidence_lines_keep_tier_order_and_unknown_prefixes() -> None:
 
     lines = evidence_lines(["candidate/q/x", "odd/1", "log/e1", "question/q"])
     assert [line.split(":")[0].strip() for line in lines] == [
-        "근거 · 원본 사실",
-        "근거 · LLM 제안(검증 통과)",
+        "근거 · 명시 사실",
+        "근거 · LLM 추출 후보(검증 통과)",
         "근거 · 질문",
         "근거 · 기타",
     ]

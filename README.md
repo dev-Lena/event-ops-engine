@@ -53,7 +53,7 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
 
 ### 운영 문의 판정 (①)
 
-원인이 하나로 가려지면 `accept`, 근거 로그 id가 붙습니다. 근거는 믿을 수 있는 순서로 나눠 보여 줍니다: 원본 사실(기록된 로그) → 규칙 추론(규칙이 기록에서 끌어낸 사실) → LLM 제안(해석기가 질문에서 뽑아 검증을 통과한 사실).
+원인이 하나로 가려지면 `accept`, 근거 로그 id가 붙습니다. 근거는 믿을 수 있는 순서로 나눠 보여 줍니다: 명시 사실(asserted, 기록된 로그) → 추론 사실(inferred, 규칙이 기록에서 끌어낸 사실) → LLM 추출 후보(해석기가 질문에서 뽑아 검증을 통과한 사실).
 
 ```bash
 event-ops triage data/synthetic/scenarios/triage/account-length.yaml
@@ -63,8 +63,8 @@ event-ops triage data/synthetic/scenarios/triage/account-length.yaml
 [문의 q1] r1 신청자가 입금하려는데 계좌가 없다고 나온대요. 계좌 발급이 잘못됐나요?
   판정: 원인 확정 (accept) · 원인: user_input
   설명: 원인: user_input. 근거: log/e1, log/e2
-  근거 · 원본 사실: log/e1, log/e2
-  근거 · LLM 제안(검증 통과): candidate/q1/about_registration/r1, candidate/q1/asks_about/payment
+  근거 · 명시 사실: log/e1, log/e2
+  근거 · LLM 추출 후보(검증 통과): candidate/q1/about_registration/r1, candidate/q1/asks_about/payment
   기대 판정: accept · 일치
 ```
 
@@ -78,7 +78,7 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
 [문의 q1] r1 신청자 안내 문자가 timeout으로 떠요. 다시 보내야 하나요?
   판정: 확인 요청 (ask) · 더 필요한 사실: provider_lookup (외부: 발송 업체 로그)
   설명: 판정하려면 더 필요합니다: provider_lookup (외부: 발송 업체 로그)
-  근거 · LLM 제안(검증 통과): candidate/q1/about_event/e1, candidate/q1/asks_about/delivery
+  근거 · LLM 추출 후보(검증 통과): candidate/q1/about_event/e1, candidate/q1/asks_about/delivery
   기대 판정: ask · 일치
 ```
 
