@@ -1,11 +1,13 @@
 """Layer: features. `event-ops report <scenario.yaml>` prints capacity status and promotion
 decisions for every session; `event-ops triage <scenario.yaml>` prints the verdict for the
-scenario's question. Output is for operators, in Korean (docs/glossary.md)."""
+scenario's question, its evidence by trust tier, and with `--runs N` how often repeated runs
+agree. Output is for operators, in Korean (docs/glossary.md)."""
 
 from __future__ import annotations
 
 import argparse
 import sys
+from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -14,7 +16,7 @@ from .decision import Decision, Verdict, VerdictKind
 from .engine import Engine
 from .facts import scenario_facts
 from .harness import differences, needs_label, run_triage
-from .interpreter import ClaudeCliInterpreter, FakeInterpreter, Interpreter
+from .interpreter import ClaudeCliInterpreter, FakeInterpreter, Interpreter, preflight
 from .loader import load_scenario, load_triage_scenario
 from .model import TriageScenario
 from .normalizer import NORMALIZERS, normalize_members
@@ -30,6 +32,15 @@ INTERPRETERS: dict[str, type[Interpreter]] = {
     "fake": FakeInterpreter,
     "claude": ClaudeCliInterpreter,
 }
+EVIDENCE_TIERS: tuple[tuple[str, str], ...] = (
+    ("log/", "원본 사실"),
+    ("rule/", "규칙 추론"),
+    ("candidate/", "LLM 제안 · 검증 통과"),
+    ("question/", "질문"),
+)
+"""How far each evidence id can be trusted, most first: a recorded fact, a fact the rules
+derived from recorded facts, a fact the LLM proposed that passed validation. "Cannot confirm"
+has no tier; it is the `ask` / `abstain` verdict itself (docs/design.md 13)."""
 
 
 def format_status(status: SessionStatus) -> list[str]:
@@ -88,7 +99,8 @@ def format_verdict(
         head += " · 후보 원인: " + ", ".join(verdict.causes)
     if verdict.needs:
         head += " · 더 필요한 사실: " + ", ".join(needs_label(n) for n in verdict.needs)
-    lines += [head, f"  설명: {verdict.message}", "  근거: " + ", ".join(verdict.evidence)]
+    lines += [head, f"  설명: {verdict.message}"]
+    lines += evidence_lines(verdict.evidence)
     matched = True
     if scenario.expected is not None:
         found = differences(verdict, scenario.expected)
@@ -102,16 +114,54 @@ def format_verdict(
     return lines, matched
 
 
+def evidence_lines(evidence: Sequence[str]) -> list[str]:
+    """One line per trust tier, most trusted first; ids with an unknown prefix go last."""
+    lines: list[str] = []
+    left = list(evidence)
+    for prefix, label in EVIDENCE_TIERS:
+        tier = [e for e in left if e.startswith(prefix)]
+        if tier:
+            lines.append(f"  근거 · {label}: " + ", ".join(tier))
+            left = [e for e in left if not e.startswith(prefix)]
+    if left:
+        lines.append("  근거 · 기타: " + ", ".join(left))
+    return lines
+
+
+def outcome(verdict: Verdict) -> str:
+    return " · ".join([verdict.kind, *([verdict.cause] if verdict.cause else [])])
+
+
+def agreement_lines(verdicts: Sequence[Verdict]) -> list[str]:
+    """How often repeated runs gave the same verdict (kind + cause)."""
+    counts = Counter(outcome(v) for v in verdicts)
+    top = counts.most_common(1)[0][1]
+    spread = ", ".join(f"{key} {n}회" for key, n in counts.most_common())
+    return [f"  반복 실행 {len(verdicts)}회: {spread} / 일치율 {top * 100 // len(verdicts)}%"]
+
+
 def triage(
     scenario_path: Path,
     interpreter: str = "fake",
     trace: bool = False,
     normalizer: str = "fake",
+    runs: int = 1,
 ) -> tuple[list[str], bool]:
+    """Lines and whether every run matched the scenario's expectation (True if none)."""
     loaded = load_triage_scenario(scenario_path)
     scenario = normalize_members(loaded, NORMALIZERS[normalizer](loaded))
-    verdict = run_triage(scenario, INTERPRETERS[interpreter]())
-    return format_verdict(scenario, verdict, trace)
+    chosen = INTERPRETERS[interpreter]()
+    verdicts = [run_triage(scenario, chosen) for _ in range(max(runs, 1))]
+    lines, matched = format_verdict(scenario, verdicts[0], trace)
+    if len(verdicts) > 1:
+        lines += agreement_lines(verdicts)
+        if scenario.expected is not None:
+            matched = all(not differences(v, scenario.expected) for v in verdicts)
+    return lines, matched
+
+
+def uses_claude(args: argparse.Namespace) -> bool:
+    return "claude" in (getattr(args, "interpreter", None), getattr(args, "normalizer", None))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -128,6 +178,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="fake: 시나리오의 canned 해석 (기본), claude: Claude Code CLI (`claude -p`)",
     )
     triage_parser.add_argument("--trace", action="store_true", help="단계별 trace도 출력")
+    triage_parser.add_argument(
+        "--runs",
+        type=int,
+        default=1,
+        help="같은 질문을 N번 판정해 결과 분포와 일치율을 출력 (실제 해석기 안정성 확인용)",
+    )
     for subparser in (report_parser, triage_parser):
         subparser.add_argument(
             "--normalizer",
@@ -136,11 +192,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             help="직군 정규화기. fake: 시나리오의 canned_job_groups (기본), claude: Claude Code CLI",
         )
     args = parser.parse_args(argv)
+    if uses_claude(args):
+        problem = preflight()
+        if problem is not None:
+            print(
+                f"Claude CLI를 쓸 수 없습니다: {problem}\n"
+                "터미널에서 `claude login`을 실행한 뒤 다시 시도하세요.",
+                file=sys.stderr,
+            )
+            return 2
     if args.command == "report":
         print("\n".join(report(args.scenario, args.normalizer)))
         return 0
     if args.command == "triage":
-        lines, matched = triage(args.scenario, args.interpreter, args.trace, args.normalizer)
+        lines, matched = triage(
+            args.scenario, args.interpreter, args.trace, args.normalizer, args.runs
+        )
         print("\n".join(lines))
         return 0 if matched else 1
     return 2

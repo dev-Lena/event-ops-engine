@@ -119,6 +119,26 @@ def parse_interpretation(raw: str) -> Interpretation:
         ) from error
 
 
+PREFLIGHT_PROMPT = "Reply with exactly: ok"
+
+
+def preflight(
+    command: Sequence[str] = ("claude", "-p"), run: Runner = run_subprocess
+) -> str | None:
+    """None when the CLI answers, else why it cannot be used (e.g. not logged in).
+
+    "Installed" is not "logged in": a logged-out CLI would turn every question into a reject,
+    so the CLI checks once before it starts.
+    """
+    try:
+        run(command, PREFLIGHT_PROMPT)
+    except InterpretationError as error:
+        return str(error)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return f"{command[0]}: {error}"
+    return None
+
+
 class ClaudeCliInterpreter:
     """Runs the Claude Code CLI in print mode. No API key; uses the user's subscription."""
 
