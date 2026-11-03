@@ -412,7 +412,42 @@ BUG = TRIAGE / "bug-confirmed-without-payment.yaml"
 def test_confirmed_without_payment_is_a_suspected_bug_named_by_invariant() -> None:
     verdict = run_triage(load_triage_scenario(BUG), FakeInterpreter())
     assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "suspected_bug")
-    assert "rule/confirmed_without_payment" in verdict.evidence
+    assert {"rule/confirmed_without_payment", "log/e2"} <= set(verdict.evidence)
+
+
+def test_missing_payment_without_a_lookup_asks_instead_of_concluding() -> None:
+    # open world (#58): no payment_received log may just mean the log is incomplete
+    scenario = load_triage_scenario(BUG)
+    no_lookup = scenario.model_copy(update={"log": scenario.log[:1]})
+    kind, cause, needs = verdict_for(no_lookup)
+    assert (kind, cause) == (VerdictKind.ASK, None)
+    assert "payment_lookup" in needs
+
+
+def test_lookup_before_the_confirmation_does_not_count() -> None:
+    scenario = load_triage_scenario(BUG)
+    issued, lookup = scenario.log
+    early = lookup.model_copy(update={"at": lookup.at - timedelta(days=2)})
+    kind, cause, needs = verdict_for(scenario.model_copy(update={"log": (issued, early)}))
+    assert (kind, cause) == (VerdictKind.ASK, None) and "payment_lookup" in needs
+
+
+def test_lookup_that_finds_the_payment_is_not_a_bug() -> None:
+    scenario = load_triage_scenario(BUG)
+    issued, lookup = scenario.log
+    found = lookup.model_copy(update={"attrs": {"result": "found"}})
+    kind, cause, needs = verdict_for(scenario.model_copy(update={"log": (issued, found)}))
+    assert cause is None and "payment_lookup" not in needs
+
+
+def test_newer_found_lookup_overrides_an_older_none() -> None:
+    scenario = load_triage_scenario(BUG)
+    issued, lookup = scenario.log
+    later = lookup.model_copy(
+        update={"id": "e3", "at": lookup.at + timedelta(hours=2), "attrs": {"result": "found"}}
+    )
+    kind, cause, needs = verdict_for(scenario.model_copy(update={"log": (issued, lookup, later)}))
+    assert cause is None and "payment_lookup" not in needs
 
 
 def test_payment_received_clears_the_invariant() -> None:

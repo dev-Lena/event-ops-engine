@@ -193,6 +193,8 @@ class TriagePolicy(StrictModel):
     blocks the account at the due time itself, so the default is 0."""
     payment_deadline_hours: int = Field(default=24, ge=1)
     """Hours after selection (pending_payment) a registration may pay. Sessions override it."""
+    min_candidate_confidence: float = Field(default=0.6, ge=0.0, le=1.0)
+    """Assumed value: interpreter candidates below it never reach the rules (#59)."""
 
 
 class EventPolicy(StrictModel):

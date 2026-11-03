@@ -24,6 +24,7 @@ from .model import CandidateFact, ExpectedVerdict, Interpretation, TriageScenari
 
 NEEDS_VERIFIER: dict[str, str] = {
     "provider_lookup": "외부: 발송 업체 로그",
+    "payment_lookup": "외부: 결제 업체 입금 내역",
     "account_issued": "내부: 계좌 발급 기록",
     "account_entered": "내부: 입금 시도 기록",
     "payment_due": "내부: 선별 · 기한 기록",
@@ -103,8 +104,32 @@ def candidate_facts(question_id: str, facts: tuple[CandidateFact, ...]) -> Facts
     return rows
 
 
+def _dropped_note(dropped: tuple[CandidateFact, ...]) -> str:
+    if not dropped:
+        return ""
+    listed = ", ".join(f"{f.relation} {' '.join(f.args)} ({f.confidence:g})" for f in dropped)
+    return f" (확신이 낮아 판정에 쓰지 않은 후보: {listed})"
+
+
+def split_by_confidence(
+    facts: tuple[CandidateFact, ...], minimum: float
+) -> tuple[tuple[CandidateFact, ...], tuple[CandidateFact, ...]]:
+    """(used, dropped): a candidate the interpreter is unsure of never reaches the rules.
+
+    A fact proposed twice counts as used if any copy reaches the threshold.
+    """
+    used = tuple(f for f in facts if f.confidence >= minimum)
+    kept = {(f.relation, f.args) for f in used}
+    dropped = tuple(f for f in facts if f.confidence < minimum and (f.relation, f.args) not in kept)
+    return used, dropped
+
+
 def decide(
-    engine: Engine, scenario: TriageScenario, candidate_ids: list[str], trace: list[str]
+    engine: Engine,
+    scenario: TriageScenario,
+    candidate_ids: list[str],
+    trace: list[str],
+    dropped: tuple[CandidateFact, ...] = (),
 ) -> Verdict:
     q = scenario.question.id
     in_scope = bool(engine.rows("in_scope", q))
@@ -161,6 +186,7 @@ def decide(
             "원인 후보가 여럿입니다. 사람이 가려야 합니다: " + ", ".join(causes),
             base + tuple(derived),
         )
+    message += _dropped_note(dropped)
     trace.append("ACT: dry run, nothing executed")
     return Verdict(
         kind=kind,
@@ -170,6 +196,7 @@ def decide(
         needs=tuple(needs),
         evidence=evidence,
         message=message,
+        dropped=tuple(sorted({candidate_id(q, f) for f in dropped})),
         trace=tuple(trace),
     )
 
@@ -203,12 +230,15 @@ def run_triage(
             trace.append(f"INTERPRET: rejected {len(problems)} problems")
             return _reject(scenario, problems, trace)
 
-        candidates = candidate_facts(scenario.question.id, interpretation.facts)
-        engine.load(candidates)
-        candidate_ids = sorted(
-            {candidate_id(scenario.question.id, f) for f in interpretation.facts}
+        used, dropped = split_by_confidence(
+            interpretation.facts, scenario.policy.triage.min_candidate_confidence
         )
-        return decide(engine, scenario, candidate_ids, trace)
+        if dropped:
+            trace.append(f"INTERPRET: dropped {len(dropped)} low-confidence candidates")
+        candidates = candidate_facts(scenario.question.id, used)
+        engine.load(candidates)
+        candidate_ids = sorted({candidate_id(scenario.question.id, f) for f in used})
+        return decide(engine, scenario, candidate_ids, trace, dropped)
     finally:
         engine.retract(candidates)
         engine.retract(facts)

@@ -52,4 +52,6 @@ class Verdict(BaseModel):
     needs: tuple[str, ...] = ()
     evidence: tuple[str, ...] = Field(min_length=1)
     message: str
+    dropped: tuple[str, ...] = ()
+    """Candidate fact ids left out of reasoning because the interpreter was unsure."""
     trace: tuple[str, ...] = ()
