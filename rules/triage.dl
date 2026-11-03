@@ -138,10 +138,21 @@ needs(Q, "payment_attempt") :- asks(Q, R, "deadline"), !log_event(_, R, "payment
 // --- type 5: suspected bug, an invariant the rules cannot explain (#20) ------------
 // Fires for any in-scope question about the registration, whatever the topic: a person
 // must look. Evidence is the violated invariant's name (the harness renders `rule/<name>`).
-// A confirmed registration in a triage scenario therefore needs a `payment_received` log.
+//
+// Missing record != false (open world, #58): a confirmed registration with no
+// `payment_received` log is only a violation once someone looked the payment up after the
+// confirmation and found nothing (`payment_lookup{result: none}`). Until then the log may
+// simply be incomplete, so the rule asks for the lookup instead of concluding.
+.decl paid(reg: symbol)
+.decl payment_checked(reg: symbol)
+.decl unpaid_checked(reg: symbol, lookup: symbol)
+paid(R) :- log_event(_, R, "payment_received", _).
+payment_checked(R) :- confirmed_at(R, TC), log_event(_, R, "payment_lookup", TL), TL >= TC.
+unpaid_checked(R, L) :-
+    confirmed(R), !paid(R), confirmed_at(R, TC),
+    log_event(L, R, "payment_lookup", TL), log_attr(L, "result", "none"), TL >= TC.
 .decl invariant_violated(reg: symbol, invariant: symbol)
-invariant_violated(R, "confirmed_without_payment") :-
-    confirmed(R), !log_event(_, R, "payment_received", _).
+invariant_violated(R, "confirmed_without_payment") :- unpaid_checked(R, _).
 invariant_violated(R, "confirmed_after_expiry") :-
     confirmed(R), due_time(R, TD),
     log_event(P, R, "payment_received", TP),
@@ -150,6 +161,9 @@ invariant_violated(R, "over_capacity") :-
     registration(R, S), confirmed(R), attendee(R, A), attendee_attr(A, D, V),
     over_capacity(S, D, V, _).
 cause(Q, "suspected_bug", I) :- subject(Q, R), in_scope(Q), invariant_violated(R, I).
+cause(Q, "suspected_bug", L) :- subject(Q, R), in_scope(Q), unpaid_checked(R, L).
+needs(Q, "payment_lookup") :-
+    subject(Q, R), in_scope(Q), confirmed(R), !paid(R), !payment_checked(R).
 
 // --- type 6: seat inquiry, answered from module ② (#21) --------------------------
 // "Why is the women's quota full?": the question names a session and an attribute value;
