@@ -33,14 +33,14 @@ INTERPRETERS: dict[str, type[Interpreter]] = {
     "claude": ClaudeCliInterpreter,
 }
 EVIDENCE_TIERS: tuple[tuple[str, str], ...] = (
-    ("log/", "원본 사실"),
-    ("rule/", "규칙 추론"),
-    ("candidate/", "LLM 제안(검증 통과)"),
+    ("log/", "명시 사실"),
+    ("rule/", "추론 사실"),
+    ("candidate/", "LLM 추출 후보(검증 통과)"),
     ("question/", "질문"),
 )
-"""How far each evidence id can be trusted, most first: a recorded fact, a fact the rules
-derived from recorded facts, a fact the LLM proposed that passed validation. "Cannot confirm"
-has no tier; it is the `ask` / `abstain` verdict itself (docs/design.md 13)."""
+"""How far each evidence id can be trusted, most first: an asserted fact (recorded), an
+inferred fact (derived by the rules), an LLM-extracted candidate that passed validation.
+"Cannot confirm" has no tier; it is the `ask` / `abstain` verdict itself (docs/design.md 13)."""
 
 
 def format_status(status: SessionStatus) -> list[str]:
