@@ -28,7 +28,7 @@ LLM에게 통째로 맡기면 빠르지만, 근거 없이 "정상입니다"라�
 | ① 문의 판정 | 질문 + 이벤트 로그 | 원인(`cause`) · 더 필요한 사실(`needs`) | `accept` / `ask` / `abstain` / `reject` |
 | 직군 정규화 | 신청자의 자유 입력("백엔드 3년차") | 확신도 기준 이상인 후보만 속성으로 | ②에 `job_group` 목표 반영, 미만은 확인 요청 |
 
-LLM은 ①과 직군 정규화에서만 쓰고, 역할은 **후보 사실을 제안**하는 것까지입니다. ①에서는 질문을 후보 사실로, 정규화에서는 자유 입력을 속성 값 후보(값 · 확신도 · 인용)로 바꿉니다. 후보 사실은 관계 네 개만 허용되고, 입력에 없는 id나 질문에 없는 인용이 섞이면 규칙에 닿기 전에 `reject`됩니다. 원인은 규칙만 정하고, 원인이 하나일 때만 `accept`입니다. 설계는 [docs/design.md](docs/design.md), 결정 계약은 그 13절입니다.
+LLM은 ①과 직군 정규화에서만 쓰고, 역할은 **후보 사실을 제안**하는 것까지입니다. ①에서는 질문을 후보 사실로, 정규화에서는 자유 입력을 속성 값 후보(값 · 확신도 · 인용)로 바꿉니다. 후보 사실은 관계 다섯 개만 허용되고, 입력에 없는 id나 질문에 없는 인용이 섞이면 규칙에 닿기 전에 `reject`됩니다. 해석기가 자신 없다고 한 후보는 판정에 쓰지 않습니다. 원인은 규칙만 정하고, 원인이 하나일 때만 `accept`입니다. 설계는 [docs/design.md](docs/design.md), 결정 계약은 그 13절입니다.
 
 ## 사용
 
@@ -49,7 +49,7 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
   홍보 권고: 회차 임박: male 4명 부족, 홍보가 필요합니다. (이유: imbalance, lead_time, slow_trend; 근거: ...)
 ```
 
-시나리오는 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`입니다. 홍보 기준값(`lead_days` 등)은 모두 **가정값**입니다. 입금 대기 중인 자리는 차지한 것으로 보아 남은 자리 · 부족분에서 뺍니다(운영사 규칙). 직군 정규화가 있는 시나리오(`job-group.yaml`)는 기본으로 파일의 `canned_job_groups` 답을 쓰고, `--normalizer claude`를 주면 Claude Code CLI가 자유 입력을 분류합니다.
+시나리오는 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`입니다. 홍보 기준값(`lead_days` 등)은 모두 **가정값**입니다. 입금 대기 중인 자리는 차지한 것으로 보아 남은 자리 · 부족분에서 뺍니다(운영사 규칙). 직군 정규화가 있는 시나리오(`job-group.yaml`)는 먼저 정책의 **별칭 사전**(사람이 승인한 단어 목록)으로 맞추고, 남은 문구만 정규화기에 한 번에 묻습니다. 기본 정규화기는 파일의 `canned_job_groups` 답을 쓰고, `--normalizer claude`를 주면 Claude Code CLI가 분류합니다.
 
 ### 운영 문의 판정 (①)
 
@@ -106,7 +106,7 @@ flowchart LR
 | `data/synthetic/scenarios/` | 합성 시나리오: 현황 · 홍보 6개(직군 정규화 포함), 문의(`triage/`) 9개 |
 | `tests/` | pytest. 계산 로직은 같은 PR에 테스트를 올립니다. README 출력 예시도 테스트합니다 |
 | `scripts/` | 엔진 빌드 · wirelog 문법 검증 |
-| `docs/` | 설계 · 용어 · 결정 기록 · 공용 기준 사본 |
+| `docs/` | 설계 · 용어 · 결정 기록 |
 
 ## 설치
 
@@ -138,7 +138,7 @@ python scripts/verify_wirelog.py   # wirelog 문법 검증 25건 (24건 통과�
 ## 읽는 순서
 
 1. 이 README — 문제 · 접근 · 실행
-2. [docs/design.md](docs/design.md) — 흐름 · 데이터 모델 · 규칙 · 결정 계약 · wirelog 제약
+2. [docs/design.md](docs/design.md) — 흐름 · 데이터 모델 · 규칙 · 결정 계약 · wirelog 제약 · 온톨로지 용어로 본 설계(15절)
 3. [docs/glossary.md](docs/glossary.md) — 용어 · 상태 값 · 도메인 경계
 4. [docs/decisions/](docs/decisions/) — 왜 이렇게 정했는지
 5. `rules/*.dl` — 규칙 본문. 각 파일 머리의 주석이 설계 절을 가리킵니다

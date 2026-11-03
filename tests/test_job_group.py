@@ -35,7 +35,7 @@ def normalized(min_confidence: float | None = None) -> Scenario:
 def test_candidate_facts_carry_percent_confidence_and_evidence() -> None:
     facts = scenario_facts(normalized())
     candidates = {row[0]: row[1:] for row in rows_of(facts, "candidate_attr")}
-    assert candidates["r1#1"] == ("job_group", "engineering", 95, "job/r1#1")
+    assert candidates["r1#1"] == ("job_group", "engineering", 100, "job/r1#1")  # alias
     assert candidates["r3#1"] == ("job_group", "product", 55, "job/r3#1")
     assert ("r5#1", "job_group", "unknown") in rows_of(facts, "given_attr")
     assert ("job_group", 70) in rows_of(facts, "normalize_threshold")
@@ -68,15 +68,12 @@ def test_status_counts_promoted_candidates_and_flags_the_rest() -> None:
 
 
 def test_threshold_comes_from_the_policy() -> None:
-    (status,) = capacity_status(normalized(min_confidence=0.96))
-    by_value = {(v.dim, v.value): v for v in status.values}
-    assert by_value[("job_group", "engineering")].filled == 0
-    assert {d.evidence[0] for d in status.needs_review} == {
-        "registration/r1",
-        "registration/r2",
-        "registration/r3",
-        "registration/r4",
-    }
+    # r3's normalizer answer is 0.55: below the 0.7 default, above a lenient 0.5
+    (status,) = capacity_status(normalized(min_confidence=0.5))
+    by_value = {(v.dim, v.value): v for v in status.values if v.dim == "job_group"}
+    assert {d.evidence[0] for d in status.needs_review} == {"registration/r4"}
+    assert ("job_group", "product") not in by_value  # untracked value, counted but not shown
+    assert by_value[("job_group", "engineering")].filled == 1
 
 
 def test_unnormalized_scenario_counts_everyone_as_unknown() -> None:

@@ -16,8 +16,8 @@ from typing import Any, Protocol
 
 from pydantic import ValidationError
 
-from .facts import CANDIDATE_RELATIONS, TOPICS, dimension_values
-from .model import Interpretation, Question, TriageScenario
+from .facts import CANDIDATE_RELATIONS, dimension_values
+from .model import TOPICS, Interpretation, Question, TriageScenario
 
 
 class InterpretationError(Exception):
@@ -34,6 +34,8 @@ class InterpretContext:
     values: tuple[tuple[str, str], ...] = ()
     """(dim, value) pairs the policy defines, e.g. ("gender", "female")."""
     topics: tuple[str, ...] = TOPICS
+    topic_aliases: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    """Approved words per topic (policy `triage.topic_aliases`), handed to the LLM."""
 
     @classmethod
     def from_scenario(cls, scenario: TriageScenario) -> InterpretContext:
@@ -42,6 +44,10 @@ class InterpretContext:
             sessions=tuple(s.id for s in scenario.sessions),
             log_ids=tuple(e.id for e in scenario.log),
             values=dimension_values(scenario.policy),
+            topic_aliases=tuple(
+                (topic, tuple(words))
+                for topic, words in scenario.policy.triage.topic_aliases.items()
+            ),
         )
 
 
@@ -77,6 +83,11 @@ def build_prompt(question: Question, context: InterpretContext) -> str:
         f"{name}(q, {', '.join(kinds)})" for name, kinds in CANDIDATE_RELATIONS.items()
     )
     values = ", ".join(f"{dim}={value}" for dim, value in context.values) or "(none)"
+    words = dict(context.topic_aliases)
+    topics = ", ".join(
+        f"{topic} ({', '.join(words[topic])})" if words.get(topic) else topic
+        for topic in context.topics
+    )
     return "\n".join(
         [
             "You extract candidate facts from an event-operations inquiry. Propose facts only;",
@@ -84,7 +95,7 @@ def build_prompt(question: Question, context: InterpretContext) -> str:
             '{"facts": [{"relation": "...", "args": ["..."], "provenance": {"source": "question",',
             '"quote": "..."}, "confidence": 0.0}], "note": ""}',
             f"Allowed relations and their arguments after q: {relations}.",
-            f"Topics: {', '.join(context.topics)}. Use another topic word if none fits.",
+            f"Topics: {topics}. Use another topic word if none fits.",
             f"Known registration ids: {', '.join(context.registrations) or '(none)'}.",
             f"Known session ids: {', '.join(context.sessions) or '(none)'}.",
             f"Known log event ids: {', '.join(context.log_ids) or '(none)'}.",

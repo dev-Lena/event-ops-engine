@@ -9,6 +9,11 @@ dimensions:
     values: [engineering, design, product, other]
     normalize: llm           # 자유 입력(예: "백엔드 3년차") → 위 값 중 하나, 해석기가 제안
     min_confidence: 0.7      # 가정값: 이보다 낮은 후보는 unknown으로 세고 확인 요청
+    aliases:                 # 사람이 승인한 사전(PR로 검토). 한 값에만 걸리면 LLM 없이 확정
+      engineering: [백엔드, 프론트엔드, 개발자]
+      design: [디자이너, UX]
+      product: [기획, PM]
+      other: [마케팅]
 
 defaults:
   capacity: 8

@@ -12,7 +12,6 @@ from .decision import Verdict, VerdictKind
 from .engine import Engine
 from .facts import (
     CANDIDATE_RELATIONS,
-    TOPICS,
     Facts,
     candidate_id,
     evidence_id,
@@ -20,7 +19,7 @@ from .facts import (
     triage_facts,
 )
 from .interpreter import InterpretationError, InterpretContext, Interpreter
-from .model import CandidateFact, ExpectedVerdict, Interpretation, TriageScenario
+from .model import TOPICS, CandidateFact, ExpectedVerdict, Interpretation, TriageScenario
 
 NEEDS_VERIFIER: dict[str, str] = {
     "provider_lookup": "외부: 발송 업체 로그",

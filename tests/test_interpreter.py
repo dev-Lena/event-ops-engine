@@ -74,6 +74,13 @@ def test_prompt_lists_allowed_relations_and_forbids_invented_ids() -> None:
     prompt = build_prompt(Question(id="q", text="hi"), CONTEXT)
     assert "asks_about(q, topic)" in prompt and "about_event(q, log)" in prompt
     assert "about_value(q, dim, value)" in prompt and "gender=female" in prompt
+    with_words = build_prompt(
+        Question(id="q", text="hi"),
+        InterpretContext(
+            registrations=(), sessions=(), log_ids=(), topic_aliases=(("delivery", ("문자",)),)
+        ),
+    )
+    assert "delivery (문자)" in with_words and "payment," in with_words
     assert "Never invent an id" in prompt
 
 
