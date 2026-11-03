@@ -440,6 +440,16 @@ def test_lookup_that_finds_the_payment_is_not_a_bug() -> None:
     assert cause is None and "payment_lookup" not in needs
 
 
+def test_newer_found_lookup_overrides_an_older_none() -> None:
+    scenario = load_triage_scenario(BUG)
+    issued, lookup = scenario.log
+    later = lookup.model_copy(
+        update={"id": "e3", "at": lookup.at + timedelta(hours=2), "attrs": {"result": "found"}}
+    )
+    kind, cause, needs = verdict_for(scenario.model_copy(update={"log": (issued, lookup, later)}))
+    assert cause is None and "payment_lookup" not in needs
+
+
 def test_payment_received_clears_the_invariant() -> None:
     scenario = load_triage_scenario(BUG)
     paid = scenario.log[0].model_copy(update={"id": "e2", "kind": "payment_received", "attrs": {}})

@@ -148,9 +148,11 @@ needs(Q, "payment_attempt") :- asks(Q, R, "deadline"), !log_event(_, R, "payment
 .decl unpaid_checked(reg: symbol, lookup: symbol)
 paid(R) :- log_event(_, R, "payment_received", _).
 payment_checked(R) :- confirmed_at(R, TC), log_event(_, R, "payment_lookup", TL), TL >= TC.
+// Only the latest lookup counts: a newer "found" overrides an older "none".
 unpaid_checked(R, L) :-
-    confirmed(R), !paid(R), confirmed_at(R, TC),
-    log_event(L, R, "payment_lookup", TL), log_attr(L, "result", "none"), TL >= TC.
+    confirmed_at(R, TC), !paid(R),
+    log_event(L, R, "payment_lookup", TL), !superseded(L), log_attr(L, "result", "none"),
+    TL >= TC.
 .decl invariant_violated(reg: symbol, invariant: symbol)
 invariant_violated(R, "confirmed_without_payment") :- unpaid_checked(R, _).
 invariant_violated(R, "confirmed_after_expiry") :-
@@ -162,6 +164,8 @@ invariant_violated(R, "over_capacity") :-
     over_capacity(S, D, V, _).
 cause(Q, "suspected_bug", I) :- subject(Q, R), in_scope(Q), invariant_violated(R, I).
 cause(Q, "suspected_bug", L) :- subject(Q, R), in_scope(Q), unpaid_checked(R, L).
+// Topic-independent like the invariant itself: whatever the question, a confirmed
+// registration with no payment record and no lookup is worth checking first.
 needs(Q, "payment_lookup") :-
     subject(Q, R), in_scope(Q), confirmed(R), !paid(R), !payment_checked(R).
 

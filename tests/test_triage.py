@@ -241,6 +241,7 @@ def test_low_confidence_candidates_never_reach_the_rules() -> None:
     assert verdict.kind == VerdictKind.ASK  # without the subject, no cause
     assert "candidate/q1/about_registration/r1" not in verdict.evidence
     assert "확신이 낮아" in verdict.message and "about_registration r1 (0.59)" in verdict.message
+    assert verdict.dropped == ("candidate/q1/about_registration/r1",)
     assert any("dropped 1 low-confidence" in step for step in verdict.trace)
 
 
@@ -268,3 +269,25 @@ def test_threshold_comes_from_the_policy() -> None:
     )
     with Engine(load_rules() + ONE_CAUSE) as engine:
         assert run_triage(lenient, FakeInterpreter(), engine).kind == VerdictKind.ACCEPT
+
+
+def test_fact_proposed_twice_is_used_if_any_copy_is_confident() -> None:
+    scenario = scenario_with(
+        [
+            fact("asks_about", GENERIC),
+            fact("about_registration", "r1"),
+            with_confidence(fact("about_registration", "r1"), 0.2),
+        ]
+    )
+    with Engine(load_rules() + ONE_CAUSE) as engine:
+        verdict = run_triage(scenario, FakeInterpreter(), engine)
+    assert verdict.kind == VerdictKind.ACCEPT
+    assert verdict.dropped == () and "확신이 낮아" not in verdict.message
+
+
+def test_dropped_note_does_not_round_up_to_the_threshold() -> None:
+    scenario = scenario_with(
+        [fact("asks_about", GENERIC), with_confidence(fact("about_registration", "r1"), 0.599)]
+    )
+    verdict = run_triage(scenario, FakeInterpreter())
+    assert "(0.599)" in verdict.message

@@ -107,16 +107,21 @@ def candidate_facts(question_id: str, facts: tuple[CandidateFact, ...]) -> Facts
 def _dropped_note(dropped: tuple[CandidateFact, ...]) -> str:
     if not dropped:
         return ""
-    listed = ", ".join(f"{f.relation} {' '.join(f.args)} ({f.confidence:.2f})" for f in dropped)
+    listed = ", ".join(f"{f.relation} {' '.join(f.args)} ({f.confidence:g})" for f in dropped)
     return f" (확신이 낮아 판정에 쓰지 않은 후보: {listed})"
 
 
 def split_by_confidence(
     facts: tuple[CandidateFact, ...], minimum: float
 ) -> tuple[tuple[CandidateFact, ...], tuple[CandidateFact, ...]]:
-    """(used, dropped): a candidate the interpreter is unsure of never reaches the rules."""
+    """(used, dropped): a candidate the interpreter is unsure of never reaches the rules.
+
+    A fact proposed twice counts as used if any copy reaches the threshold.
+    """
     used = tuple(f for f in facts if f.confidence >= minimum)
-    return used, tuple(f for f in facts if f.confidence < minimum)
+    kept = {(f.relation, f.args) for f in used}
+    dropped = tuple(f for f in facts if f.confidence < minimum and (f.relation, f.args) not in kept)
+    return used, dropped
 
 
 def decide(
@@ -191,6 +196,7 @@ def decide(
         needs=tuple(needs),
         evidence=evidence,
         message=message,
+        dropped=tuple(sorted({candidate_id(q, f) for f in dropped})),
         trace=tuple(trace),
     )
 
