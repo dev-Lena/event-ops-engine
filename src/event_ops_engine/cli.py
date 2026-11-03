@@ -35,7 +35,7 @@ INTERPRETERS: dict[str, type[Interpreter]] = {
 EVIDENCE_TIERS: tuple[tuple[str, str], ...] = (
     ("log/", "원본 사실"),
     ("rule/", "규칙 추론"),
-    ("candidate/", "LLM 제안 · 검증 통과"),
+    ("candidate/", "LLM 제안(검증 통과)"),
     ("question/", "질문"),
 )
 """How far each evidence id can be trusted, most first: a recorded fact, a fact the rules
@@ -151,13 +151,21 @@ def triage(
     loaded = load_triage_scenario(scenario_path)
     scenario = normalize_members(loaded, NORMALIZERS[normalizer](loaded))
     chosen = INTERPRETERS[interpreter]()
-    verdicts = [run_triage(scenario, chosen) for _ in range(max(runs, 1))]
+    # Normalization runs once above: repeat runs measure interpreter variance only.
+    verdicts = [run_triage(scenario, chosen) for _ in range(runs)]
     lines, matched = format_verdict(scenario, verdicts[0], trace)
     if len(verdicts) > 1:
         lines += agreement_lines(verdicts)
         if scenario.expected is not None:
             matched = all(not differences(v, scenario.expected) for v in verdicts)
     return lines, matched
+
+
+def positive_int(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError("1 이상이어야 합니다")
+    return value
 
 
 def uses_claude(args: argparse.Namespace) -> bool:
@@ -180,9 +188,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     triage_parser.add_argument("--trace", action="store_true", help="단계별 trace도 출력")
     triage_parser.add_argument(
         "--runs",
-        type=int,
+        type=positive_int,
         default=1,
-        help="같은 질문을 N번 판정해 결과 분포와 일치율을 출력 (실제 해석기 안정성 확인용)",
+        help="같은 질문을 N번 판정해 결과 분포와 일치율을 출력 (실제 해석기 안정성 확인용). "
+        "정규화는 한 번만 하므로 해석기의 변동만 잰다. --trace는 첫 실행만 보인다",
     )
     for subparser in (report_parser, triage_parser):
         subparser.add_argument(

@@ -64,7 +64,7 @@ event-ops triage data/synthetic/scenarios/triage/account-length.yaml
   판정: 원인 확정 (accept) · 원인: user_input
   설명: 원인: user_input. 근거: log/e1, log/e2
   근거 · 원본 사실: log/e1, log/e2
-  근거 · LLM 제안 · 검증 통과: candidate/q1/about_registration/r1, candidate/q1/asks_about/payment
+  근거 · LLM 제안(검증 통과): candidate/q1/about_registration/r1, candidate/q1/asks_about/payment
   기대 판정: accept · 일치
 ```
 
@@ -78,7 +78,7 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
 [문의 q1] r1 신청자 안내 문자가 timeout으로 떠요. 다시 보내야 하나요?
   판정: 확인 요청 (ask) · 더 필요한 사실: provider_lookup (외부: 발송 업체 로그)
   설명: 판정하려면 더 필요합니다: provider_lookup (외부: 발송 업체 로그)
-  근거 · LLM 제안 · 검증 통과: candidate/q1/about_event/e1, candidate/q1/asks_about/delivery
+  근거 · LLM 제안(검증 통과): candidate/q1/about_event/e1, candidate/q1/asks_about/delivery
   기대 판정: ask · 일치
 ```
 

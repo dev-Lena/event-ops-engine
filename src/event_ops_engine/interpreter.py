@@ -128,7 +128,7 @@ def preflight(
     """None when the CLI answers, else why it cannot be used (e.g. not logged in).
 
     "Installed" is not "logged in": a logged-out CLI would turn every question into a reject,
-    so the CLI checks once before it starts.
+    so the CLI checks once before it starts. The check is one real (short) CLI call.
     """
     try:
         run(command, PREFLIGHT_PROMPT)
