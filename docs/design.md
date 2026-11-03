@@ -258,13 +258,39 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 
 | 단계 | 하는 일 | 코드 |
 |---|---|---|
-| 정책 | `dimensions.job_group: { values: [...], normalize: llm, min_confidence: 0.7 }` (기준값은 가정값) | `model.py` `JobGroupDimension` |
-| 정규화 | 신청자의 `job` 문구마다 정규화기가 `NormalizedValue(value, confidence, quote)`를 제안. `quote`가 문구에 없거나 답이 없으면 `unknown` · 확신도 0 | `normalizer.py` `normalize_members` (Claude Code CLI · 가짜) |
+| 정책 | `dimensions.job_group: { values: [...], normalize: llm, min_confidence: 0.7, aliases: {값: [단어…]} }` (기준값은 가정값, 별칭 사전은 사람이 PR로 승인) | `model.py` `JobGroupDimension` |
+| 별칭 사전 (#62) | 문구에 **한 값**의 별칭(또는 값 이름)만 보이면 LLM 없이 확정(확신도 1.0, 인용 = 문구에 쓰인 그대로). 걸리는 값이 없거나 여럿이면("마케팅 겸 기획") 정규화기로 | `normalizer.match_alias` |
+| 정규화 | 남은 문구마다 정규화기가 `NormalizedValue(value, confidence, quote)`를 제안. **같은 문구는 한 번만**, Claude CLI 정규화기는 남은 문구를 **한 프롬프트**로 묻는다(#63, 호출 1회 ≈ 1분). `quote`가 문구에 없거나 답이 없으면 `unknown` · 확신도 0 | `normalizer.resolve_texts` · `normalize_members` (Claude Code CLI · 가짜) |
 | 사실 | 후보는 `candidate_attr(attendee, job_group, value, 확신도%, job/<attendee>)`, 문구가 없으면 `given_attr(…, job_group, unknown)`. 확신도는 1% 해상도로 **내림**(0.695는 0.7 기준을 넘지 못한다) | `facts.py` |
 | 규칙 | 확신도 ≥ 기준이고 값이 허용 목록에 있으면 `attendee_attr`로 올린다. 기준 미만이면 `unknown` + `needs_review(…, "low_confidence")`, 목록 밖 값이면 `unknown` + `needs_review(…, "unknown_value")`. 네 규칙은 서로 배타적이라 참가자마다 값이 하나다(wirelog는 중복을 남기므로 `count`가 두 번 셀 수 있다) | `capacity.dl` |
 | 결과 | ② 현황이 `job_group` 목표를 보통 속성처럼 계산하고, 확인 요청에 근거 `job/<attendee>`가 붙는다 | `capacity.py` |
 
-`attendee_attr`는 이제 파생 관계다(wirelog는 한 관계에 입력과 규칙을 섞지 못한다, 9절). 입력은 `given_attr`로 들어온다. `event-ops report --normalizer claude`(triage도 같은 옵션)가 실제 CLI를 쓰고, 기본 `fake`는 시나리오의 `canned_job_groups`를 쓴다. `job` 문구는 합성이며 이름 · 연락처를 두지 않는다(8절).
+`attendee_attr`는 이제 파생 관계다(wirelog는 한 관계에 입력과 규칙을 섞지 못한다, 9절). 입력은 `given_attr`로 들어온다. `event-ops report --normalizer claude`(triage도 같은 옵션)가 실제 CLI를 쓰고, 기본 `fake`는 시나리오의 `canned_job_groups`를 쓴다. `job` 문구는 합성이며 이름 · 연락처를 두지 않는다(8절). 문의 판정의 주제에도 같은 방식의 사전(`triage.topic_aliases`, 예: delivery ← 문자 · 카톡 · 알림톡)이 있고, 해석기 프롬프트에 그대로 들어간다. 주제는 질문 전체를 읽어야 해서 사전만으로 확정하지는 않는다.
+
+## 15. 온톨로지 용어로 본 설계
+
+과정 멘토링(4~8회차, 온톨로지 · 뉴로-심볼릭 에이전트)의 용어로 이 설계를 다시 적는다. 새 기능이 아니라 같은 구조를 다른 이름으로 본 것이다.
+
+| 용어 | 뜻 | 이 설계에서 |
+|---|---|---|
+| T박스 (용어 · 정의) | 종류와 관계, 그 뜻 | `rules/ontology.dl`의 관계 선언과 `rules/*.dl`의 규칙, 정책 파일(속성 값 목록 · 목표 · 별칭 사전) |
+| A박스 (개별 사실) | 특정 대상에 대한 주장 | 시나리오에서 만든 사실 (`registration` · `status_event` · `log_event` · 후보 사실 …) |
+| 추론 · 고정점 | 더 나올 결론이 없을 때까지 규칙을 적용 | wirelog가 ② · ③ · ① 관계를 파생. 재귀 규칙은 아직 쓸 곳이 없어 두지 않음 |
+| 원본 vs 추론 결과 | 원본은 바뀌지 않고, 추론 결과는 따로 본다 | 근거 등급: `log/` 원본 사실, `rule/` 규칙 추론, `candidate/` LLM 제안(검증 통과) (13절) |
+| 도메인 · 레인지 | 관계의 앞 · 뒤에 올 수 있는 종류 | 후보 사실의 인자 종류 검사(신청 · 회차 · 로그 id · 속성 값). OWL처럼 모르는 이름을 새 개체로 **추론하지 않고 거부**한다(SHACL식 검증) |
+| 일관성 (모순) | 설명들이 동시에 참일 수 있는가 | 불변식 위반(유형 5) → `suspected_bug`. 추론은 충돌을 알려 줄 뿐, 어느 쪽이 틀렸는지는 사람이 판단 |
+| 열린 · 닫힌 세계 | 기록이 없는 것이 거짓인가 | Datalog 부정은 닫힌 세계. 원인 확정에는 "조회했는데 없음"만 쓴다 (13절 표) |
+| 이름 둘 ≠ 대상 둘 | 다른 이름이 같은 대상일 수 있다 | 별칭 사전(14절). 유형 3은 다른 참가자 키를 "다른 사람"으로 단정하지 않는다(원인 없음 → `ask`) |
+| 승인된 사전으로 추출 | 사전을 먼저 만들고 사람이 승인한 뒤 그걸로 추출 | 닫힌 어휘(후보 관계 5개 · 주제 5개 · 속성 값)와 별칭 사전. 승인은 PR 리뷰 |
+| 작은 입력 + 기대 결과 | 추론기 지원 범위를 작은 예제로 먼저 확인 | 시나리오의 `expected`, README 출력 대조 테스트, `scripts/verify_wirelog.py` |
+
+**멘토링에서 반영하지 않은 것과 이유**
+
+- RDF · OWL · Jena · SPARQL · Fuseki: 자바 스택이고, 이 규모에서는 Datalog 관계 + 규칙으로 충분하다.
+- 재귀 규칙(도달 가능성 같은 고정점 계산): 지금 문제에 쓸 곳이 없다. 보여 주기용으로 넣지 않는다.
+- 에이전트 오케스트레이션 · 병렬 실행 · 상주 CLI 프로세스 · OpenRouter API: 복잡도가 크고, 유료 API는 승인이 필요하다. 호출 수는 별칭 사전과 묶음 프롬프트로 줄였다.
+- 열린 이슈를 골라 구현 · 머지까지 자동으로 하는 에이전트 스킬: CI가 통과하면 자동 머지한다. 사람이 머지하는 원칙과 맞지 않는다.
+- wirelog 0.80(11월 예정): 나오면 `scripts/verify_wirelog.py`로 문법 · 동작을 다시 확인한다(백로그).
 
 ## 기록
 

@@ -15,6 +15,18 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .decision import VerdictKind
 
 UNKNOWN = "unknown"
+
+TOPICS = ("payment", "delivery", "duplicate", "deadline", "seat")
+"""`supported_topic` facts for module ①. A topic is answered only once its type rules exist."""
+
+DEFAULT_TOPIC_ALIASES: dict[str, tuple[str, ...]] = {
+    "payment": ("입금", "계좌", "송금", "결제"),
+    "delivery": ("문자", "카톡", "알림톡", "안내 메시지", "발송"),
+    "duplicate": ("중복", "재신청"),
+    "deadline": ("기한", "만료"),
+    "seat": ("자리", "정원", "마감", "성비"),
+}
+"""Approved words that usually mean each topic (assumed; reviewed by PR like any policy)."""
 """Reserved attribute value: the attribute is not known (glossary '미상')."""
 
 
@@ -133,6 +145,9 @@ class JobGroupDimension(StrictModel):
     normalize: Literal["llm"] = "llm"
     min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
     """Assumed value: a candidate below it is counted as unknown and sent to needs_review."""
+    aliases: dict[str, tuple[str, ...]] = Field(default_factory=dict)
+    """Approved dictionary (#62): value -> words that mean it. One clear hit settles a job
+    text without the LLM; no hit or hits for several values go to the normalizer."""
 
     @model_validator(mode="after")
     def _values_distinct_and_not_unknown(self) -> Self:
@@ -140,6 +155,11 @@ class JobGroupDimension(StrictModel):
             raise ValueError("job_group values must be distinct")
         if UNKNOWN in self.values:
             raise ValueError(f"job_group values must not include {UNKNOWN!r}")
+        unknown = sorted(set(self.aliases) - set(self.values))
+        if unknown:
+            raise ValueError(f"job_group aliases name unknown values {unknown}")
+        if any(not word.strip() for words in self.aliases.values() for word in words):
+            raise ValueError("job_group aliases must not be blank")
         return self
 
 
@@ -195,6 +215,17 @@ class TriagePolicy(StrictModel):
     """Hours after selection (pending_payment) a registration may pay. Sessions override it."""
     min_candidate_confidence: float = Field(default=0.6, ge=0.0, le=1.0)
     """Assumed value: interpreter candidates below it never reach the rules (#59)."""
+    topic_aliases: dict[str, tuple[str, ...]] = Field(
+        default_factory=lambda: dict(DEFAULT_TOPIC_ALIASES)
+    )
+    """Approved dictionary handed to the interpreter (#62): topic -> words that mean it."""
+
+    @model_validator(mode="after")
+    def _aliases_name_known_topics(self) -> Self:
+        unknown = sorted(set(self.topic_aliases) - set(TOPICS))
+        if unknown:
+            raise ValueError(f"topic_aliases: unknown topics {unknown}")
+        return self
 
 
 class EventPolicy(StrictModel):

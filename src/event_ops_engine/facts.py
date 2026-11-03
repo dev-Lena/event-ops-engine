@@ -13,6 +13,7 @@ from typing import Any
 
 from . import bands, clock
 from .model import (
+    TOPICS,
     UNKNOWN,
     CandidateFact,
     EventPolicy,
@@ -167,8 +168,6 @@ def scenario_facts(scenario: Scenario) -> Facts:
 
 # --- module ① inquiry triage (docs/design.md 13) -------------------------------------
 
-TOPICS = ("payment", "delivery", "duplicate", "deadline", "seat")
-"""`supported_topic` facts. A topic is answered only once its type rules exist (#15-#21)."""
 
 CANDIDATE_RELATIONS: dict[str, tuple[str, ...]] = {
     "asks_about": ("topic",),
