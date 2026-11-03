@@ -53,7 +53,7 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
 
 ### 운영 문의 판정 (①)
 
-원인이 하나로 가려지면 `accept`, 근거 로그 id가 붙습니다.
+원인이 하나로 가려지면 `accept`, 근거 로그 id가 붙습니다. 근거는 믿을 수 있는 순서로 나눠 보여 줍니다: 원본 사실(기록된 로그) → 규칙 추론(규칙이 기록에서 끌어낸 사실) → LLM 제안(해석기가 질문에서 뽑아 검증을 통과한 사실).
 
 ```bash
 event-ops triage data/synthetic/scenarios/triage/account-length.yaml
@@ -63,7 +63,8 @@ event-ops triage data/synthetic/scenarios/triage/account-length.yaml
 [문의 q1] r1 신청자가 입금하려는데 계좌가 없다고 나온대요. 계좌 발급이 잘못됐나요?
   판정: 원인 확정 (accept) · 원인: user_input
   설명: 원인: user_input. 근거: log/e1, log/e2
-  근거: candidate/q1/about_registration/r1, candidate/q1/asks_about/payment, log/e1, log/e2
+  근거 · 원본 사실: log/e1, log/e2
+  근거 · LLM 제안(검증 통과): candidate/q1/about_registration/r1, candidate/q1/asks_about/payment
   기대 판정: accept · 일치
 ```
 
@@ -77,11 +78,11 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
 [문의 q1] r1 신청자 안내 문자가 timeout으로 떠요. 다시 보내야 하나요?
   판정: 확인 요청 (ask) · 더 필요한 사실: provider_lookup (외부: 발송 업체 로그)
   설명: 판정하려면 더 필요합니다: provider_lookup (외부: 발송 업체 로그)
-  근거: candidate/q1/about_event/e1, candidate/q1/asks_about/delivery
+  근거 · LLM 제안(검증 통과): candidate/q1/about_event/e1, candidate/q1/asks_about/delivery
   기대 판정: ask · 일치
 ```
 
-문의 시나리오(`data/synthetic/scenarios/triage/*.yaml`)는 질문 · 이벤트 로그 · 기대 판정을 담습니다. 기본은 파일의 `canned` 해석을 쓰는 가짜 해석기이고, `--interpreter claude`를 주면 Claude Code CLI(`claude -p`, 구독 안에서 추가 비용 없음)가 질문을 후보 사실로 바꿉니다. 기대 판정과 다르면 종료 코드 1, `--trace`로 단계별 기록을 봅니다. 위 출력 예시는 테스트(`tests/test_readme.py`)가 실제 출력과 대조합니다.
+문의 시나리오(`data/synthetic/scenarios/triage/*.yaml`)는 질문 · 이벤트 로그 · 기대 판정을 담습니다. 기본은 파일의 `canned` 해석을 쓰는 가짜 해석기이고, `--interpreter claude`를 주면 Claude Code CLI(`claude -p`, 구독 안에서 추가 비용 없음)가 질문을 후보 사실로 바꿉니다. 기대 판정과 다르면 종료 코드 1, `--trace`로 단계별 기록을 봅니다. `--runs N`은 같은 질문을 N번 판정해 결과 분포와 일치율을 보여 줍니다(실제 해석기의 안정성 확인용). `claude`를 고르면 시작 전에 CLI 로그인을 확인하고, 안 되어 있으면 `claude login` 안내와 함께 종료 코드 2로 멈춥니다. 해석기가 자신 없다고 한 후보 사실(확신도 0.6 미만, 가정값)은 판정에 쓰지 않습니다. 위 출력 예시는 테스트(`tests/test_readme.py`)가 실제 출력과 대조합니다.
 
 ## 구조
 

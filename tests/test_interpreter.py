@@ -75,3 +75,23 @@ def test_prompt_lists_allowed_relations_and_forbids_invented_ids() -> None:
     assert "asks_about(q, topic)" in prompt and "about_event(q, log)" in prompt
     assert "about_value(q, dim, value)" in prompt and "gender=female" in prompt
     assert "Never invent an id" in prompt
+
+
+def test_preflight_reports_why_the_cli_cannot_be_used() -> None:
+    import subprocess
+
+    from event_ops_engine.interpreter import preflight
+
+    def logged_out(command: Sequence[str], stdin: str) -> str:
+        raise InterpretationError("claude exited 1: Failed to authenticate")
+
+    def missing(command: Sequence[str], stdin: str) -> str:
+        raise FileNotFoundError("claude")
+
+    def slow(command: Sequence[str], stdin: str) -> str:
+        raise subprocess.TimeoutExpired(list(command), 120)
+
+    assert preflight(run=lambda command, stdin: "ok") is None
+    assert "Failed to authenticate" in (preflight(run=logged_out) or "")
+    assert (preflight(run=missing) or "").startswith("claude:")
+    assert (preflight(run=slow) or "").startswith("claude:")

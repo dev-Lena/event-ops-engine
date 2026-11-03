@@ -46,6 +46,7 @@
 | 자유 입력을 속성 값 후보로 바꾸는 부품 | 정규화기 / normalizer | `Normalizer` (Claude Code CLI · 가짜), `NormalizedValue(value, confidence, quote)` | 분류기, 태거 | 제안만 한다. 받아들이는 것은 규칙 |
 | 정규화기가 제안한 속성 값. 검증 전 | 후보 속성 / candidate attribute | `candidate_attr(attendee, dim, value, confidence, evidence)` | — | 확신도는 0~100 정수. `attendee_attr`와 구분한다 |
 | 후보를 받아들이는 최소 확신도 | 확신도 기준 / confidence threshold | 정규화 `normalize_threshold(dim, min_pct)` ← `min_confidence`, 문의 판정 `triage.min_candidate_confidence` | 컷오프 | **가정값** 0.7 · 0.6. 정규화는 미만이면 `unknown` + 확인 요청, 문의 판정은 미만인 후보를 규칙에 넣지 않음 |
+| 근거를 얼마나 믿을 수 있는지의 순서 | 근거 등급 / evidence tier | 원본 사실 `log/` > 규칙 추론 `rule/` > LLM 제안(검증 통과) `candidate/` > 질문 `question/` | 신뢰도 점수 | "확인 불가"는 등급이 아니라 `ask` · `abstain` 판정 |
 | 사람이 외부 · 내부 기록을 찾아본 결과 | 조회 결과 / lookup | `provider_lookup` · `payment_lookup`{result: found · none} | — | "기록 없음"과 "조회했는데 없음"을 구분한다. 원인 확정에는 조회 결과만 쓴다 |
 | 해석기가 질문을 후보 사실로 바꾸는 부품 | 해석기 / interpreter | `Interpreter` (Claude Code CLI · 가짜) | 모델, 에이전트 | 사실을 만들지 않고 제안만 한다 |
 
