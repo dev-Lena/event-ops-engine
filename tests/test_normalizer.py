@@ -143,9 +143,32 @@ def test_one_clear_alias_hit_settles_without_the_normalizer() -> None:
 
     hit = match_alias("Backend 백엔드 3년차", ALIASED)
     assert hit == NormalizedValue(value="engineering", confidence=1.0, quote="백엔드")
-    assert match_alias("Design lead", ALIASED) == NormalizedValue(
-        value="design", confidence=1.0, quote="Design"
-    )  # the value's own name counts, quoted as written
+    assert match_alias("Design lead", ALIASED) is None  # value names are not aliases
+
+
+def test_ascii_aliases_must_stand_alone() -> None:
+    from event_ops_engine.normalizer import match_alias
+
+    ux = NormalizeContext("job_group", ("design",), (("design", ("UX",)),))
+    assert match_alias("luxury brand marketer", ux) is None
+    assert match_alias("Senior ux/ui", ux) == NormalizedValue(
+        value="design", confidence=1.0, quote="ux"
+    )
+
+
+def test_batches_are_capped(monkeypatch: pytest.MonkeyPatch) -> None:
+    import event_ops_engine.normalizer as normalizer_module
+    from event_ops_engine.normalizer import resolve_texts
+
+    monkeypatch.setattr(normalizer_module, "BATCH_SIZE", 2)
+    calls: list[int] = []
+
+    def fake_run(command: Sequence[str], stdin: str) -> str:
+        calls.append(stdin.count("\n", stdin.index("Texts:")))
+        return '{"answers": []}'
+
+    resolve_texts(["a1", "a2", "a3", "a4", "a5"], ClaudeCliNormalizer(run=fake_run), ALIASED)
+    assert calls == [2, 2, 1]
 
 
 def test_no_hit_or_hits_for_several_values_go_to_the_normalizer() -> None:
@@ -211,4 +234,6 @@ def test_alias_dictionary_is_validated() -> None:
         JobGroupDimension(values=("a",), aliases={"a": (" ",)})
     with pytest.raises(ValidationError):
         TriagePolicy(topic_aliases={"weather": ("비",)})
+    with pytest.raises(ValidationError, match="more than once"):
+        JobGroupDimension(values=("a", "b"), aliases={"a": ("기획",), "b": ("기획 ",)})
     assert "delivery" in TriagePolicy().topic_aliases

@@ -147,7 +147,8 @@ class JobGroupDimension(StrictModel):
     """Assumed value: a candidate below it is counted as unknown and sent to needs_review."""
     aliases: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     """Approved dictionary (#62): value -> words that mean it. One clear hit settles a job
-    text without the LLM; no hit or hits for several values go to the normalizer."""
+    text without the LLM; no hit or hits for several values go to the normalizer. A word may
+    appear under one value only, or it could never settle anything."""
 
     @model_validator(mode="after")
     def _values_distinct_and_not_unknown(self) -> Self:
@@ -158,8 +159,12 @@ class JobGroupDimension(StrictModel):
         unknown = sorted(set(self.aliases) - set(self.values))
         if unknown:
             raise ValueError(f"job_group aliases name unknown values {unknown}")
-        if any(not word.strip() for words in self.aliases.values() for word in words):
+        words = [word.strip().lower() for listed in self.aliases.values() for word in listed]
+        if any(not word for word in words):
             raise ValueError("job_group aliases must not be blank")
+        repeated = sorted({word for word in words if words.count(word) > 1})
+        if repeated:
+            raise ValueError(f"job_group aliases list a word more than once: {repeated}")
         return self
 
 

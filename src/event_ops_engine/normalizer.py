@@ -13,6 +13,7 @@ to a minute.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol, TypeVar
@@ -42,24 +43,31 @@ class Normalizer(Protocol):
     def normalize(self, text: str, context: NormalizeContext) -> NormalizedValue: ...
 
 
-class BatchNormalizer(Normalizer, Protocol):
-    def normalize_batch(
-        self, texts: Sequence[str], context: NormalizeContext
-    ) -> dict[str, NormalizedValue]: ...
+BATCH_SIZE = 40
+"""Texts per Claude CLI prompt: keeps one prompt well inside the context and the timeout."""
+
+
+def _find(word: str, text: str) -> int:
+    """Start of `word` in `text` (case-insensitive), or -1. ASCII words must stand alone so
+    "UX" does not match inside "luxury"; Korean words match anywhere ("백엔드 3년차")."""
+    if word.isascii():
+        found = re.search(rf"(?<![A-Za-z0-9]){re.escape(word)}(?![A-Za-z0-9])", text, re.I)
+        return found.start() if found else -1
+    return text.lower().find(word.lower())
 
 
 def match_alias(text: str, context: NormalizeContext) -> NormalizedValue | None:
-    """The settled value when exactly one value's words (or its own name) occur in the text.
+    """The settled value when exactly one value's approved words occur in the text.
 
-    The quote is the matched words as written in the text. No hit, or hits for several
-    values ("마케팅 겸 기획"), returns None and the text goes to the normalizer.
+    Only words a person put in the dictionary count, not the value names themselves. The
+    quote is the matched word as written. No hit, or hits for several values ("마케팅 겸
+    기획"), returns None and the text goes to the normalizer.
     """
-    lowered = text.lower()
     hits: dict[str, str] = {}
-    for value, words in ((v, (v, *dict(context.aliases).get(v, ()))) for v in context.values):
+    for value, words in context.aliases:
         for word in words:
-            start = lowered.find(word.lower())
-            if word.strip() and start >= 0:
+            start = _find(word, text)
+            if start >= 0:
                 hits.setdefault(value, text[start : start + len(word)])
                 break
     if len(hits) != 1:
@@ -199,10 +207,12 @@ def resolve_texts(
     asked: dict[str, NormalizedValue] = {}
     batch = getattr(normalizer, "normalize_batch", None)
     if callable(batch):
-        try:
-            asked = batch(remaining, context)
-        except NormalizationError:
-            asked = {}
+        for start in range(0, len(remaining), BATCH_SIZE):
+            chunk = remaining[start : start + BATCH_SIZE]
+            try:
+                asked.update(batch(chunk, context))
+            except NormalizationError:
+                continue  # this chunk's texts stay unknown
     else:
         for text in remaining:
             try:

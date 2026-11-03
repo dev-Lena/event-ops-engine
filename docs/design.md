@@ -259,8 +259,8 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 단계 | 하는 일 | 코드 |
 |---|---|---|
 | 정책 | `dimensions.job_group: { values: [...], normalize: llm, min_confidence: 0.7, aliases: {값: [단어…]} }` (기준값은 가정값, 별칭 사전은 사람이 PR로 승인) | `model.py` `JobGroupDimension` |
-| 별칭 사전 (#62) | 문구에 **한 값**의 별칭(또는 값 이름)만 보이면 LLM 없이 확정(확신도 1.0, 인용 = 문구에 쓰인 그대로). 걸리는 값이 없거나 여럿이면("마케팅 겸 기획") 정규화기로 | `normalizer.match_alias` |
-| 정규화 | 남은 문구마다 정규화기가 `NormalizedValue(value, confidence, quote)`를 제안. **같은 문구는 한 번만**, Claude CLI 정규화기는 남은 문구를 **한 프롬프트**로 묻는다(#63, 호출 1회 ≈ 1분). `quote`가 문구에 없거나 답이 없으면 `unknown` · 확신도 0 | `normalizer.resolve_texts` · `normalize_members` (Claude Code CLI · 가짜) |
+| 별칭 사전 (#62) | 문구에 **한 값**의 별칭만 보이면 LLM 없이 확정(확신도 1.0, 인용 = 문구에 쓰인 그대로). 값 이름 자체는 별칭이 아니다(사람이 적은 단어만). 영문 별칭은 단어 단위로만 맞춘다("UX"가 "luxury"에 걸리지 않게). 같은 단어를 두 값에 적으면 정책 로드에서 거부. 걸리는 값이 없거나 여럿이면("마케팅 겸 기획") 정규화기로 | `normalizer.match_alias` |
+| 정규화 | 남은 문구마다 정규화기가 `NormalizedValue(value, confidence, quote)`를 제안. **같은 문구는 한 번만**, Claude CLI 정규화기는 남은 문구를 **한 프롬프트**(최대 40개씩)로 묻는다(#63, 호출 1회 ≈ 1분). `quote`가 문구에 없거나 답이 없으면 `unknown` · 확신도 0 | `normalizer.resolve_texts` · `normalize_members` (Claude Code CLI · 가짜) |
 | 사실 | 후보는 `candidate_attr(attendee, job_group, value, 확신도%, job/<attendee>)`, 문구가 없으면 `given_attr(…, job_group, unknown)`. 확신도는 1% 해상도로 **내림**(0.695는 0.7 기준을 넘지 못한다) | `facts.py` |
 | 규칙 | 확신도 ≥ 기준이고 값이 허용 목록에 있으면 `attendee_attr`로 올린다. 기준 미만이면 `unknown` + `needs_review(…, "low_confidence")`, 목록 밖 값이면 `unknown` + `needs_review(…, "unknown_value")`. 네 규칙은 서로 배타적이라 참가자마다 값이 하나다(wirelog는 중복을 남기므로 `count`가 두 번 셀 수 있다) | `capacity.dl` |
 | 결과 | ② 현황이 `job_group` 목표를 보통 속성처럼 계산하고, 확인 요청에 근거 `job/<attendee>`가 붙는다 | `capacity.py` |
