@@ -19,21 +19,19 @@ def test_slow_trend_and_imbalance_recommend_promotion(engine: Engine) -> None:
     loaded(engine, "single")  # 14 days left: outside lead_days
     decisions = by_value(session_promotion(engine, "s1"))
     # 20s: 1 confirmed + 1 pending reaches lo 2, so there is no gap and nothing to promote
+    # female (3 vs male 1) is capped and therefore not promoted
     assert {k for k, d in decisions.items() if d.kind == "recommend"} == {
-        ("gender", "female"),
         ("gender", "male"),
         ("age_band", "30s"),
     }
-    assert decisions[("gender", "female")].reasons == ("slow_trend",)
     assert decisions[("gender", "male")].reasons == ("imbalance", "slow_trend")
     assert decisions[("gender", "male")].need == 5
-    assert "lead_time" not in decisions[("gender", "female")].reasons
 
 
 def test_lead_time_fires_inside_lead_days(engine: Engine) -> None:
     loaded(engine, "pair-mixed")  # 3 days left
     decisions = by_value(session_promotion(engine, "s2"))
-    assert decisions[("gender", "female")].reasons == ("lead_time", "slow_trend")
+    assert ("gender", "female") not in decisions  # capped (3 vs 1): never promoted
     assert decisions[("gender", "male")].reasons == ("imbalance", "lead_time", "slow_trend")
     assert ("age_band", "20s") not in decisions  # target met
     assert decisions[("age_band", "30s")].need == 2
@@ -185,3 +183,10 @@ def test_difference_equal_to_max_diff_is_not_capped(engine: Engine) -> None:
     )
     engine.load(registration_facts(data, extra))  # female 3, male 2: diff 1 == max_diff
     assert caps(session_promotion(engine, "s2")) == {}
+
+
+def test_capped_value_is_not_promoted_even_with_its_own_gap(engine: Engine) -> None:
+    loaded(engine, "pair-mixed")  # female lo 6 but only 3 confirmed: a gap, yet capped
+    decisions = session_promotion(engine, "s2")
+    female = [d for d in decisions if (d.dim, d.value) == ("gender", "female")]
+    assert [d.kind for d in female] == ["cap"]

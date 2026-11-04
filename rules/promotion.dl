@@ -7,7 +7,8 @@
 .decl recent(session: symbol, dim: symbol, value: symbol, n: int64)
 .decl promote(session: symbol, dim: symbol, value: symbol, need: int64, reason: symbol)
 .decl blocked(session: symbol, dim: symbol, value: symbol, need: int64, reason: symbol)
-.decl cap(session: symbol, dim: symbol, value: symbol, limit: int64, other: symbol, other_filled: int64)
+.decl cap(session: symbol, dim: symbol, value: symbol, limit: int64, other: symbol, other_filled: int64, max_diff: int64)
+.decl capped(session: symbol, dim: symbol, value: symbol)
 
 active(S) :- days_left(S, Days), Days >= 0.
 
@@ -18,9 +19,10 @@ recent_raw(S, D, V, count(A)) :- recent_seat(S, A), attendee_attr(A, D, V).
 recent(S, D, V, N) :- tracked(S, D, V), recent_raw(S, D, V, N).
 recent(S, D, V, 0) :- tracked(S, D, V), !recent_raw(S, D, V, _).
 
-promote(S, D, V, G, "lead_time") :- gap(S, D, V, G), active(S), !session_full(S), days_left(S, Days), policy(S, "lead_days", L), Days <= L.
-promote(S, D, V, G, "slow_trend") :- gap(S, D, V, G), active(S), !session_full(S), recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
-promote(S, D, V, Diff, "imbalance") :- imbalance(S, D, V, Diff), active(S), !session_full(S).
+// A value under a temporary cap (below) is never promoted: it must wait for its partner.
+promote(S, D, V, G, "lead_time") :- gap(S, D, V, G), active(S), !session_full(S), !capped(S, D, V), days_left(S, Days), policy(S, "lead_days", L), Days <= L.
+promote(S, D, V, G, "slow_trend") :- gap(S, D, V, G), active(S), !session_full(S), !capped(S, D, V), recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
+promote(S, D, V, Diff, "imbalance") :- imbalance(S, D, V, Diff), active(S), !session_full(S), !capped(S, D, V).
 
 blocked(S, D, V, G, "session_full") :- gap(S, D, V, G), active(S), session_full(S).
 blocked(S, D, V, Diff, "session_full") :- imbalance(S, D, V, Diff), active(S), session_full(S).
@@ -29,9 +31,10 @@ blocked(S, D, V, Diff, "session_full") :- imbalance(S, D, V, Diff), active(S), s
 // When one value runs ahead of its ratio partner by more than max_diff, recommend holding
 // it at (partner's confirmed + max_diff) until the partner catches up. The operator does
 // this by hand today (closing one gender in the form). Recommendation only, like promote.
-cap(S, D, A, Fb + Max, B, Fb) :-
+cap(S, D, A, Fb + Max, B, Fb, Max) :-
     ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb),
     Fa - Fb > Max, active(S), !session_full(S).
-cap(S, D, B, Fa + Max, A, Fa) :-
+cap(S, D, B, Fa + Max, A, Fa, Max) :-
     ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb),
     Fb - Fa > Max, active(S), !session_full(S).
+capped(S, D, V) :- cap(S, D, V, _, _, _, _).

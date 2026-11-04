@@ -86,15 +86,15 @@ def _cap_decisions(engine: Engine, session_id: str) -> list[Decision]:
     contributors = contributors_by_value(engine, session_id)
     decisions: list[Decision] = []
     for row in sorted(engine.rows("cap", session_id)):
-        dim, value, limit, other, other_filled = (
+        dim, value, limit, other, other_filled, max_diff = (
             str(row[1]),
             str(row[2]),
             int(row[3]),
             str(row[4]),
             int(row[5]),
+            int(row[6]),
         )
         filled = int(engine.rows("filled", session_id, dim, value)[0][3])
-        max_diff = int(engine.rows("ratio_target", session_id, dim)[0][4])
         evidence = [evidence_id("ratio_target", session_id, dim)]
         for side in (value, other):
             evidence.extend(

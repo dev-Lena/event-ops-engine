@@ -45,7 +45,6 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
   gender=female: 확정 3 · 대기 0 · 목표 6~6 · 부족 3
   gender=male: 확정 1 · 대기 1 · 목표 6~6 · 부족 4
   홍보 권고: 회차 임박: 30s 2명 부족, 홍보가 필요합니다. (이유: lead_time, slow_trend; 근거: session_capacity/s2, days_left/s2, target/s2/age_band/30s, policy/s2/lead_days, ...)
-  홍보 권고: 회차 임박: female 3명 부족, 홍보가 필요합니다. (이유: lead_time, slow_trend; 근거: ...)
   홍보 권고: 회차 임박: male 4명 부족, 홍보가 필요합니다. (이유: imbalance, lead_time, slow_trend; 근거: ...)
   잠정 마감 권고: 비율 조정: female 잠정 마감 권고. 확정 3명이 male 1명보다 허용 차이 1명을 넘었습니다. 상한 2명으로 두고 male 쪽이 늘면 다시 엽니다. (이유: imbalance; 근거: ...)
 ```
