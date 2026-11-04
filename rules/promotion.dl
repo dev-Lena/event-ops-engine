@@ -7,6 +7,7 @@
 .decl recent(session: symbol, dim: symbol, value: symbol, n: int64)
 .decl promote(session: symbol, dim: symbol, value: symbol, need: int64, reason: symbol)
 .decl blocked(session: symbol, dim: symbol, value: symbol, need: int64, reason: symbol)
+.decl cap(session: symbol, dim: symbol, value: symbol, limit: int64, other: symbol, other_filled: int64)
 
 active(S) :- days_left(S, Days), Days >= 0.
 
@@ -23,3 +24,14 @@ promote(S, D, V, Diff, "imbalance") :- imbalance(S, D, V, Diff), active(S), !ses
 
 blocked(S, D, V, G, "session_full") :- gap(S, D, V, G), active(S), session_full(S).
 blocked(S, D, V, Diff, "session_full") :- imbalance(S, D, V, Diff), active(S), session_full(S).
+
+// --- temporary cap for the leading side of a ratio (#51) ---------------------------
+// When one value runs ahead of its ratio partner by more than max_diff, recommend holding
+// it at (partner's confirmed + max_diff) until the partner catches up. The operator does
+// this by hand today (closing one gender in the form). Recommendation only, like promote.
+cap(S, D, A, Fb + Max, B, Fb) :-
+    ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb),
+    Fa - Fb > Max, active(S), !session_full(S).
+cap(S, D, B, Fa + Max, A, Fa) :-
+    ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb),
+    Fb - Fa > Max, active(S), !session_full(S).

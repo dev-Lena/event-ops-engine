@@ -116,6 +116,7 @@ promote(S, D, V, G, "slow_trend")    :- gap(S, D, V, G), active(S), !session_ful
                                         recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
 promote(S, D, V, Diff, "imbalance")  :- imbalance(S, D, V, Diff), active(S), !session_full(S).
 blocked(S, D, V, G, "session_full")  :- gap(S, D, V, G), active(S), session_full(S).
+cap(S, D, A, Fb + Max, B, Fb)   :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb), Fa - Fb > Max, active(S), !session_full(S).
 ```
 
 | 이유 | 뜻 | 권고 문구(사용자) |
@@ -128,6 +129,8 @@ blocked(S, D, V, G, "session_full")  :- gap(S, D, V, G), active(S), session_full
 **가정값** (운영사 정책이 정해지면 `policy/events/*.yaml`만 바꾼다): `lead_days: 7`, `trend_min_per_week: 3`, 비율 `max_diff: 1`.
 한 (회차, 속성, 값)에 이유가 여럿이면 `Decision` 하나에 이유 목록으로 모은다. `need`와 문구는 우선순위(`lead_time` > `slow_trend` > `imbalance`)가 가장 높은 이유의 값을 쓴다 — 부족분(gap)과 비율 차(diff)는 다른 수이므로 섞지 않는다.
 값 하나의 `lo`·`hi`가 정원보다 크면 입력 오류로 거부한다(`policy.py`). 여러 값의 `lo` 합이 정원을 넘는 것은 허용하며, 그 충돌이 `blocked`로 드러난다. 같은 값에 `promote`와 `blocked`가 동시에 나올 수는 없다 (`!session_full` / `session_full`로 갈린다).
+
+**잠정 마감 권고 (`cap`, #51)**: 비율 목표가 있는 회차에서 한쪽 확정이 상대보다 `max_diff`를 넘게 많으면, 앞선 쪽을 "상대 확정 + `max_diff`"에서 잠정 마감하라고 권고한다(`Decision.kind = cap`, `need` = 상한). 운영사가 신청폼에서 한 성별을 닫고 다른 성별이 늘면 다시 여는 일을 손으로 하던 것(운영 자료 T0316 · T0375)이다. 홍보 권고와 같이 엔진은 권고만 하고 폼을 닫는 것은 사람이 한다. 회차가 찼거나 지났으면 내지 않는다. 입금 대기는 세지 않는다(불균형과 같은 기준).
 
 ## 8. 보안 · 데이터
 

@@ -75,9 +75,58 @@ def _decisions(
     return decisions
 
 
+CAP_MESSAGE = (
+    "비율 조정: {value} 잠정 마감 권고. 확정 {filled}명이 {other} {other_filled}명보다 "
+    "허용 차이 {max_diff}명을 넘었습니다. 상한 {limit}명으로 두고 {other} 쪽이 늘면 다시 엽니다."
+)
+
+
+def _cap_decisions(engine: Engine, session_id: str) -> list[Decision]:
+    """One `cap` row per leading value (#51). `need` carries the recommended limit."""
+    contributors = contributors_by_value(engine, session_id)
+    decisions: list[Decision] = []
+    for row in sorted(engine.rows("cap", session_id)):
+        dim, value, limit, other, other_filled = (
+            str(row[1]),
+            str(row[2]),
+            int(row[3]),
+            str(row[4]),
+            int(row[5]),
+        )
+        filled = int(engine.rows("filled", session_id, dim, value)[0][3])
+        max_diff = int(engine.rows("ratio_target", session_id, dim)[0][4])
+        evidence = [evidence_id("ratio_target", session_id, dim)]
+        for side in (value, other):
+            evidence.extend(
+                evidence_id("registration", r) for r in contributors.get((dim, side), [])
+            )
+        decisions.append(
+            Decision(
+                kind=DecisionKind.CAP,
+                session=session_id,
+                dim=dim,
+                value=value,
+                need=limit,
+                reasons=("imbalance",),
+                evidence=tuple(unique(evidence)),
+                message=CAP_MESSAGE.format(
+                    value=value,
+                    filled=filled,
+                    other=other,
+                    other_filled=other_filled,
+                    max_diff=max_diff,
+                    limit=limit,
+                ),
+            )
+        )
+    return decisions
+
+
 def session_promotion(engine: Engine, session_id: str) -> list[Decision]:
-    return _decisions(engine, session_id, "promote", DecisionKind.RECOMMEND) + _decisions(
-        engine, session_id, "blocked", DecisionKind.HOLD
+    return (
+        _decisions(engine, session_id, "promote", DecisionKind.RECOMMEND)
+        + _decisions(engine, session_id, "blocked", DecisionKind.HOLD)
+        + _cap_decisions(engine, session_id)
     )
 
 

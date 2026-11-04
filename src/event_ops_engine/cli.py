@@ -63,7 +63,12 @@ def format_status(status: SessionStatus) -> list[str]:
 
 
 def format_decision(decision: Decision) -> str:
-    label = {"recommend": "홍보 권고", "hold": "홍보 보류", "ask": "확인 요청"}[decision.kind]
+    label = {
+        "recommend": "홍보 권고",
+        "hold": "홍보 보류",
+        "ask": "확인 요청",
+        "cap": "잠정 마감 권고",
+    }[decision.kind]
     return (
         f"  {label}: {decision.message} (이유: {', '.join(decision.reasons)}; "
         f"근거: {', '.join(decision.evidence)})"

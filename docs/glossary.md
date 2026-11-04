@@ -26,6 +26,7 @@
 | 신청 상태가 바뀐 사건 (시각 포함) | 상태 이력 / status event | `status_event(registration, ts, status)` | 로그 | 가장 최근 시각의 상태가 현재 상태 |
 | 속성 값이 아직 확인되지 않음 | 미상 / unknown | `"unknown"` (예약 값) | 기타, 없음 | 신청 방식 칸이 없던 옛 신청. 목표 집계에서 빼고 검토 대상으로 올린다 |
 | 홍보를 권하는 판단 | 홍보 권고 / promotion recommendation | `promote(session, dim, value, need, reason)` | 홍보 지시, 자동 홍보 | 엔진은 권고만 하고 실행은 사람이 한다 |
+| 비율에서 앞선 쪽을 상대가 따라올 때까지 막아 두라는 판단 | 잠정 마감 권고 / cap | `cap(session, dim, value, limit, other, other_filled)` · `Decision.kind = cap` | 자동 마감 | 상한 = 상대 확정 + `max_diff`. 폼을 닫는 것은 사람이 한다 |
 | 부족분이 있지만 홍보할 수 없는 상태 (예: 정원 마감) | 홍보 보류 / blocked | `blocked(session, dim, value, need, reason)` | — | 목표와 정원이 충돌한 것을 운영자에게 보인다 |
 | 회차 시작까지 남은 날 수 | 남은 날 / days left | `days_left(session, days)` | D-day | 기준 시각(`now`)에서 Python이 계산해 사실로 넣는다 |
 | 홍보 판단에 쓰는 설정값 | 홍보 기준 / promotion policy | `policy(session, key, n)` | 임계값 | `lead_days`, `trend_min_per_week`. 값은 **가정값** ([design.md 7](design.md#7-홍보-판단-③)) |
