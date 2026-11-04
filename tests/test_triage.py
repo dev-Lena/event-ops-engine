@@ -291,3 +291,27 @@ def test_dropped_note_does_not_round_up_to_the_threshold() -> None:
     )
     verdict = run_triage(scenario, FakeInterpreter())
     assert "(0.599)" in verdict.message
+
+
+# --- real CLI shape: question id copied into args (#61) --------------------------------
+
+
+def test_leading_question_id_in_args_is_stripped_before_validation() -> None:
+    from event_ops_engine.harness import strip_question_id
+
+    scenario = scenario_with(
+        [
+            {**fact("asks_about", GENERIC), "args": ["q1", GENERIC]},
+            {**fact("about_registration", "r1"), "args": ["q1", "r1"]},
+        ]
+    )
+    assert scenario.question.canned is not None
+    stripped = strip_question_id(scenario.question.canned, "q1")
+    assert [f.args for f in stripped.facts] == [(GENERIC,), ("r1",)]
+    with Engine(load_rules() + ONE_CAUSE) as engine:
+        assert run_triage(scenario, FakeInterpreter(), engine).kind == VerdictKind.ACCEPT
+
+
+def test_other_ids_in_args_are_not_stripped() -> None:
+    scenario = scenario_with([{**fact("about_registration", "r1"), "args": ["q2", "r1"]}])
+    assert run(scenario) == VerdictKind.REJECT

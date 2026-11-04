@@ -55,12 +55,13 @@ def test_matching_account_length_derives_no_cause() -> None:
     issued, entered = scenario.log
     same = entered.model_copy(update={"attrs": {**entered.attrs, "digits": issued.attrs["digits"]}})
     kind, cause, needs = verdict_for(scenario.model_copy(update={"log": (issued, same)}))
-    assert (kind, cause, needs) == (VerdictKind.ASK, None, ())
+    # not type 1; the registration is still pending, so type 7 asks for the provider check
+    assert (kind, cause, needs) == (VerdictKind.ASK, None, ("payment_lookup",))
 
 
 def test_no_issued_account_asks_for_it() -> None:
     scenario = with_log(TRIAGE / "account-missing-entry.yaml", [])
-    assert verdict_for(scenario) == (VerdictKind.ASK, None, ("account_issued",))
+    assert verdict_for(scenario) == (VerdictKind.ASK, None, ("account_issued", "payment_lookup"))
 
 
 # --- type 2 ---------------------------------------------------------------------------
@@ -123,7 +124,7 @@ def test_reissued_account_is_compared_with_the_latest_issue_only() -> None:
     kind, cause, needs = verdict_for(
         scenario.model_copy(update={"log": (issued, reissued, entered)})
     )
-    assert (kind, cause, needs) == (VerdictKind.ASK, None, ())  # the latest issue matches
+    assert (kind, cause, needs) == (VerdictKind.ASK, None, ("payment_lookup",))  # latest matches
 
 
 def test_corrected_entry_supersedes_the_wrong_one() -> None:
@@ -165,6 +166,109 @@ def test_accept_never_carries_needs_from_another_event() -> None:
 
 def test_every_verdict_kind_has_a_label() -> None:
     assert set(VERDICT_LABELS) == set(VerdictKind)
+
+
+# --- type 2: scheduled auto-resend (#49) ------------------------------------------------
+
+
+def test_scheduled_auto_resend_does_not_block_external_delay() -> None:
+    scenario = load_triage_scenario(TRIAGE / "delivery-timeout.yaml")
+    sent, receipt = scenario.log
+    auto = sent.model_copy(
+        update={
+            "id": "e3",
+            "at": sent.at + timedelta(minutes=30),
+            "attrs": {**sent.attrs, "result": "ok", "auto": "true"},
+        }
+    )
+    late = receipt.model_copy(update={"at": auto.at + timedelta(minutes=5)})
+    verdict = run_triage(scenario.model_copy(update={"log": (sent, auto, late)}), FakeInterpreter())
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "external_delay")
+
+
+def test_manual_resend_still_makes_the_proof_ambiguous() -> None:
+    scenario = load_triage_scenario(TRIAGE / "delivery-timeout.yaml")
+    sent, receipt = scenario.log
+    manual = sent.model_copy(
+        update={"id": "e3", "at": sent.at + timedelta(minutes=30), "attrs": {"result": "ok"}}
+    )
+    late = receipt.model_copy(update={"at": manual.at + timedelta(minutes=5)})
+    assert verdict_for(scenario.model_copy(update={"log": (sent, manual, late)})) == (
+        VerdictKind.ASK,
+        None,
+        (),
+    )
+
+
+def test_proof_linked_to_a_send_proves_only_that_send() -> None:
+    scenario = load_triage_scenario(TRIAGE / "delivery-timeout.yaml")
+    sent, receipt = scenario.log
+    manual = sent.model_copy(
+        update={"id": "e3", "at": sent.at + timedelta(minutes=30), "attrs": {"result": "ok"}}
+    )
+    # the receipt names the manual resend: the first send has no proof and no lookup
+    for_manual = receipt.model_copy(
+        update={"at": manual.at + timedelta(minutes=5), "attrs": {**receipt.attrs, "of": "e3"}}
+    )
+    assert verdict_for(scenario.model_copy(update={"log": (sent, manual, for_manual)})) == (
+        VerdictKind.ASK,
+        None,
+        ("provider_lookup",),
+    )
+    for_first = for_manual.model_copy(update={"attrs": {**receipt.attrs, "of": "e1"}})
+    assert verdict_for(scenario.model_copy(update={"log": (sent, manual, for_first)}))[1] == (
+        "external_delay"
+    )
+
+
+# --- type 7: payment sync lag (#50) --------------------------------------------------------
+
+SYNC = TRIAGE / "payment-sync-lag.yaml"
+
+
+def test_recent_provider_payment_still_pending_is_a_sync_lag() -> None:
+    verdict = run_triage(load_triage_scenario(SYNC), FakeInterpreter())
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "sync_lag")
+    assert "log/e3" in verdict.evidence and verdict.needs == ()
+
+
+@pytest.mark.parametrize(
+    "minutes_ago, expected_cause",
+    [(10, "sync_lag"), (11, "suspected_bug")],
+    ids=["at_lag_limit", "past_lag_limit"],
+)
+def test_sync_lag_limit_comes_from_the_policy(minutes_ago: int, expected_cause: str) -> None:
+    scenario = load_triage_scenario(SYNC)
+    lookup = scenario.log[2].model_copy(
+        update={"at": scenario.now - timedelta(minutes=minutes_ago)}
+    )
+    verdict = run_triage(
+        scenario.model_copy(update={"log": (*scenario.log[:2], lookup)}), FakeInterpreter()
+    )
+    assert verdict.cause == expected_cause
+    if expected_cause == "suspected_bug":
+        assert {"rule/paid_but_pending", "log/e3"} <= set(verdict.evidence)
+
+
+def test_pending_without_a_lookup_asks_for_the_provider_check() -> None:
+    scenario = load_triage_scenario(SYNC)
+    kind, cause, needs = verdict_for(scenario.model_copy(update={"log": scenario.log[:2]}))
+    assert (kind, cause) == (VerdictKind.ASK, None) and "payment_lookup" in needs
+
+
+def test_system_payment_record_ends_the_sync_lag() -> None:
+    scenario = load_triage_scenario(SYNC)
+    received = scenario.log[2].model_copy(
+        update={"id": "e4", "kind": "payment_received", "attrs": {}, "at": scenario.now}
+    )
+    # paid and recorded, still pending at `now`: not a sync lag any more, nothing explains it
+    kind, cause, _ = verdict_for(scenario.model_copy(update={"log": (*scenario.log, received)}))
+    assert (kind, cause) == (VerdictKind.ASK, None)
+
+
+def test_sync_lag_policy_rejects_negative_minutes() -> None:
+    with pytest.raises(ValidationError):
+        TriagePolicy(sync_lag_minutes=-1)
 
 
 # --- type 2b (PR for #47) ---------------------------------------------------------------

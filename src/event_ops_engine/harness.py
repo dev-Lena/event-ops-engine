@@ -41,6 +41,23 @@ def needs_label(what: str) -> str:
     return f"{what} ({NEEDS_VERIFIER[what]})" if what in NEEDS_VERIFIER else what
 
 
+def strip_question_id(interpretation: Interpretation, question_id: str) -> Interpretation:
+    """Drop a leading question id from `args` (`["q1", "payment"]` → `["payment"]`).
+
+    The real CLI interpreter sometimes copies `q` from the relation signature into `args`
+    (seen 2026-11-04, #61). The id is not information, so it is removed before validation.
+    """
+    facts = tuple(
+        (
+            f.model_copy(update={"args": f.args[1:]})
+            if len(f.args) > 1 and f.args[0] == question_id
+            else f
+        )
+        for f in interpretation.facts
+    )
+    return interpretation.model_copy(update={"facts": facts})
+
+
 def validate(
     interpretation: Interpretation,
     scenario: TriageScenario,
@@ -223,6 +240,7 @@ def run_triage(
         except InterpretationError as error:
             trace.append(f"INTERPRET: failed ({error})")
             return _reject(scenario, [str(error)], trace)
+        interpretation = strip_question_id(interpretation, scenario.question.id)
         trace.append(f"INTERPRET: {len(interpretation.facts)} candidate facts")
         problems = validate(interpretation, scenario, context)
         if problems:

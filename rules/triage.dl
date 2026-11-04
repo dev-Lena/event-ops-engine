@@ -60,16 +60,26 @@ needs(Q, "account_issued") :- asks(Q, R, "payment"), !log_event(_, R, "account_i
 .decl delivered_proof(reg: symbol, proof: symbol, ts: int64)
 delivered_proof(R, P, T) :- log_event(P, R, "provider_receipt", T), log_attr(P, "result", "delivered").
 delivered_proof(R, P, T) :- log_event(P, R, "provider_lookup", T), log_attr(P, "result", "found").
+// A *manual* resend between the send and the proof makes the proof ambiguous. The scheduled
+// auto-resend (`message_sent{auto: true}`, one hour after a timed-out notice) is expected and
+// does not count (#49).
 .decl resent_between(sent: symbol, proof: symbol)
 resent_between(S, P) :-
     log_event(S, R, "message_sent", TS), delivered_proof(R, P, TP),
-    log_event(S2, R, "message_sent", T2), S2 != S, T2 > TS, T2 <= TP.
+    log_event(S2, R, "message_sent", T2), S2 != S, T2 > TS, T2 <= TP,
+    !log_attr(S2, "auto", "true").
+// A proof that names its send (`of: <send id>`) proves that send only; one without `of`
+// proves any earlier send (#49).
+.decl proves(sent: symbol, proof: symbol)
+proves(S, P) :-
+    log_event(S, R, "message_sent", TS), delivered_proof(R, P, TP), TP >= TS,
+    !log_attr(P, "of", _), !resent_between(S, P).
+proves(S, P) :- log_event(S, R, "message_sent", _), delivered_proof(R, P, _), log_attr(P, "of", S).
 .decl delivered_late(q: symbol, sent: symbol, receipt: symbol)
 delivered_late(Q, S, P) :-
     asks(Q, R, "delivery"),
-    log_event(S, R, "message_sent", TS), log_attr(S, "result", "timeout"),
-    delivered_proof(R, P, TP), TP >= TS,
-    !resent_between(S, P).
+    log_event(S, R, "message_sent", _), log_attr(S, "result", "timeout"),
+    proves(S, P).
 cause(Q, "external_delay", S) :- delivered_late(Q, S, _).
 cause(Q, "external_delay", P) :- delivered_late(Q, _, P).
 
@@ -78,7 +88,7 @@ cause(Q, "external_delay", P) :- delivered_late(Q, _, P).
 // out, resend. (Ops guideline: no record in the provider log → resend.)
 // A proof that came after this send; older proofs belong to earlier messages.
 .decl proof_after(sent: symbol)
-proof_after(S) :- log_event(S, R, "message_sent", TS), delivered_proof(R, _, TP), TP >= TS.
+proof_after(S) :- proves(S, _).
 .decl unreachable(q: symbol, sent: symbol, lookup: symbol)
 unreachable(Q, S, L) :-
     asks(Q, R, "delivery"),
@@ -88,10 +98,16 @@ unreachable(Q, S, L) :-
 cause(Q, "external_failure", S) :- unreachable(Q, S, _).
 cause(Q, "external_failure", L) :- unreachable(Q, _, L).
 // Neither a receipt nor a lookup yet: the provider log must be checked first.
+// A receipt is "about" a send when it names it (`of`) or names nothing (any earlier send).
+.decl receipt_about(sent: symbol)
+receipt_about(S) :-
+    log_event(S, R, "message_sent", _), log_event(P, R, "provider_receipt", _), !log_attr(P, "of", _).
+receipt_about(S) :-
+    log_event(S, R, "message_sent", _), log_event(P, R, "provider_receipt", _), log_attr(P, "of", S).
 needs(Q, "provider_lookup") :-
     asks(Q, R, "delivery"),
     log_event(S, R, "message_sent", _), log_attr(S, "result", "timeout"),
-    !log_event(_, R, "provider_receipt", _), !log_event(_, R, "provider_lookup", _).
+    !receipt_about(S), !log_event(_, R, "provider_lookup", _).
 
 // --- type 3: allowed by policy, duplicate re-registration (#18) --------------------
 // Two registrations for the same session carry the same participant key: policy allows
@@ -168,6 +184,23 @@ cause(Q, "suspected_bug", L) :- subject(Q, R), in_scope(Q), unpaid_checked(R, L)
 // registration with no payment record and no lookup is worth checking first.
 needs(Q, "payment_lookup") :-
     subject(Q, R), in_scope(Q), confirmed(R), !paid(R), !payment_checked(R).
+
+// --- type 7: payment sync lag, paid at the provider but still pending (#50) ----------
+// The operator looked the payment up and the provider says paid, yet the registration is
+// still pending_payment and the system has no payment_received record. Within the policy's
+// allowed lag it is just not synced yet ("wait"); beyond it, an invariant is broken.
+.decl paid_pending(reg: symbol, lookup: symbol, ts: int64)
+.decl lag_ok(reg: symbol, lookup: symbol)
+paid_pending(R, L, TL) :-
+    pending_payment(R), !paid(R),
+    log_event(L, R, "payment_lookup", TL), !superseded(L), log_attr(L, "result", "found").
+lag_ok(R, L) :-
+    paid_pending(R, L, TL), now(N), triage_policy("sync_lag_minutes", M), N - TL <= M * 60.
+cause(Q, "sync_lag", L) :- asks(Q, R, "payment"), lag_ok(R, L).
+invariant_violated(R, "paid_but_pending") :- paid_pending(R, L, _), !lag_ok(R, L).
+cause(Q, "suspected_bug", L) :- subject(Q, R), in_scope(Q), paid_pending(R, L, _), !lag_ok(R, L).
+needs(Q, "payment_lookup") :-
+    asks(Q, R, "payment"), pending_payment(R), !log_event(_, R, "payment_lookup", _).
 
 // --- type 6: seat inquiry, answered from module ② (#21) --------------------------
 // "Why is the women's quota full?": the question names a session and an attribute value;

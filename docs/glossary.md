@@ -38,7 +38,7 @@
 | 규칙이 문의에서 가려낸 원인 | 원인 / cause | `cause(q, cause, evidence)` | 결론 | 유형 규칙이 파생. 한 문의에 원인이 하나일 때만 accept |
 | 문의 판정 결과 | 판정 / verdict | `Verdict` (`accept` · `ask` · `abstain` · `reject`) | 답변 | [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
 | 질문이 가리키는 신청 | 질문 대상 / subject | `subject(q, reg)` | — | `about_registration`이거나 `about_event`의 로그가 속한 신청 |
-| 문의 유형 하나를 판정하는 규칙 묶음 | 유형 규칙 / type rule | `rules/triage.dl` 유형 1~6 (`user_input` · `external_delay` · `policy_normal` · `expired` · `suspected_bug` · `seat_full`/`over_capacity`) | 분류기 | 주제별로 `cause`와 `needs`를 파생. [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
+| 문의 유형 하나를 판정하는 규칙 묶음 | 유형 규칙 / type rule | `rules/triage.dl` 유형 1~7 (`user_input` · `external_delay` · `external_failure` · `policy_normal` · `expired` · `suspected_bug` · `seat_full`/`over_capacity` · `sync_lag`) | 분류기 | 주제별로 `cause`와 `needs`를 파생. [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
 | 규칙으로 설명할 수 없어야 정상인 조건. 깨지면 버그 의심 | 불변식 / invariant | `invariant_violated(reg, invariant)` | 제약 | 확정인데 결제 없음 · 기한 뒤 결제로 확정 · 속성 정원 초과. 위반은 `suspected_bug`로 사람에게 넘긴다 |
 | 유형 규칙이 쓰는 설정값 | 문의 기준 / triage policy | `triage_policy(key, n)` | 임계값 | `grace_minutes`(0) · `payment_deadline_hours`(24). 운영 자료로 확인한 값 |
 | `needs`를 누가 채울 수 있는지 | 확인 주체 / verifier | `NEEDS_VERIFIER` (외부 · 내부 · 질문 · 정책) | — | 외부 = 발송 업체 로그가 진실, 내부 = 관리자 기록. 출력에 괄호로 붙는다 |
