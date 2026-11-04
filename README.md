@@ -118,7 +118,7 @@ make install
 ```
 
 ```bash
-pip install "git+https://github.com/dev-Lena/event-ops-engine.git@main"   # 또는 @v0.3.0 같은 태그
+pip install "git+https://github.com/dev-Lena/event-ops-engine.git@main"   # 고정하려면 @<태그> (예: @v0.2.0, Releases 참고)
 ```
 
 ### Intel Mac: 엔진 빌드

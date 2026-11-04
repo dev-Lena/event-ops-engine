@@ -29,3 +29,14 @@ def test_remove_of_a_row_that_was_never_inserted_raises() -> None:
         engine.remove("att", ("a1", "hot"))
         assert engine.snapshot("flagged") == []
         assert engine.snapshot("att") == []
+
+
+def test_every_rule_file_ships_with_the_package() -> None:
+    from importlib.resources import files
+
+    from event_ops_engine.engine import RULE_FILES, RULES_DIR
+
+    assert all((RULES_DIR / name).is_file() for name in RULE_FILES)
+    assert {name for name in RULE_FILES} <= {
+        p.name for p in files("event_ops_engine.rules").iterdir()
+    }
