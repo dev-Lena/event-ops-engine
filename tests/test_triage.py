@@ -309,7 +309,9 @@ def test_leading_question_id_in_args_is_stripped_before_validation() -> None:
     stripped = strip_question_id(scenario.question.canned, "q1")
     assert [f.args for f in stripped.facts] == [(GENERIC,), ("r1",)]
     with Engine(load_rules() + ONE_CAUSE) as engine:
-        assert run_triage(scenario, FakeInterpreter(), engine).kind == VerdictKind.ACCEPT
+        verdict = run_triage(scenario, FakeInterpreter(), engine)
+    assert verdict.kind == VerdictKind.ACCEPT
+    assert any("stripped the question id from 2 facts" in step for step in verdict.trace)
 
 
 def test_other_ids_in_args_are_not_stripped() -> None:

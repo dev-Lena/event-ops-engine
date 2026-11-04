@@ -186,6 +186,22 @@ def test_scheduled_auto_resend_does_not_block_external_delay() -> None:
     assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "external_delay")
 
 
+def test_timed_out_auto_resend_shares_the_receipt_as_one_cause() -> None:
+    scenario = load_triage_scenario(TRIAGE / "delivery-timeout.yaml")
+    sent, receipt = scenario.log
+    auto = sent.model_copy(
+        update={
+            "id": "e3",
+            "at": sent.at + timedelta(minutes=30),
+            "attrs": {**sent.attrs, "auto": "true"},
+        }
+    )  # result stays timeout
+    late = receipt.model_copy(update={"at": auto.at + timedelta(minutes=5)})
+    verdict = run_triage(scenario.model_copy(update={"log": (sent, auto, late)}), FakeInterpreter())
+    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "external_delay")
+    assert {"log/e1", "log/e3", "log/e2"} <= set(verdict.evidence)
+
+
 def test_manual_resend_still_makes_the_proof_ambiguous() -> None:
     scenario = load_triage_scenario(TRIAGE / "delivery-timeout.yaml")
     sent, receipt = scenario.log

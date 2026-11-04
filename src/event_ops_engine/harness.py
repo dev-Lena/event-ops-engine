@@ -46,6 +46,8 @@ def strip_question_id(interpretation: Interpretation, question_id: str) -> Inter
 
     The real CLI interpreter sometimes copies `q` from the relation signature into `args`
     (seen 2026-11-04, #61). The id is not information, so it is removed before validation.
+    A genuine first argument that happens to equal the question id would be stripped too;
+    synthetic ids (q1 / r1 / s1 / e1) never collide, and such a fact then fails arity.
     """
     facts = tuple(
         (
@@ -56,6 +58,10 @@ def strip_question_id(interpretation: Interpretation, question_id: str) -> Inter
         for f in interpretation.facts
     )
     return interpretation.model_copy(update={"facts": facts})
+
+
+def stripped_count(before: Interpretation, after: Interpretation) -> int:
+    return sum(1 for b, a in zip(before.facts, after.facts) if b.args != a.args)
 
 
 def validate(
@@ -240,7 +246,10 @@ def run_triage(
         except InterpretationError as error:
             trace.append(f"INTERPRET: failed ({error})")
             return _reject(scenario, [str(error)], trace)
-        interpretation = strip_question_id(interpretation, scenario.question.id)
+        cleaned = strip_question_id(interpretation, scenario.question.id)
+        if repaired := stripped_count(interpretation, cleaned):
+            trace.append(f"INTERPRET: stripped the question id from {repaired} facts")
+        interpretation = cleaned
         trace.append(f"INTERPRET: {len(interpretation.facts)} candidate facts")
         problems = validate(interpretation, scenario, context)
         if problems:
