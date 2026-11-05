@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "event-ops-engine"
-version = "0.1.0"
+version = "0.3.0"
 description = "Rule-based judgement engine for event session capacity and promotion (wirelog Datalog)."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -28,11 +28,18 @@ dev = [
 [project.scripts]
 event-ops = "event_ops_engine.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+# The rule files live at the repo root (`rules/`) for readers, and ship inside the package as
+# `event_ops_engine.rules` so a pip install works outside a checkout (#70).
+packages = ["event_ops_engine", "event_ops_engine.rules"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+"event_ops_engine.rules" = "rules"
 
 [tool.setuptools.package-data]
 event_ops_engine = ["py.typed"]
+"event_ops_engine.rules" = ["*.dl"]
 
 [tool.black]
 line-length = 100

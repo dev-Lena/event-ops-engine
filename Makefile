@@ -23,6 +23,9 @@ typecheck:
 
 check: lint typecheck test
 
+package-check:
+	rm -rf build dist && python -m pip wheel . --no-deps -q -w dist && python -m zipfile -l dist/*.whl | grep -q 'event_ops_engine/rules/triage.dl' && echo 'wheel ships rules/*.dl'
+
 # Intel Mac only: build the wirelog shared library from source into vendor/.
 engine:
 	scripts/build-wirelog.sh

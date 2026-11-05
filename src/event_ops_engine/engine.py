@@ -12,13 +12,16 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Iterable, Sequence
+from importlib.resources import files
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
 from .facts import Facts, Row
 
-RULES_DIR = Path(__file__).resolve().parents[2] / "rules"
+RULES_DIR = Path(str(files("event_ops_engine.rules")))
+"""The rule files: `rules/` at the repo root, packaged as `event_ops_engine.rules` (#70).
+Assumes a normal (unzipped) install; zipped imports are not supported."""
 RULE_FILES = ("ontology.dl", "capacity.dl", "promotion.dl", "triage.dl")
 LINE_COMMENT = re.compile(r"//[^\n]*")
 QUOTED_CONSTANT = re.compile(r'"([^"\n]*)"')

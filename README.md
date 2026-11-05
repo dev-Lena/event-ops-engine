@@ -110,9 +110,15 @@ flowchart LR
 
 ## 설치
 
+저장소를 받아서 개발용으로 설치하거나(아래), 패키지로만 쓰려면 git 주소로 설치합니다. 규칙 파일(`rules/*.dl`)은 패키지에 함께 들어 있습니다.
+
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 make install
+```
+
+```bash
+pip install "git+https://github.com/dev-Lena/event-ops-engine.git@main"   # 고정하려면 @<태그> (예: @v0.2.0, Releases 참고)
 ```
 
 ### Intel Mac: 엔진 빌드

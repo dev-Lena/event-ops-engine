@@ -156,7 +156,7 @@ capped(S, D, V)             :- cap(S, D, V, _, _, _, _).   // promote 규칙은 
 ## 10. 저장소 구조
 
 ```
-rules/            ontology.dl  capacity.dl  promotion.dl  triage.dl
+rules/            ontology.dl  capacity.dl  promotion.dl  triage.dl   (패키지에는 event_ops_engine.rules로 들어간다, #70)
 policy/events/    synthetic-example.yaml synthetic-job-group.yaml   속성 정의 · 목표 · 홍보 기준(가정값)
 src/event_ops_engine/
                   model.py bands.py clock.py facts.py policy.py loader.py decision.py   lib
