@@ -14,6 +14,8 @@ class DecisionKind(StrEnum):
     """A gap exists but promotion cannot help (e.g. the session is full); operator to decide."""
     ASK = "ask"
     """Input is incomplete; the operator must supply or confirm something."""
+    CAP = "cap"
+    """Hold one side of a ratio at a limit until the other catches up (operator applies it)."""
 
 
 class Decision(BaseModel):

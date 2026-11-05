@@ -24,7 +24,7 @@ LLM에게 통째로 맡기면 빠르지만, 근거 없이 "정상입니다"라�
 | 모듈 | 입력 | 규칙이 내는 것 | 결정 |
 |---|---|---|---|
 | ② 현황 | 회차 · 신청 · 정책(목표) | 속성 값마다 확정 · 대기 · 부족 · 남은 자리 | 현황 표, 확인 요청 |
-| ③ 홍보 판단 | ② + 남은 날 · 최근 추세 · 비율 목표 | 부족 · 임박 · 추세 느림 · 불균형 | 홍보 **권고** / **보류** / 확인 요청 |
+| ③ 홍보 판단 | ② + 남은 날 · 최근 추세 · 비율 목표 | 부족 · 임박 · 추세 느림 · 불균형 | 홍보 **권고** / **보류** / 확인 요청, 비율에서 앞선 쪽의 **잠정 마감 권고** |
 | ① 문의 판정 | 질문 + 이벤트 로그 | 원인(`cause`) · 더 필요한 사실(`needs`) | `accept` / `ask` / `abstain` / `reject` |
 | 직군 정규화 | 신청자의 자유 입력("백엔드 3년차") | 확신도 기준 이상인 후보만 속성으로 | ②에 `job_group` 목표 반영, 미만은 확인 요청 |
 
@@ -45,8 +45,8 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
   gender=female: 확정 3 · 대기 0 · 목표 6~6 · 부족 3
   gender=male: 확정 1 · 대기 1 · 목표 6~6 · 부족 4
   홍보 권고: 회차 임박: 30s 2명 부족, 홍보가 필요합니다. (이유: lead_time, slow_trend; 근거: session_capacity/s2, days_left/s2, target/s2/age_band/30s, policy/s2/lead_days, ...)
-  홍보 권고: 회차 임박: female 3명 부족, 홍보가 필요합니다. (이유: lead_time, slow_trend; 근거: ...)
   홍보 권고: 회차 임박: male 4명 부족, 홍보가 필요합니다. (이유: imbalance, lead_time, slow_trend; 근거: ...)
+  잠정 마감 권고: 비율 조정: female 잠정 마감 권고. 확정 3명이 male 1명보다 허용 차이 1명을 넘었습니다. 상한 2명으로 두고 male 쪽이 늘면 다시 엽니다. (이유: imbalance; 근거: ...)
 ```
 
 시나리오는 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`입니다. 홍보 기준값(`lead_days` 등)은 모두 **가정값**입니다. 입금 대기 중인 자리는 차지한 것으로 보아 남은 자리 · 부족분에서 뺍니다(운영사 규칙). 직군 정규화가 있는 시나리오(`job-group.yaml`)는 먼저 정책의 **별칭 사전**(사람이 승인한 단어 목록)으로 맞추고, 남은 문구만 정규화기에 한 번에 묻습니다. 기본 정규화기는 파일의 `canned_job_groups` 답을 쓰고, `--normalizer claude`를 주면 Claude Code CLI가 분류합니다.

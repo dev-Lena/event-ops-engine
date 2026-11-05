@@ -7,28 +7,31 @@ from tests.conftest import loaded, scenario
 
 
 def by_value(decisions: list[Decision]) -> dict[tuple[str, str], Decision]:
-    return {(d.dim or "", d.value or ""): d for d in decisions}
+    """Recommend / hold decisions keyed by value; cap decisions are read with `caps`."""
+    return {(d.dim or "", d.value or ""): d for d in decisions if d.kind != "cap"}
+
+
+def caps(decisions: list[Decision]) -> dict[tuple[str, str], Decision]:
+    return {(d.dim or "", d.value or ""): d for d in decisions if d.kind == "cap"}
 
 
 def test_slow_trend_and_imbalance_recommend_promotion(engine: Engine) -> None:
     loaded(engine, "single")  # 14 days left: outside lead_days
     decisions = by_value(session_promotion(engine, "s1"))
     # 20s: 1 confirmed + 1 pending reaches lo 2, so there is no gap and nothing to promote
+    # female (3 vs male 1) is capped and therefore not promoted
     assert {k for k, d in decisions.items() if d.kind == "recommend"} == {
-        ("gender", "female"),
         ("gender", "male"),
         ("age_band", "30s"),
     }
-    assert decisions[("gender", "female")].reasons == ("slow_trend",)
     assert decisions[("gender", "male")].reasons == ("imbalance", "slow_trend")
     assert decisions[("gender", "male")].need == 5
-    assert "lead_time" not in decisions[("gender", "female")].reasons
 
 
 def test_lead_time_fires_inside_lead_days(engine: Engine) -> None:
     loaded(engine, "pair-mixed")  # 3 days left
     decisions = by_value(session_promotion(engine, "s2"))
-    assert decisions[("gender", "female")].reasons == ("lead_time", "slow_trend")
+    assert ("gender", "female") not in decisions  # capped (3 vs 1): never promoted
     assert decisions[("gender", "male")].reasons == ("imbalance", "lead_time", "slow_trend")
     assert ("age_band", "20s") not in decisions  # target met
     assert decisions[("age_band", "30s")].need == 2
@@ -120,3 +123,70 @@ def test_session_full_by_pending_payments_also_blocks_promotion(engine: Engine) 
     assert engine.rows("session_full", "s1")
     decisions = by_value(session_promotion(engine, "s1"))
     assert decisions and all(d.kind == "hold" for d in decisions.values())
+
+
+# --- temporary cap for the leading ratio side (#51) ---------------------------------------
+
+
+def test_leading_gender_gets_a_cap_at_partner_plus_max_diff(engine: Engine) -> None:
+    loaded(engine, "pair-mixed")  # female 3, male 1, max_diff 1
+    cap = caps(session_promotion(engine, "s2"))[("gender", "female")]
+    assert (cap.kind, cap.need, cap.reasons) == ("cap", 2, ("imbalance",))
+    assert "상한 2명" in cap.message and "male 1명" in cap.message
+    assert "ratio_target/s2/gender" in cap.evidence and "registration/r1" in cap.evidence
+    assert ("gender", "male") not in caps(session_promotion(engine, "s2"))
+
+
+def test_issue_example_ten_women_three_men_caps_women_at_four() -> None:
+    from datetime import datetime, timezone
+
+    from event_ops_engine.facts import scenario_facts
+    from event_ops_engine.model import Member, Registration
+
+    base = scenario("ratio")
+    at = datetime(2026, 11, 1, tzinfo=timezone.utc)
+    regs = tuple(
+        Registration(
+            id=f"w{i}" if i < 10 else f"m{i}",
+            session="s4a",
+            members=(Member(gender="female" if i < 10 else "male", birth_year=1995),),
+            status_events=({"at": at, "status": "confirmed"},),
+        )
+        for i in range(13)
+    )
+    session = base.sessions[0].model_copy(update={"capacity": 30})
+    data = base.model_copy(update={"sessions": (session,), "registrations": regs})
+    with Engine() as own:
+        own.load(scenario_facts(data))
+        cap = caps(session_promotion(own, "s4a"))[("gender", "female")]
+    assert cap.need == 4
+
+
+def test_balanced_or_full_sessions_get_no_cap(engine: Engine) -> None:
+    loaded(engine, "ratio")
+    assert caps(session_promotion(engine, "s4a")) == {}  # 5 vs 5
+    assert caps(session_promotion(engine, "s4b")) == {}  # 6 vs 3 but the session is full
+
+
+def test_difference_equal_to_max_diff_is_not_capped(engine: Engine) -> None:
+    data = loaded(engine, "pair-mixed")
+    from datetime import datetime, timezone
+
+    from event_ops_engine.facts import registration_facts
+    from event_ops_engine.model import Member, Registration
+
+    extra = Registration(
+        id="m9",
+        session="s2",
+        members=(Member(gender="male", birth_year=1995),),
+        status_events=({"at": datetime(2026, 11, 1, tzinfo=timezone.utc), "status": "confirmed"},),
+    )
+    engine.load(registration_facts(data, extra))  # female 3, male 2: diff 1 == max_diff
+    assert caps(session_promotion(engine, "s2")) == {}
+
+
+def test_capped_value_is_not_promoted_even_with_its_own_gap(engine: Engine) -> None:
+    loaded(engine, "pair-mixed")  # female lo 6 but only 3 confirmed: a gap, yet capped
+    decisions = session_promotion(engine, "s2")
+    female = [d for d in decisions if (d.dim, d.value) == ("gender", "female")]
+    assert [d.kind for d in female] == ["cap"]
