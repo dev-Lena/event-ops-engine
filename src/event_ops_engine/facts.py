@@ -208,7 +208,7 @@ def question_facts(question: Question) -> Facts:
     return facts
 
 
-TRIAGE_POLICY_KEYS = ("grace_minutes",)
+TRIAGE_POLICY_KEYS = ("grace_minutes", "sync_lag_minutes")
 
 
 def triage_facts(scenario: TriageScenario) -> Facts:

@@ -32,3 +32,4 @@ triage:
   grace_minutes: 0            # 은행이 기한 시각에 바로 막는다 (운영 자료 확인, 유형 4)
   payment_deadline_hours: 24  # 선별(입금 대기) 뒤 24시간. 회차마다 바꿀 수 있다 (운영 자료 확인)
   min_candidate_confidence: 0.6  # 가정값: 해석기가 이보다 자신 없는 후보 사실은 판정에 쓰지 않는다
+  sync_lag_minutes: 10           # 가정값: 결제 업체는 입금 확인인데 입금 대기면 이 시간까지는 반영 대기로 본다 (유형 7)

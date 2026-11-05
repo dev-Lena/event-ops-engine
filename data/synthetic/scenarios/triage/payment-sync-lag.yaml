@@ -1,0 +1,27 @@
+# ① 유형 7 입금 반영 지연 (#50). 질문 · 로그 · id는 모두 합성이다.
+# 신청자는 입금했고 결제 업체 조회에서도 입금이 확인됐는데(found) 시스템 상태는 아직 입금 대기다.
+# 조회 시각이 기준 시각(now)에서 sync_lag_minutes(정책, 가정값) 안이면 "반영 대기 중", 넘으면 버그 의심.
+policy: ../../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-21 }
+registrations:
+  - { id: r1, session: s1, members: [{ gender: female, birth_year: 1993 }],
+      status_events: [{ at: 2026-11-07T09:00:00+09:00, status: pending_payment }] }
+log:
+  - { id: e1, at: 2026-11-07T09:00:01+09:00, kind: account_issued, registration: r1,
+      attrs: { bank: synthetic, digits: 14 } }
+  - { id: e2, at: 2026-11-07T09:50:00+09:00, kind: account_entered, registration: r1,
+      attrs: { digits: 14, result: accepted } }
+  - { id: e3, at: 2026-11-07T09:57:00+09:00, kind: payment_lookup, registration: r1,
+      attrs: { result: found } }
+question:
+  id: q1
+  text: "r1 신청자가 방금 입금했다는데 아직 입금 대기로 떠요. 반영이 안 된 건가요?"
+  canned:
+    facts:
+      - { relation: asks_about, args: [payment],
+          provenance: { source: question, quote: "입금 대기로 떠요" }, confidence: 0.9 }
+      - { relation: about_registration, args: [r1],
+          provenance: { source: question, quote: "r1 신청자" }, confidence: 0.95 }
+expected: { kind: accept, cause: sync_lag, needs: [] }

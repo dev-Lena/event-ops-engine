@@ -1,5 +1,5 @@
 # ① 유형 1의 ask 경로 (#15). 계좌는 발급됐지만 신청자의 입력 기록이 아직 없다.
-# 원인을 가리려면 account_entered가 더 필요하다.
+# 원인을 가리려면 입력 기록(account_entered)과, 입금 대기 상태라 결제 업체 입금 조회(payment_lookup)가 더 필요하다.
 policy: ../../../../policy/events/synthetic-example.yaml
 now: 2026-11-07T10:00:00+09:00
 sessions:
@@ -19,4 +19,4 @@ question:
           provenance: { source: question, quote: "계좌로 입금이 안 된다고" }, confidence: 0.85 }
       - { relation: about_registration, args: [r1],
           provenance: { source: question, quote: "r1 신청자" }, confidence: 0.95 }
-expected: { kind: ask, needs: [account_entered] }
+expected: { kind: ask, needs: [account_entered, payment_lookup] }
