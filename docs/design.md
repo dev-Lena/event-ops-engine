@@ -23,6 +23,8 @@ YAML 시나리오 ─► Python 모델(검증) ─► 사실(fact) ─► wirelo
                                       clock.py
 ```
 
+CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이고, `--json`은 다른 시스템이 읽는 구조다(#85). JSON은 `schema`(`event-ops/report@1` · `event-ops/triage@1`)로 버전을 밝히고, 필드를 바꾸면 번호를 올린다. `Decision` · `Verdict`는 pydantic 모델을 그대로 직렬화해 문장 출력과 같은 판단 · 근거를 담는다. 형식 예시는 README "결과 JSON".
+
 계층 (공용 코드 기준 1번, [CONTRIBUTING.md](../CONTRIBUTING.md)):
 
 | 계층 | 모듈 | 규칙 |
@@ -328,3 +330,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-02 | 14절 속성 정규화(`job_group`), 5절 `given_attr` · `candidate_attr`, `attendee_attr` 파생으로 (#22~#25) |
 | 2026-11-02 | 운영 자료 반영: 입금 대기를 자리로 셈(6절), 기한 = 선별 후 N시간 · 유예 0 (13절 유형 4) (#45 · #46) |
 | 2026-11-07 | 7절 홍보 중단(`promotion_cutoff_hours`, 확인됨) · 회차 시작 시각 · 회차별 덮어쓰기, 기준값 확인됨/가정 표시. 3 · 5 · 12절 (#52) |
+| 2026-11-07 | 2절 결과 JSON 출력 `--json` (`event-ops/report@1` · `event-ops/triage@1`, #85) |

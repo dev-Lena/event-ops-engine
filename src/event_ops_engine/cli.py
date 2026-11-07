@@ -1,15 +1,19 @@
 """Layer: features. `event-ops report <scenario.yaml>` prints capacity status and promotion
 decisions for every session; `event-ops triage <scenario.yaml>` prints the verdict for the
 scenario's question, its evidence by trust tier, and with `--runs N` how often repeated runs
-agree. Output is for operators, in Korean (docs/glossary.md)."""
+agree. Output is for operators, in Korean (docs/glossary.md). `--json` prints the same results
+as a versioned structure for other systems (`REPORT_SCHEMA`, `TRIAGE_SCHEMA`, #85)."""
 
 from __future__ import annotations
 
 import argparse
+import dataclasses
+import json
 import sys
 from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from .capacity import SessionStatus, capacity_status
 from .decision import Decision, Verdict, VerdictKind
@@ -18,9 +22,13 @@ from .facts import scenario_facts
 from .harness import differences, needs_label, run_triage
 from .interpreter import ClaudeCliInterpreter, FakeInterpreter, Interpreter, preflight
 from .loader import load_scenario, load_triage_scenario
-from .model import TriageScenario
+from .model import Scenario, TriageScenario
 from .normalizer import NORMALIZERS, normalize_members
 from .promotion import cutoff_hours, promotion_decisions, promotion_stopped
+
+REPORT_SCHEMA = "event-ops/report@1"
+TRIAGE_SCHEMA = "event-ops/triage@1"
+"""Version tags of the `--json` output. Any field change bumps the number (#85)."""
 
 VERDICT_LABELS: dict[VerdictKind, str] = {
     VerdictKind.ACCEPT: "원인 확정",
@@ -75,10 +83,18 @@ def format_decision(decision: Decision) -> str:
     )
 
 
-def report(scenario_path: Path, normalizer: str = "fake") -> list[str]:
+@dataclasses.dataclass(frozen=True)
+class ReportResult:
+    scenario: Scenario
+    statuses: list[SessionStatus]
+    decisions: list[Decision]
+    stopped: dict[str, int]
+    """Sessions past their promotion cutoff -> the cutoff hours (#52)."""
+
+
+def run_report(scenario_path: Path, normalizer: str = "fake") -> ReportResult:
     loaded = load_scenario(scenario_path)
     scenario = normalize_members(loaded, NORMALIZERS[normalizer](loaded))
-    lines: list[str] = []
     with Engine() as engine:
         engine.load(scenario_facts(scenario))
         statuses = capacity_status(scenario, engine)
@@ -88,7 +104,14 @@ def report(scenario_path: Path, normalizer: str = "fake") -> list[str]:
             for s in scenario.sessions
             if promotion_stopped(engine, s.id)
         }
-    for status in statuses:
+    return ReportResult(scenario, statuses, decisions, stopped)
+
+
+def report(scenario_path: Path, normalizer: str = "fake") -> list[str]:
+    result = run_report(scenario_path, normalizer)
+    decisions, stopped = result.decisions, result.stopped
+    lines: list[str] = []
+    for status in result.statuses:
         lines.extend(format_status(status))
         own = [d for d in decisions if d.session == status.session]
         if status.session in stopped:
@@ -98,6 +121,32 @@ def report(scenario_path: Path, normalizer: str = "fake") -> list[str]:
         if not own and status.session not in stopped:
             lines.append("  홍보 판단: 권고 없음")
     return lines
+
+
+def report_json(result: ReportResult) -> dict[str, Any]:
+    return {
+        "schema": REPORT_SCHEMA,
+        "now": result.scenario.now.isoformat(),
+        "sessions": [
+            {
+                "session": status.session,
+                "capacity": status.capacity,
+                "filled": status.filled,
+                "pending": status.pending,
+                "remaining_seats": status.remaining_seats,
+                "is_full": status.is_full,
+                "promotion_stopped": status.session in result.stopped,
+                "values": [dataclasses.asdict(value) for value in status.values],
+                "needs_review": [d.model_dump(mode="json") for d in status.needs_review],
+                "decisions": [
+                    d.model_dump(mode="json")
+                    for d in result.decisions
+                    if d.session == status.session
+                ],
+            }
+            for status in result.statuses
+        ],
+    }
 
 
 def format_verdict(
@@ -153,6 +202,20 @@ def agreement_lines(verdicts: Sequence[Verdict]) -> list[str]:
     return [f"  반복 실행 {len(verdicts)}회: {spread} / 일치율 {top * 100 // len(verdicts)}%"]
 
 
+def triage_runs(
+    scenario_path: Path, interpreter: str = "fake", normalizer: str = "fake", runs: int = 1
+) -> tuple[TriageScenario, list[Verdict], bool]:
+    """The scenario, one verdict per run, and whether every run matched the expectation."""
+    loaded = load_triage_scenario(scenario_path)
+    scenario = normalize_members(loaded, NORMALIZERS[normalizer](loaded))
+    chosen = INTERPRETERS[interpreter]()
+    # Normalization runs once above: repeat runs measure interpreter variance only.
+    verdicts = [run_triage(scenario, chosen) for _ in range(runs)]
+    expected = scenario.expected
+    matched = expected is None or all(not differences(v, expected) for v in verdicts)
+    return scenario, verdicts, matched
+
+
 def triage(
     scenario_path: Path,
     interpreter: str = "fake",
@@ -161,17 +224,27 @@ def triage(
     runs: int = 1,
 ) -> tuple[list[str], bool]:
     """Lines and whether every run matched the scenario's expectation (True if none)."""
-    loaded = load_triage_scenario(scenario_path)
-    scenario = normalize_members(loaded, NORMALIZERS[normalizer](loaded))
-    chosen = INTERPRETERS[interpreter]()
-    # Normalization runs once above: repeat runs measure interpreter variance only.
-    verdicts = [run_triage(scenario, chosen) for _ in range(runs)]
-    lines, matched = format_verdict(scenario, verdicts[0], trace)
+    scenario, verdicts, matched = triage_runs(scenario_path, interpreter, normalizer, runs)
+    lines, _ = format_verdict(scenario, verdicts[0], trace)
     if len(verdicts) > 1:
         lines += agreement_lines(verdicts)
-        if scenario.expected is not None:
-            matched = all(not differences(v, scenario.expected) for v in verdicts)
     return lines, matched
+
+
+def triage_json(
+    scenario: TriageScenario, verdicts: Sequence[Verdict], matched: bool, trace: bool = False
+) -> dict[str, Any]:
+    exclude = None if trace else {"trace"}
+    return {
+        "schema": TRIAGE_SCHEMA,
+        "question": scenario.question.id,
+        "matched": matched,
+        "verdicts": [v.model_dump(mode="json", exclude=exclude) for v in verdicts],
+    }
+
+
+def print_json(payload: dict[str, Any]) -> None:
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 def positive_int(text: str) -> int:
@@ -213,6 +286,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             default="fake",
             help="직군 정규화기. fake: 시나리오의 canned_job_groups (기본), claude: Claude Code CLI",
         )
+        subparser.add_argument(
+            "--json",
+            action="store_true",
+            help="사람용 문장 대신 다른 시스템이 읽을 JSON으로 출력 (형식: README '결과 JSON')",
+        )
     args = parser.parse_args(argv)
     if uses_claude(args):
         problem = preflight()
@@ -224,13 +302,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 2
     if args.command == "report":
-        print("\n".join(report(args.scenario, args.normalizer)))
+        if args.json:
+            print_json(report_json(run_report(args.scenario, args.normalizer)))
+        else:
+            print("\n".join(report(args.scenario, args.normalizer)))
         return 0
     if args.command == "triage":
-        lines, matched = triage(
-            args.scenario, args.interpreter, args.trace, args.normalizer, args.runs
-        )
-        print("\n".join(lines))
+        if args.json:
+            scenario, verdicts, matched = triage_runs(
+                args.scenario, args.interpreter, args.normalizer, args.runs
+            )
+            print_json(triage_json(scenario, verdicts, matched, args.trace))
+        else:
+            lines, matched = triage(
+                args.scenario, args.interpreter, args.trace, args.normalizer, args.runs
+            )
+            print("\n".join(lines))
         return 0 if matched else 1
     return 2
 
