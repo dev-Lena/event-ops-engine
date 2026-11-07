@@ -37,7 +37,8 @@ YAML 시나리오 ─► Python 모델(검증) ─► 사실(fact) ─► wirelo
 Scenario
   policy: EventPolicy            # 속성 정의 · 기본 목표 · 홍보 기준
   now: datetime                  # 판단 기준 시각 (테스트 재현을 위해 입력으로 받는다)
-  sessions: [Session]            # id, date, capacity, targets 덮어쓰기(선택)
+  sessions: [Session]            # id, date, capacity, targets 덮어쓰기(선택),
+                                 # start_time "HH:MM"(서울 시각, 선택), lead_days · promotion_cutoff_hours 덮어쓰기(선택)
   registrations: [Registration]  # id, session_id, members | party_size, status_events
 
 Registration
@@ -82,7 +83,9 @@ Member
 | `unknown_party(reg, party_size)` | 구성 미상 신청 | `facts.py` |
 | `target(session, dim, value, lo, hi)` | 속성 값 목표 | `policy.py` |
 | `ratio_target(session, dim, value_a, value_b, max_diff)` | 비율 목표 | `policy.py` |
-| `policy(session, key, n)` | 홍보 기준값 | `policy.py` |
+| `policy(session, key, n)` | 홍보 기준값 (회차 덮어쓰기 반영) | `policy.py` |
+| `promotion_cutoff_ts(session, ts)` | 홍보 중단 시각 = 시작 시각 − `promotion_cutoff_hours` (시작 시각이 있을 때만) | `clock.py` |
+| `earliest_cutoff_ts(session, ts)` | 시작 시각이 없을 때 홍보 중단이 가장 이르게 올 수 있는 시각 (회차 날 자정 − 시간) | `clock.py` |
 
 ## 6. 현황 규칙 (②, `rules/capacity.dl`)
 
@@ -109,6 +112,8 @@ imbalance(S, D, B, Fa - Fb) :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa
 
 ```
 active(S)                            :- days_left(S, Days), Days >= 0.
+past_cutoff(S)                       :- promotion_cutoff_ts(S, T), now(N), N >= T, active(S).
+cutoff_unknown(S)                    :- earliest_cutoff_ts(S, T), now(N), N >= T, active(S).
 recent(S, D, V, N)                   -- 최근 7일 안에 확정된 참가자 수 (없으면 0)
 promote(S, D, V, G, "lead_time")     :- gap(S, D, V, G), active(S), !session_full(S),
                                         days_left(S, Days), policy(S, "lead_days", L), Days <= L.
@@ -117,7 +122,7 @@ promote(S, D, V, G, "slow_trend")    :- gap(S, D, V, G), active(S), !session_ful
 promote(S, D, V, Diff, "imbalance")  :- imbalance(S, D, V, Diff), active(S), !session_full(S).
 blocked(S, D, V, G, "session_full")  :- gap(S, D, V, G), active(S), session_full(S).
 cap(S, D, A, Fb + Max, B, Fb, Max) :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb), Fa - Fb > Max, active(S), !session_full(S).   // 대칭 규칙도 있음
-capped(S, D, V)             :- cap(S, D, V, _, _, _, _).   // promote 규칙은 !capped
+capped(S, D, V)             :- cap(S, D, V, _, _, _, _).   // promote 세 규칙은 !capped, !past_cutoff
 ```
 
 | 이유 | 뜻 | 권고 문구(사용자) |
@@ -127,11 +132,22 @@ capped(S, D, V)             :- cap(S, D, V, _, _, _, _).   // promote 규칙은 
 | `imbalance` | 비율 목표의 허용 차를 넘음 | "{value} 쪽 {n}명 부족(비율)" |
 | `blocked: session_full` | 부족분은 있으나 정원이 찼음 (지난 회차는 제외) | "정원 마감 — 목표와 정원이 충돌, 운영자 확인" |
 
-**가정값** (운영사 정책이 정해지면 `policy/events/*.yaml`만 바꾼다): `lead_days: 7`, `trend_min_per_week: 3`, 비율 `max_diff: 1`.
+**기준값** (#52, 2026-11-06 결정. 바꿀 때는 `policy/events/*.yaml`만 바꾼다. 결정 기록: [decisions/2026-11-07-promotion-thresholds.md](decisions/2026-11-07-promotion-thresholds.md)):
+
+| 기준 | 값 | 확인됨 / 가정 | 근거 |
+|---|---|---|---|
+| `promotion_cutoff_hours` | 2 (회차별 덮어쓰기) | **확인됨** | 운영사 확인: 모임 시작 2시간 전부터 홍보 중단. 실제 회차 설정 32개 모두 2시간 |
+| `lead_days` | 7 (회차별 덮어쓰기) | 가정 | 운영사에 고정 기준이 없다는 것은 확인됨 (임박 기준이 그때그때 5~15일) |
+| `trend_min_per_week` | 3 (직군 예시 2) | 가정 | 운영사의 광고 조건에 추세는 없다(확인됨). pace(같은 D-day 기대 확정률 대비 속도)로 바꾸는 것은 #75 |
+| 비율 `max_diff` | 1 | 가정 | 홍보(`imbalance`)와 잠정 마감(`cap`)에 같은 값. 운영사의 성별 한도 방식은 확인 중 |
+
+`imbalance` 홍보 권고는 기간 제한 없이 낸다(운영사는 임박했을 때 광고하지만, 엔진은 더 일찍 알리는 쪽을 택함).
 한 (회차, 속성, 값)에 이유가 여럿이면 `Decision` 하나에 이유 목록으로 모은다. `need`와 문구는 우선순위(`lead_time` > `slow_trend` > `imbalance`)가 가장 높은 이유의 값을 쓴다 — 부족분(gap)과 비율 차(diff)는 다른 수이므로 섞지 않는다.
 값 하나의 `lo`·`hi`가 정원보다 크면 입력 오류로 거부한다(`policy.py`). 여러 값의 `lo` 합이 정원을 넘는 것은 허용하며, 그 충돌이 `blocked`로 드러난다. 같은 값에 `promote`와 `blocked`가 동시에 나올 수는 없다 (`!session_full` / `session_full`로 갈린다).
 
-**잠정 마감 권고 (`cap`, #51)**: 비율 목표가 있는 회차에서 한쪽 확정이 상대보다 `max_diff`를 넘게 많으면, 앞선 쪽을 "상대 확정 + `max_diff`"에서 잠정 마감하라고 권고한다(`Decision.kind = cap`, `need` = 상한). 운영사가 신청폼에서 한 성별을 닫고 다른 성별이 늘면 다시 여는 일을 손으로 하던 것(운영 자료 T0316 · T0375)이다. 홍보 권고와 같이 엔진은 권고만 하고 폼을 닫는 것은 사람이 한다. 회차가 찼거나 지났으면 내지 않는다. 입금 대기는 세지 않는다(불균형과 같은 기준). 규칙은 양방향(대칭)이며 `max_diff`를 행에 함께 싣는다. **잠정 마감된 값은 홍보 권고를 내지 않는다**(`!capped`): "여성 3명 부족, 홍보"와 "여성 잠정 마감"이 같이 나오면 모순이라서, 앞선 쪽은 상대가 따라올 때까지 기다린다.
+**홍보 중단 (#52)**: 회차에 시작 시각(`start_time`, 서울 시각 `"HH:MM"`)이 있으면 시작 `promotion_cutoff_hours`시간 전부터 홍보 권고(`promote`의 세 이유)를 내지 않는다. 정확히 그 시각부터 멈춘다(경계 포함). 마감 시각은 `clock.py`가 계산해 `promotion_cutoff_ts`로 넣고, 규칙은 `now`와 비교만 한다(9절의 본문 산술 제약). 정원 충돌 보류(`blocked`)와 잠정 마감(`cap`)은 홍보가 아니므로 지금처럼 날짜 단위 `active`를 따른다. `event-ops report`는 마감이 지난 회차에 "홍보 중단" 줄을 보여, 부족분이 남았는데 "권고 없음"으로 읽히지 않게 한다. 시작 시각이 없으면 예전처럼 날짜 단위(당일까지)로 판단한다. 다만 마감이 이미 지났을 수 있는 때(`earliest_cutoff_ts` = 회차 날 자정 − `promotion_cutoff_hours` 이후)에는 홍보 권고 문구에 "시작 시각이 없어 홍보 중단이 지났는지 확인하지 못함"을 붙이고 근거에 `earliest_cutoff_ts/<회차>` · `now` · `policy/<회차>/promotion_cutoff_hours`를 넣는다. 시작 시각은 YAML에서 따옴표로 감싼다. 따옴표가 없으면 YAML 1.1이 `19:30`을 정수 1170으로 읽어 00:19:30이 되므로 모델이 거부한다.
+
+**잠정 마감 권고 (`cap`, #51)**: 비율 목표가 있는 회차에서 한쪽 확정이 상대보다 `max_diff`를 넘게 많으면, 앞선 쪽을 "상대 확정 + `max_diff`"에서 잠정 마감하라고 권고한다(`Decision.kind = cap`, `need` = 상한). 운영사가 신청폼에서 한 성별을 닫고 다른 성별이 늘면 다시 여는 일을 손으로 하던 것(운영 자료 T0316 · T0375)이다. 홍보 권고와 같이 엔진은 권고만 하고 폼을 닫는 것은 사람이 한다. 회차가 찼거나 지났으면 내지 않는다. 입금 대기는 세지 않는다(불균형과 같은 기준). 규칙은 양방향(대칭)이며 `max_diff`를 행에 함께 싣는다. **잠정 마감된 값은 홍보 권고를 내지 않는다**(`!capped`): "여성 3명 부족, 홍보"와 "여성 잠정 마감"이 같이 나오면 모순이라서, 앞선 쪽은 상대가 따라올 때까지 기다린다. 기본 한도 없이 차가 `max_diff`를 넘는 즉시 권고하는 것은 **가정**이다(운영사 확인 중).
 
 ## 8. 보안 · 데이터
 
@@ -184,7 +200,7 @@ docs/             design.md glossary.md decisions/
 
 - 수백 건 이상 신청에서의 속도 — 합성 데이터는 회차당 20명 이하다.
 - `average` 등 다른 집계 함수 — 이번 규칙은 `count` · `max`만 쓴다.
-- 실제 운영사 정책값 — 7절의 값은 모두 가정값이다.
+- 실제 운영사 정책값 — 7절 기준값 중 `promotion_cutoff_hours`만 확인됨이고 나머지는 가정값이다 (#52).
 
 ## 13. 운영 문의 판정 (①, `rules/triage.dl`, `harness.py`)
 
@@ -311,3 +327,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-02 | 13절 유형 5 · 6 규칙, 후보 관계 `about_value`, 근거 `rule/<name>` (#20 · #21) |
 | 2026-11-02 | 14절 속성 정규화(`job_group`), 5절 `given_attr` · `candidate_attr`, `attendee_attr` 파생으로 (#22~#25) |
 | 2026-11-02 | 운영 자료 반영: 입금 대기를 자리로 셈(6절), 기한 = 선별 후 N시간 · 유예 0 (13절 유형 4) (#45 · #46) |
+| 2026-11-07 | 7절 홍보 중단(`promotion_cutoff_hours`, 확인됨) · 회차 시작 시각 · 회차별 덮어쓰기, 기준값 확인됨/가정 표시. 3 · 5 · 12절 (#52) |

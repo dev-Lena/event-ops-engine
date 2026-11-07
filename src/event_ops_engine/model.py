@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .decision import VerdictKind
 
@@ -204,10 +204,13 @@ class SessionDefaults(StrictModel):
 
 
 class PromotionPolicy(StrictModel):
-    """Assumed values; the operator's real policy replaces them in policy/events/*.yaml."""
+    """Promotion thresholds (docs/design.md 7). Which are confirmed and which assumed is marked
+    there and in policy/events/*.yaml."""
 
     lead_days: int = Field(ge=0)
     trend_min_per_week: int = Field(ge=0)
+    promotion_cutoff_hours: int = Field(default=2, ge=0)
+    """Confirmed (#52): promotion recommendations stop this many hours before a session starts."""
 
 
 class TriagePolicy(StrictModel):
@@ -251,6 +254,26 @@ class Session(StrictModel):
     targets: Targets | None = None
     ratios: tuple[RatioTarget, ...] | None = None
     payment_deadline_hours: int | None = Field(default=None, ge=1)
+    start_time: dt.time | None = None
+    """Asia/Seoul wall-clock start. Without it promotion is judged by date only (design.md 7)."""
+    lead_days: int | None = Field(default=None, ge=0)
+    promotion_cutoff_hours: int | None = Field(default=None, ge=0)
+
+    @field_validator("start_time", mode="before")
+    @classmethod
+    def _start_time_is_text(cls, value: object) -> object:
+        # YAML 1.1 reads an unquoted 19:30 as the integer 1170, which pydantic would
+        # silently turn into 00:19:30. Only quoted "HH:MM" text is accepted.
+        if value is not None and not isinstance(value, (str, dt.time)):
+            raise ValueError('start_time must be quoted text such as "19:30"')
+        return value
+
+    @field_validator("start_time")
+    @classmethod
+    def _start_time_is_local(cls, value: dt.time | None) -> dt.time | None:
+        if value is not None and value.tzinfo is not None:
+            raise ValueError("start_time is Asia/Seoul local time; drop the offset")
+        return value
 
 
 class Scenario(StrictModel):
