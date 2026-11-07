@@ -179,6 +179,7 @@ docs/             design.md glossary.md decisions/
 - lib 모듈은 순수 함수 테스트. 규칙은 시나리오 5개(1인 · 2인 혼성 · 단체 · 1:1 비율 · 경계)를 엔진에 넣고 파생 관계와 `Decision`을 확인한다.
 - 취소는 (a) 상태 이력 (b) 사실 철회 두 경로를 모두 테스트한다.
 - 엔진 라이브러리: `WIRELOG_LIB`가 비어 있고 `vendor/wirelog/build/libwirelog.1.dylib`가 있으면 `tests/conftest.py`가 자동으로 잡는다. 둘 다 없으면 wheel에 든 엔진을 쓴다(Linux CI).
+- 설치 확인 (`make wheel-smoke`, #80): wheel을 새 venv에 설치하고 저장소 밖 임시 폴더에서 `report` · `triage`를 실행한다. 불러온 패키지가 그 venv 안의 것인지도 확인한다. CI(ubuntu)가 매번 돌리고, Intel Mac에서는 `WIRELOG_LIB`를 주고 돌린다.
 
 ## 12. 확인하지 못한 것
 
@@ -311,3 +312,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-02 | 13절 유형 5 · 6 규칙, 후보 관계 `about_value`, 근거 `rule/<name>` (#20 · #21) |
 | 2026-11-02 | 14절 속성 정규화(`job_group`), 5절 `given_attr` · `candidate_attr`, `attendee_attr` 파생으로 (#22~#25) |
 | 2026-11-02 | 운영 자료 반영: 입금 대기를 자리로 셈(6절), 기한 = 선별 후 N시간 · 유예 0 (13절 유형 4) (#45 · #46) |
+| 2026-11-07 | 11절 설치 확인 `make wheel-smoke`: Linux CI에서 설치한 wheel을 저장소 밖에서 실행 (#80) |
