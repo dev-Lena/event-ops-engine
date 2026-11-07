@@ -19,6 +19,8 @@ def test_same_seed_gives_the_same_scenario() -> None:
     assert sample() == sample()
     shapes = Counter(r.members is None for r in sample().registrations)
     assert shapes[True] > 0 and shapes[False] > 0  # unknown composition is in the mix
+    latest = max(e.at for r in sample().registrations for e in r.status_events)
+    assert latest < sample().now  # no history after the reference time
 
 
 def test_rule_counts_match_a_python_count_at_load() -> None:

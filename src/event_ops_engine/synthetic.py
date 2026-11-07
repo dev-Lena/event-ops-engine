@@ -55,7 +55,8 @@ def _members(rng: random.Random, shape: str) -> tuple[Member, ...] | None:
 def _registration(rng: random.Random, reg_id: str, session_id: str) -> Registration:
     shape = _pick(rng, PARTY_MIX)
     final = _pick(rng, FINAL_STATUS_MIX)
-    start = NOW - timedelta(minutes=rng.randint(60, 30 * 24 * 60))
+    # The last of up to three hourly steps still lands before `now`.
+    start = NOW - timedelta(minutes=rng.randint(3 * 60, 30 * 24 * 60))
     events = tuple(
         StatusEvent(at=start + timedelta(hours=step), status=status)
         for step, status in enumerate(PATH[final])
