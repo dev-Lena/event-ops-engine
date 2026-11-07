@@ -94,7 +94,7 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
   "sessions": [ { "session": "s2", "capacity": 12, "filled": 4, "pending": 1, "remaining_seats": 7,
                   "is_full": false, "promotion_stopped": false,
                   "values": [ { "dim": "gender", "value": "male", "lo": 6, "hi": 6, "filled": 1, "pending": 1,
-                                "gap": 4, "remaining": 5, "is_full": false, "evidence": ["..."] } ],
+                                "gap": 4, "remaining": 4, "is_full": false, "evidence": ["..."] } ],
                   "needs_review": [],
                   "decisions": [ { "kind": "recommend", "session": "s2", "dim": "gender", "value": "male", "need": 4,
                                    "reasons": ["imbalance", "lead_time", "slow_trend"], "evidence": ["..."],
