@@ -16,7 +16,7 @@ active(S) :- days_left(S, Days), Days >= 0.
 
 // Promotion stops promotion_cutoff_hours before the start, inclusive (#52, confirmed). Only
 // `promote` stops: `blocked` and `cap` keep following `active`, which is date level.
-past_cutoff(S) :- promotion_cutoff_ts(S, T), now(N), N >= T.
+past_cutoff(S) :- promotion_cutoff_ts(S, T), now(N), N >= T, active(S).
 // No start time: the cutoff cannot be applied, so flag recommendations once it may have passed.
 cutoff_unknown(S) :- earliest_cutoff_ts(S, T), now(N), N >= T, active(S).
 

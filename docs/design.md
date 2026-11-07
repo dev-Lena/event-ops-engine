@@ -112,7 +112,7 @@ imbalance(S, D, B, Fa - Fb) :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa
 
 ```
 active(S)                            :- days_left(S, Days), Days >= 0.
-past_cutoff(S)                       :- promotion_cutoff_ts(S, T), now(N), N >= T.
+past_cutoff(S)                       :- promotion_cutoff_ts(S, T), now(N), N >= T, active(S).
 cutoff_unknown(S)                    :- earliest_cutoff_ts(S, T), now(N), N >= T, active(S).
 recent(S, D, V, N)                   -- 최근 7일 안에 확정된 참가자 수 (없으면 0)
 promote(S, D, V, G, "lead_time")     :- gap(S, D, V, G), active(S), !session_full(S),
@@ -145,7 +145,7 @@ capped(S, D, V)             :- cap(S, D, V, _, _, _, _).   // promote 세 규칙
 한 (회차, 속성, 값)에 이유가 여럿이면 `Decision` 하나에 이유 목록으로 모은다. `need`와 문구는 우선순위(`lead_time` > `slow_trend` > `imbalance`)가 가장 높은 이유의 값을 쓴다 — 부족분(gap)과 비율 차(diff)는 다른 수이므로 섞지 않는다.
 값 하나의 `lo`·`hi`가 정원보다 크면 입력 오류로 거부한다(`policy.py`). 여러 값의 `lo` 합이 정원을 넘는 것은 허용하며, 그 충돌이 `blocked`로 드러난다. 같은 값에 `promote`와 `blocked`가 동시에 나올 수는 없다 (`!session_full` / `session_full`로 갈린다).
 
-**홍보 중단 (#52)**: 회차에 시작 시각(`start_time`, 서울 시각 `"HH:MM"`)이 있으면 시작 `promotion_cutoff_hours`시간 전부터 홍보 권고(`promote`의 세 이유)를 내지 않는다. 정확히 그 시각부터 멈춘다(경계 포함). 마감 시각은 `clock.py`가 계산해 `promotion_cutoff_ts`로 넣고, 규칙은 `now`와 비교만 한다(9절의 본문 산술 제약). 정원 충돌 보류(`blocked`)와 잠정 마감(`cap`)은 홍보가 아니므로 지금처럼 날짜 단위 `active`를 따른다. `event-ops report`는 마감이 지난 회차에 "홍보 중단" 줄을 보여, 부족분이 남았는데 "권고 없음"으로 읽히지 않게 한다. 시작 시각이 없으면 예전처럼 날짜 단위(당일까지)로 판단한다. 다만 마감이 이미 지났을 수 있는 때(`earliest_cutoff_ts` = 회차 날 자정 − `promotion_cutoff_hours` 이후)에는 홍보 권고 문구에 "시작 시각이 없어 홍보 중단이 지났는지 확인하지 못함"을 붙이고 근거에 `policy/<회차>/promotion_cutoff_hours`를 넣는다. 시작 시각은 YAML에서 따옴표로 감싼다. 따옴표가 없으면 YAML 1.1이 `19:30`을 정수 1170으로 읽어 00:19:30이 되므로 모델이 거부한다.
+**홍보 중단 (#52)**: 회차에 시작 시각(`start_time`, 서울 시각 `"HH:MM"`)이 있으면 시작 `promotion_cutoff_hours`시간 전부터 홍보 권고(`promote`의 세 이유)를 내지 않는다. 정확히 그 시각부터 멈춘다(경계 포함). 마감 시각은 `clock.py`가 계산해 `promotion_cutoff_ts`로 넣고, 규칙은 `now`와 비교만 한다(9절의 본문 산술 제약). 정원 충돌 보류(`blocked`)와 잠정 마감(`cap`)은 홍보가 아니므로 지금처럼 날짜 단위 `active`를 따른다. `event-ops report`는 마감이 지난 회차에 "홍보 중단" 줄을 보여, 부족분이 남았는데 "권고 없음"으로 읽히지 않게 한다. 시작 시각이 없으면 예전처럼 날짜 단위(당일까지)로 판단한다. 다만 마감이 이미 지났을 수 있는 때(`earliest_cutoff_ts` = 회차 날 자정 − `promotion_cutoff_hours` 이후)에는 홍보 권고 문구에 "시작 시각이 없어 홍보 중단이 지났는지 확인하지 못함"을 붙이고 근거에 `earliest_cutoff_ts/<회차>` · `now` · `policy/<회차>/promotion_cutoff_hours`를 넣는다. 시작 시각은 YAML에서 따옴표로 감싼다. 따옴표가 없으면 YAML 1.1이 `19:30`을 정수 1170으로 읽어 00:19:30이 되므로 모델이 거부한다.
 
 **잠정 마감 권고 (`cap`, #51)**: 비율 목표가 있는 회차에서 한쪽 확정이 상대보다 `max_diff`를 넘게 많으면, 앞선 쪽을 "상대 확정 + `max_diff`"에서 잠정 마감하라고 권고한다(`Decision.kind = cap`, `need` = 상한). 운영사가 신청폼에서 한 성별을 닫고 다른 성별이 늘면 다시 여는 일을 손으로 하던 것(운영 자료 T0316 · T0375)이다. 홍보 권고와 같이 엔진은 권고만 하고 폼을 닫는 것은 사람이 한다. 회차가 찼거나 지났으면 내지 않는다. 입금 대기는 세지 않는다(불균형과 같은 기준). 규칙은 양방향(대칭)이며 `max_diff`를 행에 함께 싣는다. **잠정 마감된 값은 홍보 권고를 내지 않는다**(`!capped`): "여성 3명 부족, 홍보"와 "여성 잠정 마감"이 같이 나오면 모순이라서, 앞선 쪽은 상대가 따라올 때까지 기다린다. 기본 한도 없이 차가 `max_diff`를 넘는 즉시 권고하는 것은 **가정**이다(운영사 확인 중).
 

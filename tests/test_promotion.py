@@ -241,4 +241,6 @@ def test_without_start_time_recommendations_flag_a_possibly_passed_cutoff() -> N
     male = flagged[("gender", "male")]
     assert male.kind == "recommend"  # still judged by date, as before #52
     assert "홍보 중단(시작 2시간 전)" in male.message
-    assert "policy/s2/promotion_cutoff_hours" in male.evidence
+    assert {"earliest_cutoff_ts/s2", "now", "policy/s2/promotion_cutoff_hours"} <= set(
+        male.evidence
+    )

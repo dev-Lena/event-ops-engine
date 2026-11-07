@@ -42,7 +42,8 @@ def _cutoff_evidence(engine: Engine, session_id: str) -> tuple[list[str], str]:
         return [evidence_id("promotion_cutoff_ts", session_id), evidence_id("now")], ""
     if engine.rows("cutoff_unknown", session_id):
         note = CUTOFF_UNKNOWN_NOTE.format(hours=cutoff_hours(engine, session_id))
-        return [evidence_id("policy", session_id, "promotion_cutoff_hours")], note
+        ids = [evidence_id("earliest_cutoff_ts", session_id), evidence_id("now")]
+        return ids + [evidence_id("policy", session_id, "promotion_cutoff_hours")], note
     return [], ""
 
 

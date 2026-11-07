@@ -133,7 +133,7 @@ def write_scenario(tmp_path: Path, start_time: str) -> Path:
     policy = REPO / "policy" / "events" / "synthetic-example.yaml"
     path = tmp_path / "cutoff.yaml"
     path.write_text(
-        f"policy: {policy}\n"
+        f"policy: '{policy}'\n"
         "now: 2026-11-10T18:00:00+09:00\n"
         f"sessions:\n  - {{ id: s9, date: 2026-11-10, start_time: {start_time} }}\n",
         encoding="utf-8",
@@ -145,6 +145,12 @@ def test_report_says_promotion_stopped_after_the_cutoff(tmp_path: Path) -> None:
     lines = report(write_scenario(tmp_path, '"19:00"'))
     assert "  홍보 중단: 시작 2시간 전이 지나 홍보 권고를 내지 않습니다." in lines
     assert "  홍보 판단: 권고 없음" not in lines
+
+
+def test_past_session_gets_no_stop_line(tmp_path: Path) -> None:
+    path = write_scenario(tmp_path, '"19:00"')
+    path.write_text(path.read_text().replace("2026-11-10T18", "2026-11-11T18"), encoding="utf-8")
+    assert not any("홍보 중단" in line for line in report(path))
 
 
 @pytest.mark.parametrize(

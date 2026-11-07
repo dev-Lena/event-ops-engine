@@ -12,7 +12,7 @@ SESSION_POLICY_KEYS = ("lead_days", "promotion_cutoff_hours")
 
 def resolve_promotion(policy: EventPolicy, session: Session) -> dict[str, int]:
     """Promotion thresholds for one session. 0 is a real override, hence `is None`."""
-    values = {key: int(getattr(policy.promotion, key)) for key in POLICY_KEYS}
+    values: dict[str, int] = {key: getattr(policy.promotion, key) for key in POLICY_KEYS}
     for key in SESSION_POLICY_KEYS:
         override = getattr(session, key)
         if override is not None:
