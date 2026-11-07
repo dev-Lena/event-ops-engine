@@ -25,4 +25,8 @@
 .decl target(session: symbol, dim: symbol, value: symbol, lo: int64, hi: int64)
 .decl ratio_target(session: symbol, dim: symbol, value_a: symbol, value_b: symbol, max_diff: int64)
 .decl policy(session: symbol, key: symbol, n: int64)
+// Promotion cutoff (#52), epoch from clock.py: start time minus promotion_cutoff_hours, or,
+// without a start time, the earliest moment it could be (the date's midnight minus the hours).
+.decl promotion_cutoff_ts(session: symbol, ts: int64)
+.decl earliest_cutoff_ts(session: symbol, ts: int64)
 .decl deadline_hours(session: symbol, hours: int64)

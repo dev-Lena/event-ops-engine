@@ -49,7 +49,7 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
   잠정 마감 권고: 비율 조정: female 잠정 마감 권고. 확정 3명이 male 1명보다 허용 차이 1명을 넘었습니다. 상한 2명으로 두고 male 쪽이 늘면 다시 엽니다. (이유: imbalance; 근거: ...)
 ```
 
-시나리오는 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`입니다. 홍보 기준값(`lead_days` 등)은 모두 **가정값**입니다. 입금 대기 중인 자리는 차지한 것으로 보아 남은 자리 · 부족분에서 뺍니다(운영사 규칙). 직군 정규화가 있는 시나리오(`job-group.yaml`)는 먼저 정책의 **별칭 사전**(사람이 승인한 단어 목록)으로 맞추고, 남은 문구만 정규화기에 한 번에 묻습니다. 기본 정규화기는 파일의 `canned_job_groups` 답을 쓰고, `--normalizer claude`를 주면 Claude Code CLI가 분류합니다.
+시나리오는 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`입니다. 홍보 기준값 중 홍보 중단(`promotion_cutoff_hours`, 모임 시작 2시간 전)만 운영사가 확인한 값이고, `lead_days` 등 나머지는 **가정값**입니다. 회차에 시작 시각(`start_time: "19:30"`, 따옴표 필수)을 적으면 그 시각부터 홍보 권고를 멈춥니다. 입금 대기 중인 자리는 차지한 것으로 보아 남은 자리 · 부족분에서 뺍니다(운영사 규칙). 직군 정규화가 있는 시나리오(`job-group.yaml`)는 먼저 정책의 **별칭 사전**(사람이 승인한 단어 목록)으로 맞추고, 남은 문구만 정규화기에 한 번에 묻습니다. 기본 정규화기는 파일의 `canned_job_groups` 답을 쓰고, `--normalizer claude`를 주면 Claude Code CLI가 분류합니다.
 
 ### 운영 문의 판정 (①)
 
@@ -102,7 +102,7 @@ flowchart LR
 |---|---|
 | `rules/` | Datalog 규칙: `ontology.dl`(사실 스키마) · `capacity.dl`(②) · `promotion.dl`(③) · `triage.dl`(① 계약 + 유형 1~7 · 2b 규칙) |
 | `src/event_ops_engine/` | lib(`model` `bands` `clock` `facts` `policy` `loader` `decision`) · services(`engine` `interpreter` `normalizer`) · features(`capacity` `promotion` `harness` `cli`) |
-| `policy/events/` | 모임 정책 YAML 2개 (합성 예시, 기준값은 가정값). `synthetic-job-group.yaml`은 LLM이 정규화하는 `job_group` 차원 예시 |
+| `policy/events/` | 모임 정책 YAML 2개 (합성 예시, 확인값 표시가 없는 기준값은 가정값). `synthetic-job-group.yaml`은 LLM이 정규화하는 `job_group` 차원 예시 |
 | `data/synthetic/scenarios/` | 합성 시나리오: 현황 · 홍보 6개(직군 정규화 포함), 문의(`triage/`) 10개 |
 | `tests/` | pytest. 계산 로직은 같은 PR에 테스트를 올립니다. README 출력 예시도 테스트합니다 |
 | `scripts/` | 엔진 빌드 · wirelog 문법 검증 |
