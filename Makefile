@@ -32,8 +32,8 @@ SMOKE ?= $(or $(TMPDIR),/tmp)/event-ops-wheel-smoke
 wheel-smoke: package-check
 	rm -rf "$(SMOKE)" && $(PY) -m venv "$(SMOKE)/venv"
 	"$(SMOKE)/venv/bin/pip" install -q dist/*.whl
-	mkdir -p "$(SMOKE)/run" && cp -R data policy "$(SMOKE)/run/"
-	cd "$(SMOKE)/run" && "$(SMOKE)/venv/bin/python" -I -c "import event_ops_engine as m, sys; sys.exit(0 if m.__file__.startswith(sys.prefix) else 'imported ' + m.__file__)"
+	mkdir -p "$(SMOKE)/run/data" && cp -R data/synthetic "$(SMOKE)/run/data/" && cp -R policy "$(SMOKE)/run/"
+	cd "$(SMOKE)/run" && "$(SMOKE)/venv/bin/python" -I -c "import event_ops_engine as m, sys; sys.exit(0 if m.__file__.startswith(sys.prefix + '/') else 'imported ' + m.__file__)"
 	cd "$(SMOKE)/run" && "$(SMOKE)/venv/bin/event-ops" report data/synthetic/scenarios/pair-mixed.yaml | grep -q '잠정 마감 권고'
 	cd "$(SMOKE)/run" && "$(SMOKE)/venv/bin/event-ops" triage data/synthetic/scenarios/triage/account-length.yaml > /dev/null
 	@echo 'installed wheel runs outside the repo'
