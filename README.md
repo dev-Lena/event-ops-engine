@@ -84,6 +84,29 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
 
 문의 시나리오(`data/synthetic/scenarios/triage/*.yaml`)는 질문 · 이벤트 로그 · 기대 판정을 담습니다. 기본은 파일의 `canned` 해석을 쓰는 가짜 해석기이고, `--interpreter claude`를 주면 Claude Code CLI(`claude -p`, 구독 안에서 추가 비용 없음)가 질문을 후보 사실로 바꿉니다. 기대 판정과 다르면 종료 코드 1, `--trace`로 단계별 기록을 봅니다. `--runs N`은 같은 질문을 N번 판정해 결과 분포와 일치율을 보여 줍니다(실제 해석기의 안정성 확인용). `claude`를 고르면 시작 전에 CLI 로그인을 확인하고, 안 되어 있으면 `claude login` 안내와 함께 종료 코드 2로 멈춥니다. 해석기가 자신 없다고 한 후보 사실(확신도 0.6 미만, 가정값)은 판정에 쓰지 않습니다. 위 출력 예시는 테스트(`tests/test_readme.py`)가 실제 출력과 대조합니다.
 
+### 결과 JSON (`--json`)
+
+다른 시스템(운영 관리 화면, 웹)이 결과를 받을 때는 `report`와 `triage`에 `--json`을 붙입니다. 사람용 문장 대신 아래 구조를 출력하고, 종료 코드는 같습니다. `schema`는 형식 버전이라 필드가 바뀌면 `@2`로 올립니다. `decisions` · `needs_review`의 각 항목은 `Decision`, `verdicts`의 각 항목은 `Verdict` 모델 그대로입니다(`src/event_ops_engine/decision.py`). `trace`는 `--json --trace`일 때만 들어갑니다.
+
+```json
+// event-ops report data/synthetic/scenarios/pair-mixed.yaml --json (줄임)
+{ "schema": "event-ops/report@1", "now": "2026-11-07T10:00:00+09:00",
+  "sessions": [ { "session": "s2", "capacity": 12, "filled": 4, "pending": 1, "remaining_seats": 7,
+                  "is_full": false, "promotion_stopped": false,
+                  "values": [ { "dim": "gender", "value": "male", "lo": 6, "hi": 6, "filled": 1, "pending": 1,
+                                "gap": 4, "remaining": 5, "is_full": false, "evidence": ["..."] } ],
+                  "needs_review": [],
+                  "decisions": [ { "kind": "recommend", "session": "s2", "dim": "gender", "value": "male", "need": 4,
+                                   "reasons": ["imbalance", "lead_time", "slow_trend"], "evidence": ["..."],
+                                   "message": "회차 임박: male 4명 부족, 홍보가 필요합니다." } ] } ] }
+
+// event-ops triage data/synthetic/scenarios/triage/account-length.yaml --json
+{ "schema": "event-ops/triage@1", "question": "q1", "matched": true,
+  "verdicts": [ { "kind": "accept", "question": "q1", "cause": "user_input", "causes": ["user_input"],
+                  "needs": [], "evidence": ["candidate/q1/about_registration/r1", "...", "log/e1", "log/e2"],
+                  "message": "원인: user_input. 근거: log/e1, log/e2", "dropped": [] } ] }
+```
+
 ## 구조
 
 ```mermaid

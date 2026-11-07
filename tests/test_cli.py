@@ -1,6 +1,7 @@
 """The report and triage commands run end to end on every synthetic scenario."""
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -89,7 +90,7 @@ def test_unstable_interpreter_shows_the_spread_and_fails(
     class Flaky(FakeInterpreter):
         calls = 0
 
-        def interpret(self, question, context):  # type: ignore[no-untyped-def]
+        def interpret(self, question, context):
             Flaky.calls += 1
             if Flaky.calls % 2 == 0:
                 raise InterpretationError("flaky")
@@ -165,3 +166,76 @@ def test_start_time_must_be_quoted_local_text(tmp_path: Path, raw: str, problem:
 
     with pytest.raises(ValidationError, match=problem):
         load_scenario(write_scenario(tmp_path, raw))
+
+
+# --- --json output (#85) -----------------------------------------------------------------
+
+
+def json_out(capsys: pytest.CaptureFixture[str], argv: list[str]) -> tuple[int, Any]:
+    import json
+
+    code = main(argv)
+    return code, json.loads(capsys.readouterr().out)
+
+
+def test_report_json_carries_the_same_results_as_the_models(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from event_ops_engine.cli import REPORT_SCHEMA, run_report
+    from event_ops_engine.decision import Decision
+
+    path = SCENARIOS / "pair-mixed.yaml"
+    code, out = json_out(capsys, ["report", str(path), "--json"])
+    assert code == 0 and out["schema"] == REPORT_SCHEMA
+    assert out["now"] == "2026-11-07T10:00:00+09:00"
+    (session,) = out["sessions"]
+    result = run_report(path)
+    assert session["filled"] == result.statuses[0].filled
+    assert session["promotion_stopped"] is False
+    decisions = [Decision.model_validate(d) for d in session["decisions"]]
+    assert decisions == [d for d in result.decisions if d.session == "s2"]
+    assert {d.kind for d in decisions} == {"recommend", "cap"}
+    male = next(v for v in session["values"] if v["value"] == "male")
+    assert male["gap"] == 4 and male["evidence"]
+
+
+def test_report_json_marks_a_session_past_its_cutoff(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _, out = json_out(capsys, ["report", str(write_scenario(tmp_path, '"19:00"')), "--json"])
+    assert out["sessions"][0]["promotion_stopped"] is True
+
+
+def test_triage_json_round_trips_verdicts_and_keeps_the_exit_code(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from event_ops_engine.cli import TRIAGE_SCHEMA, triage_runs
+    from event_ops_engine.decision import Verdict
+
+    path = TRIAGE / "account-length.yaml"
+    code, out = json_out(capsys, ["triage", str(path), "--json", "--runs", "2"])
+    assert code == 0 and out["schema"] == TRIAGE_SCHEMA and out["matched"] is True
+    assert out["question"] == "q1"
+    verdicts = [Verdict.model_validate(v) for v in out["verdicts"]]
+    _, expected, _ = triage_runs(path, runs=2)
+    assert verdicts == [v.model_copy(update={"trace": ()}) for v in expected]
+    assert all("trace" not in v for v in out["verdicts"])
+    _, traced = json_out(capsys, ["triage", str(path), "--json", "--trace"])
+    assert traced["verdicts"][0]["trace"]
+
+
+def test_triage_json_exits_1_when_the_verdict_differs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = (TRIAGE / "account-length.yaml").read_text(encoding="utf-8")
+    assert "kind: accept" in source
+    changed = tmp_path / "triage" / "changed.yaml"
+    changed.parent.mkdir()
+    changed.write_text(
+        source.replace("kind: accept", "kind: ask").replace(
+            "../../../../policy", str(REPO / "policy")
+        ),
+        encoding="utf-8",
+    )
+    code, out = json_out(capsys, ["triage", str(changed), "--json"])
+    assert code == 1 and out["matched"] is False
