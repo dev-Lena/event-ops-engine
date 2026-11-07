@@ -233,7 +233,8 @@ def test_triage_json_exits_1_when_the_verdict_differs(
     changed.parent.mkdir()
     changed.write_text(
         source.replace("kind: accept", "kind: ask").replace(
-            "../../../../policy", str(REPO / "policy")
+            "policy: ../../../../policy/events/synthetic-example.yaml",
+            f"policy: '{REPO}/policy/events/synthetic-example.yaml'",
         ),
         encoding="utf-8",
     )
