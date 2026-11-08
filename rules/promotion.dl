@@ -9,8 +9,16 @@
 .decl blocked(session: symbol, dim: symbol, value: symbol, need: int64, reason: symbol)
 .decl cap(session: symbol, dim: symbol, value: symbol, limit: int64, other: symbol, other_filled: int64, max_diff: int64)
 .decl capped(session: symbol, dim: symbol, value: symbol)
+.decl past_cutoff(session: symbol)
+.decl cutoff_unknown(session: symbol)
 
 active(S) :- days_left(S, Days), Days >= 0.
+
+// Promotion stops promotion_cutoff_hours before the start, inclusive (#52, confirmed). Only
+// `promote` stops: `blocked` and `cap` keep following `active`, which is date level.
+past_cutoff(S) :- promotion_cutoff_ts(S, T), now(N), N >= T, active(S).
+// No start time: the cutoff cannot be applied, so flag recommendations once it may have passed.
+cutoff_unknown(S) :- earliest_cutoff_ts(S, T), now(N), N >= T, active(S).
 
 // Confirmations in the last 7 days (604800 s) before `now`. glossary "도메인 경계 규칙".
 confirmed_at(R, T) :- latest_ts(R, T), status_event(R, T, "confirmed").
@@ -20,9 +28,9 @@ recent(S, D, V, N) :- tracked(S, D, V), recent_raw(S, D, V, N).
 recent(S, D, V, 0) :- tracked(S, D, V), !recent_raw(S, D, V, _).
 
 // A value under a temporary cap (below) is never promoted: it must wait for its partner.
-promote(S, D, V, G, "lead_time") :- gap(S, D, V, G), active(S), !session_full(S), !capped(S, D, V), days_left(S, Days), policy(S, "lead_days", L), Days <= L.
-promote(S, D, V, G, "slow_trend") :- gap(S, D, V, G), active(S), !session_full(S), !capped(S, D, V), recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
-promote(S, D, V, Diff, "imbalance") :- imbalance(S, D, V, Diff), active(S), !session_full(S), !capped(S, D, V).
+promote(S, D, V, G, "lead_time") :- gap(S, D, V, G), active(S), !session_full(S), !capped(S, D, V), !past_cutoff(S), days_left(S, Days), policy(S, "lead_days", L), Days <= L.
+promote(S, D, V, G, "slow_trend") :- gap(S, D, V, G), active(S), !session_full(S), !capped(S, D, V), !past_cutoff(S), recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
+promote(S, D, V, Diff, "imbalance") :- imbalance(S, D, V, Diff), active(S), !session_full(S), !capped(S, D, V), !past_cutoff(S).
 
 blocked(S, D, V, G, "session_full") :- gap(S, D, V, G), active(S), session_full(S).
 blocked(S, D, V, Diff, "session_full") :- imbalance(S, D, V, Diff), active(S), session_full(S).

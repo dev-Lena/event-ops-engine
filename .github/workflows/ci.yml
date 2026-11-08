@@ -17,4 +17,4 @@ jobs:
       - run: make lint
       - run: make typecheck
       - run: make test
-      - run: make package-check
+      - run: make wheel-smoke

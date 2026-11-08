@@ -12,6 +12,7 @@
 | 한 건의 신청 (1인 · 2인 · 단체 모두 한 건) | 신청 / registration | `registration` | 지원, 예약 | 정원은 신청 건수가 아니라 **사람 수**로 센다 |
 | 신청을 낸 사람 | 신청자 / registrant | `registrant` | 지원자 | 동반자 정보를 함께 적는 사람 |
 | 회차에 자리를 차지하는 한 사람 (신청자 또는 동반자) | 참가자 / attendee | `attendee` | 멤버, 회원 | 신청 1건 → 참가자 n명으로 펼친다 ([design.md 4](design.md#4-인원-환산)) |
+| 같은 사람의 신청인지 가리는 값 | 참가자 키 / participant key | `registration_submitted{participant}` (① 유형 3) | 회원 id, 고객 번호 | 실제 시스템에서는 모임 + 회차 안의 이름 + 번호. 저장소와 엔진에는 **합성 식별자만** 둔다. 같은 키가 둘이면 막지 않고 표시만 한다(운영 자료와 일치, [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy)) |
 | 참가자의 한 가지 속성 (성별 · 나이 구간 · 직군 · 신청 방식) | 속성 / attribute | `dim` (속성 이름), `value` (속성 값) | 카테고리, 태그 | `attendee_attr(attendee, dim, value)` |
 | 회차 · 속성 값마다 정한 인원 하한 · 상한 | 목표 / target | `target(session, dim, value, lo, hi)` | 쿼터, 할당 | wirelog 예약어 때문에 열 이름은 `min` · `max`가 아니라 `lo` · `hi` |
 | 같은 속성의 두 값 사이 허용 차이 (예: 성별 1:1) | 비율 목표 / ratio target | `ratio_target(session, dim, value_a, value_b, max_diff)` | 균형 조건 | `max_diff`는 허용하는 인원 차 |
@@ -29,7 +30,8 @@
 | 비율에서 앞선 쪽을 상대가 따라올 때까지 막아 두라는 판단 | 잠정 마감 권고 / cap | `cap(session, dim, value, limit, other, other_filled, max_diff)` · `Decision.kind = cap` | 자동 마감 | 상한 = 상대 확정 + `max_diff`. 잠정 마감된 값은 홍보 권고를 받지 않는다. 폼을 닫는 것은 사람이 한다 |
 | 부족분이 있지만 홍보할 수 없는 상태 (예: 정원 마감) | 홍보 보류 / blocked | `blocked(session, dim, value, need, reason)` | — | 목표와 정원이 충돌한 것을 운영자에게 보인다 |
 | 회차 시작까지 남은 날 수 | 남은 날 / days left | `days_left(session, days)` | D-day | 기준 시각(`now`)에서 Python이 계산해 사실로 넣는다 |
-| 홍보 판단에 쓰는 설정값 | 홍보 기준 / promotion policy | `policy(session, key, n)` | 임계값 | `lead_days`, `trend_min_per_week`. 값은 **가정값** ([design.md 7](design.md#7-홍보-판단-③)) |
+| 홍보 판단에 쓰는 설정값 | 홍보 기준 / promotion policy | `policy(session, key, n)` | 임계값 | `lead_days`, `trend_min_per_week`, `promotion_cutoff_hours`. `promotion_cutoff_hours`만 **확인됨**, 나머지는 **가정값** ([design.md 7](design.md#7-홍보-판단-③)). `lead_days` · `promotion_cutoff_hours`는 회차마다 덮어쓸 수 있다 |
+| 이 시각부터 홍보 권고를 내지 않음 | 홍보 중단 / promotion cutoff | `promotion_cutoff_ts(session, ts)` · `past_cutoff(session)` | 홍보 마감 (정원 마감 · 잠정 마감과 헷갈림) | 시작 시각 − `promotion_cutoff_hours`. `promote`만 멈추고 `blocked` · `cap`은 그대로 |
 | 판단 결과 하나 (권고 · 보류 · 확인 요청) | 판단 / decision | `Decision` (Python) | 알림 | 근거 사실 id 목록을 반드시 같이 가진다 |
 | 판단을 떠받치는 입력 사실 | 근거 / evidence | `evidence` (fact id 목록) | — | 예: `target/s1/gender/female`, `registration/r3` |
 | 담당자가 올린 운영 문의 한 건 | 문의 / question | `question(q)` | 티켓, 이슈 | 합성 질문만 둔다. 자유 서술은 해석기 입력으로만 쓰고 저장소에는 합성 문장만 |
@@ -78,7 +80,7 @@
 - **나이 구간 경계는 `min_age ≤ 나이 ≤ max_age`** (양 끝 포함). `max_age`를 비우면 상한 없음.
 - **정원과 목표는 사람 수**다. 신청 → 참가자 펼치기는 `src/event_ops_engine/facts.py`만 한다.
 - **현재 상태는 `status_event` 중 가장 큰 `ts`의 상태**다. 같은 `ts`가 둘이면 입력 오류로 보고 Python 모델이 거부한다.
-- **시각은 UTC epoch 초(int64)** 로 규칙에 넣는다. 날짜(`YYYY-MM-DD`)는 Asia/Seoul 자정으로 해석한다. 변환은 `src/event_ops_engine/clock.py`만 한다.
+- **시각은 UTC epoch 초(int64)** 로 규칙에 넣는다. 날짜(`YYYY-MM-DD`)는 Asia/Seoul 자정으로, 회차 시작 시각(`"HH:MM"`)은 그 날짜의 Asia/Seoul 시각으로 해석한다. 변환은 `src/event_ops_engine/clock.py`만 한다.
 - **"최근 1주"는 기준 시각 기준 7×24시간**이다 (`now - 604800 < confirmed_ts`).
 
 ## 기록
@@ -92,3 +94,5 @@
 | 2026-11-02 | ① 용어 추가: 불변식 |
 | 2026-11-02 | 용어 추가: 정규화기 · 후보 속성 · 확신도 기준, 속성 표에 `job_group` |
 | 2026-11-02 | 부족분 · 남은 자리에 입금 대기 반영, 문의 기준 값 갱신 (#45 · #46) |
+| 2026-11-07 | 홍보 중단 추가, 홍보 기준의 확인됨/가정 표시, 시작 시각 경계 규칙 (#52) |
+| 2026-11-07 | 참가자 키 추가 (#78) |

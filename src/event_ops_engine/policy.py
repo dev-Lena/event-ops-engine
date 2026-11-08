@@ -4,8 +4,20 @@ from __future__ import annotations
 
 from .model import EventPolicy, Session, Targets
 
-POLICY_KEYS = ("lead_days", "trend_min_per_week")
+POLICY_KEYS = ("lead_days", "trend_min_per_week", "promotion_cutoff_hours")
 """Keys of the `policy(session, key, n)` relation; same names as PromotionPolicy fields."""
+SESSION_POLICY_KEYS = ("lead_days", "promotion_cutoff_hours")
+"""Promotion keys a session may override (#52), like `payment_deadline_hours`."""
+
+
+def resolve_promotion(policy: EventPolicy, session: Session) -> dict[str, int]:
+    """Promotion thresholds for one session. 0 is a real override, hence `is None`."""
+    values: dict[str, int] = {key: getattr(policy.promotion, key) for key in POLICY_KEYS}
+    for key in SESSION_POLICY_KEYS:
+        override = getattr(session, key)
+        if override is not None:
+            values[key] = override
+    return values
 
 
 def resolve_targets(policy: EventPolicy, session: Session) -> list[tuple[str, str, int, int]]:
