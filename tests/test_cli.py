@@ -127,3 +127,41 @@ def test_runs_must_be_positive(runs: str, capsys: pytest.CaptureFixture[str]) ->
     with pytest.raises(SystemExit) as stop:
         main(["triage", str(TRIAGE / "account-length.yaml"), "--runs", runs])
     assert stop.value.code == 2 and "1 이상" in capsys.readouterr().err
+
+
+def write_scenario(tmp_path: Path, start_time: str) -> Path:
+    policy = REPO / "policy" / "events" / "synthetic-example.yaml"
+    path = tmp_path / "cutoff.yaml"
+    path.write_text(
+        f"policy: '{policy}'\n"
+        "now: 2026-11-10T18:00:00+09:00\n"
+        f"sessions:\n  - {{ id: s9, date: 2026-11-10, start_time: {start_time} }}\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_report_says_promotion_stopped_after_the_cutoff(tmp_path: Path) -> None:
+    lines = report(write_scenario(tmp_path, '"19:00"'))
+    assert "  홍보 중단: 시작 2시간 전이 지나 홍보 권고를 내지 않습니다." in lines
+    assert "  홍보 판단: 권고 없음" not in lines
+
+
+def test_past_session_gets_no_stop_line(tmp_path: Path) -> None:
+    path = write_scenario(tmp_path, '"19:00"')
+    path.write_text(path.read_text().replace("2026-11-10T18", "2026-11-11T18"), encoding="utf-8")
+    assert not any("홍보 중단" in line for line in report(path))
+
+
+@pytest.mark.parametrize(
+    ("raw", "problem"),
+    [("19:00", "must be quoted"), ('"19:00+09:00"', "drop the offset")],
+)
+def test_start_time_must_be_quoted_local_text(tmp_path: Path, raw: str, problem: str) -> None:
+    # Unquoted 19:00 is the YAML 1.1 integer 1140, which would silently become 00:19:00.
+    from pydantic import ValidationError
+
+    from event_ops_engine.loader import load_scenario
+
+    with pytest.raises(ValidationError, match=problem):
+        load_scenario(write_scenario(tmp_path, raw))

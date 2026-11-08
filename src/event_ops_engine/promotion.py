@@ -22,6 +22,30 @@ because their number is the target shortfall; `imbalance` carries a ratio differ
 
 REASON_POLICY_KEY = {"lead_time": "lead_days", "slow_trend": "trend_min_per_week"}
 
+CUTOFF_UNKNOWN_NOTE = (
+    " 회차 시작 시각이 없어 홍보 중단(시작 {hours}시간 전)이 지났는지 확인하지 못했습니다."
+)
+
+
+def cutoff_hours(engine: Engine, session_id: str) -> int:
+    return int(engine.rows("policy", session_id, "promotion_cutoff_hours")[0][2])
+
+
+def promotion_stopped(engine: Engine, session_id: str) -> bool:
+    """True once the session's promotion cutoff has passed (#52): no `promote` rows remain."""
+    return bool(engine.rows("past_cutoff", session_id))
+
+
+def _cutoff_evidence(engine: Engine, session_id: str) -> tuple[list[str], str]:
+    """Evidence and message note a recommendation carries about the promotion cutoff."""
+    if engine.rows("promotion_cutoff_ts", session_id):
+        return [evidence_id("promotion_cutoff_ts", session_id), evidence_id("now")], ""
+    if engine.rows("cutoff_unknown", session_id):
+        note = CUTOFF_UNKNOWN_NOTE.format(hours=cutoff_hours(engine, session_id))
+        ids = [evidence_id("earliest_cutoff_ts", session_id), evidence_id("now")]
+        return ids + [evidence_id("policy", session_id, "promotion_cutoff_hours")], note
+    return [], ""
+
 
 def _evidence(
     engine: Engine,
@@ -55,11 +79,13 @@ def _decisions(
         reason, need = str(row[4]), int(row[3])
         by_reason[reason] = max(need, by_reason.get(reason, need))
     contributors = contributors_by_value(engine, session_id)
+    cutoff_ids, note = _cutoff_evidence(engine, session_id) if relation == "promote" else ([], "")
     decisions: list[Decision] = []
     for (dim, value), by_reason in sorted(grouped.items()):
         primary = next(reason for reason in REASON_PRIORITY if reason in by_reason)
         need = by_reason[primary]
         reasons = sorted(by_reason)
+        evidence = _evidence(engine, session_id, dim, value, reasons, contributors) + cutoff_ids
         decisions.append(
             Decision(
                 kind=kind,
@@ -68,8 +94,8 @@ def _decisions(
                 value=value,
                 need=need,
                 reasons=tuple(reasons),
-                evidence=tuple(_evidence(engine, session_id, dim, value, reasons, contributors)),
-                message=REASON_MESSAGES[primary].format(value=value, need=need),
+                evidence=tuple(unique(evidence)),
+                message=REASON_MESSAGES[primary].format(value=value, need=need) + note,
             )
         )
     return decisions

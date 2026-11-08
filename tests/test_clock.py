@@ -1,10 +1,17 @@
 """Time boundary rules: Seoul calendar days, epoch seconds, time zone required."""
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 
 import pytest
 
-from event_ops_engine.clock import WEEK_SECONDS, days_left, session_start, to_epoch
+from event_ops_engine.clock import (
+    WEEK_SECONDS,
+    days_left,
+    earliest_promotion_cutoff,
+    promotion_cutoff,
+    session_start,
+    to_epoch,
+)
 
 
 def test_days_left_counts_calendar_days_in_seoul() -> None:
@@ -34,3 +41,10 @@ def test_session_start_is_seoul_midnight() -> None:
 def test_week_constant_matches_rule_literal() -> None:
     rules = open("rules/promotion.dl", encoding="utf-8").read()
     assert f"T + {WEEK_SECONDS} > N" in rules
+
+
+def test_promotion_cutoff_counts_back_from_the_seoul_start_time() -> None:
+    cutoff = promotion_cutoff(date(2026, 11, 10), time(1, 0), 2)
+    assert cutoff.isoformat() == "2026-11-09T23:00:00+09:00"  # crosses midnight
+    earliest = earliest_promotion_cutoff(date(2026, 11, 10), 2)
+    assert earliest.isoformat() == "2026-11-09T22:00:00+09:00"

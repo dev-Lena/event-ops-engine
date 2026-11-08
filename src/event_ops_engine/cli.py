@@ -20,7 +20,7 @@ from .interpreter import ClaudeCliInterpreter, FakeInterpreter, Interpreter, pre
 from .loader import load_scenario, load_triage_scenario
 from .model import TriageScenario
 from .normalizer import NORMALIZERS, normalize_members
-from .promotion import promotion_decisions
+from .promotion import cutoff_hours, promotion_decisions, promotion_stopped
 
 VERDICT_LABELS: dict[VerdictKind, str] = {
     VerdictKind.ACCEPT: "원인 확정",
@@ -83,11 +83,19 @@ def report(scenario_path: Path, normalizer: str = "fake") -> list[str]:
         engine.load(scenario_facts(scenario))
         statuses = capacity_status(scenario, engine)
         decisions = promotion_decisions(scenario, engine)
+        stopped = {
+            s.id: cutoff_hours(engine, s.id)
+            for s in scenario.sessions
+            if promotion_stopped(engine, s.id)
+        }
     for status in statuses:
         lines.extend(format_status(status))
         own = [d for d in decisions if d.session == status.session]
+        if status.session in stopped:
+            hours = stopped[status.session]
+            lines.append(f"  홍보 중단: 시작 {hours}시간 전이 지나 홍보 권고를 내지 않습니다.")
         lines.extend(format_decision(d) for d in own)
-        if not own:
+        if not own and status.session not in stopped:
             lines.append("  홍보 판단: 권고 없음")
     return lines
 
