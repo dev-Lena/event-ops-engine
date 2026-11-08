@@ -1,0 +1,17 @@
+# 2인 신청 유형 시나리오 (#33): 신청폼에서 여여 · 남남 · 혼성을 고른다. 사람 · id는 모두 합성이다.
+# 유형만 있으면 성별이 정해진 2명으로 펼치고 출생 연도는 모른다(나이 구간 unknown).
+# r3은 출생 연도도 알아서 members를 함께 적었고, 성별 구성이 유형과 맞아야 한다.
+policy: ../../../policy/events/synthetic-example.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s6, date: 2026-11-21 }
+registrations:
+  - { id: r1, session: s6, pair: mixed_pair,
+      status_events: [{ at: 2026-11-01T10:00:00+09:00, status: confirmed }] }
+  - { id: r2, session: s6, pair: female_pair,
+      status_events: [{ at: 2026-11-02T10:00:00+09:00, status: confirmed }] }
+  - { id: r3, session: s6, pair: male_pair,
+      members: [{ gender: male, birth_year: 1994 }, { gender: male, birth_year: 1996 }],
+      status_events: [{ at: 2026-11-03T10:00:00+09:00, status: confirmed }] }
+  - { id: r4, session: s6, members: [{ gender: female, birth_year: 1999 }],
+      status_events: [{ at: 2026-11-04T10:00:00+09:00, status: confirmed }] }

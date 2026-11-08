@@ -95,4 +95,5 @@ def test_model_has_no_personal_identifier_fields() -> None:
         "members",
         "status_events",
         "attrs",
+        "pair",
     }

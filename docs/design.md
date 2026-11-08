@@ -48,6 +48,7 @@ Registration
   party_size: int                # members가 있으면 len과 같아야 한다
   status_events: [StatusEvent]   # (ts, status) — status는 glossary "상태 값" 다섯 개만
   attrs: {속성: 값}               # per: registration 선택 속성의 답 (예: mode)
+  pair: female_pair | male_pair | mixed_pair | None   # 신청폼에서 고른 2인 유형 (4절)
 Member
   gender: female | male | unknown
   birth_year: int | None
@@ -65,14 +66,16 @@ Member
 | 신청 | 참가자 | 성별 속성 |
 |---|---|---|
 | 1인 | 1 | 신청자 성별 |
-| 2인 같은 성별 | 2 | 둘 다 같은 값 |
-| 2인 혼성 | 2 | 1 + 1 |
+| 2인 같은 성별 (`pair: female_pair` · `male_pair`) | 2 | 둘 다 같은 값 |
+| 2인 혼성 (`pair: mixed_pair`) | 2 | 1 + 1 |
 | n명 단체 | n | 구성원마다 |
 | 구성 미상 (옛 신청, `members: None`) | `party_size` | 모두 `unknown` → 목표 집계에서 빠지고 `needs_review`로 올라간다 |
 
 참가자 id는 `<registration id>#<순번>`. 나이 구간은 `bands.py`가 `birth_year`와 회차 연도로 계산한다 (경계 규칙은 glossary).
 
 **자료와 일치** (#44 · #78): 운영 대화의 인원 계산 규칙(혼성 1건 = 남녀 각 1명, 같은 성별 2인 1건 = 그 성별 2명, T0468~T0473 · T0558)이 이 표와 같다. 다만 실제 시스템은 1인 회차와 2인 회차를 구분하지 못하므로, 연동할 때는 회차 유형을 입력으로 받아야 한다 (#35).
+
+**2인 신청 유형 (#33)**: 신청폼에서 2인 신청은 여여 · 남남 · 혼성 중 하나를 고른다. 신청에 `pair`만 적으면 엔진이 그 성별의 참가자 2명으로 펼치고 출생 연도는 모르는 것으로 둔다(나이 구간 `unknown`, 나이 목표 집계에서 빠짐). 출생 연도를 알면 `members`를 함께 적고, 이때 성별 구성이 유형과 맞아야 한다(순서는 상관없음). 맞지 않거나 인원이 2명이 아니면 모델이 거부한다. 동반자 정보를 자유 글에서 LLM으로 뽑는 원래 안은 폼이 유형을 고르게 하므로 하지 않았다. 예시: `data/synthetic/scenarios/pair-type.yaml`.
 
 ## 5. 사실 스키마 (`rules/ontology.dl`)
 
@@ -369,3 +372,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-07 | 11절 조회 캐시(#83)와 다시 잰 값 |
 | 2026-11-07 | 2절 결과 JSON 출력 `--json` (`event-ops/report@1` · `event-ops/triage@1`, #85) |
 | 2026-11-08 | 3절 선택 속성 `dimensions.choices` · `attrs`, 선언하지 않은 목표 거부 (#31) |
+| 2026-11-08 | 3 · 4절 2인 신청 유형 `pair` (#33) |
