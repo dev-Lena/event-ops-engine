@@ -60,6 +60,7 @@ def policy_with(**changes: Any) -> dict[str, Any]:
         {"dimensions__choices": {"gender": {"values": ["x"]}}},  # built-in name
         {"dimensions__choices": {"mode": {"values": ["online", "online"]}}},
         {"dimensions__choices": {"mode": {"values": ["unknown"]}}},
+        {"dimensions__gender": {"values": ["female", "male", "unknown"]}},  # reserved value
     ],
 )
 def test_policy_rejects_targets_and_choices_that_could_never_be_met(

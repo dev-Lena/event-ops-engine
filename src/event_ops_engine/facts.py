@@ -13,6 +13,9 @@ from typing import Any
 
 from . import bands, clock
 from .model import (
+    DIM_AGE_BAND,
+    DIM_GENDER,
+    DIM_JOB_GROUP,
     TOPICS,
     UNKNOWN,
     CandidateFact,
@@ -27,10 +30,6 @@ from .model import (
 from .policy import resolve_promotion, resolve_ratios, resolve_targets
 
 Row = tuple[Any, ...]
-
-DIM_GENDER = "gender"
-DIM_AGE_BAND = "age_band"
-DIM_JOB_GROUP = "job_group"
 
 
 def confidence_pct(confidence: float) -> int:

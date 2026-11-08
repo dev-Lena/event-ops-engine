@@ -141,6 +141,12 @@ class AgeBandDimension(StrictModel):
 class GenderDimension(StrictModel):
     values: tuple[Gender, ...] = (Gender.FEMALE, Gender.MALE)
 
+    @model_validator(mode="after")
+    def _no_unknown(self) -> Self:
+        if Gender.UNKNOWN in self.values:
+            raise ValueError(f"gender values must not include {UNKNOWN!r} (reserved)")
+        return self
+
 
 class JobGroupDimension(StrictModel):
     """Free-text job → one of `values`, proposed by an LLM normalizer (docs/design.md 14)."""
@@ -189,7 +195,10 @@ class ChoiceDimension(StrictModel):
         return self
 
 
-BUILTIN_DIMENSIONS = ("gender", "age_band", "job_group")
+DIM_GENDER = "gender"
+DIM_AGE_BAND = "age_band"
+DIM_JOB_GROUP = "job_group"
+BUILTIN_DIMENSIONS = (DIM_GENDER, DIM_AGE_BAND, DIM_JOB_GROUP)
 
 
 class Dimensions(StrictModel):
@@ -208,11 +217,11 @@ class Dimensions(StrictModel):
 
     def value_pairs(self) -> tuple[tuple[str, str], ...]:
         """Every declared (dim, value): what targets, ratios and questions may name."""
-        pairs = [("gender", gender.value) for gender in self.gender.values]
+        pairs = [(DIM_GENDER, gender.value) for gender in self.gender.values]
         if self.age_band is not None:
-            pairs += [("age_band", band.name) for band in self.age_band.bands]
+            pairs += [(DIM_AGE_BAND, band.name) for band in self.age_band.bands]
         if self.job_group is not None:
-            pairs += [("job_group", value) for value in self.job_group.values]
+            pairs += [(DIM_JOB_GROUP, value) for value in self.job_group.values]
         for name, choice in self.choices.items():
             pairs += [(name, value) for value in choice.values]
         return tuple(pairs)
