@@ -121,6 +121,8 @@ make install
 pip install "git+https://github.com/dev-Lena/event-ops-engine.git@main"   # 고정하려면 @<태그> (예: @v0.2.0, Releases 참고)
 ```
 
+설치한 패키지는 저장소 없이 돕니다. CI가 Linux에서 wheel을 새 환경에 설치해 저장소 밖에서 `report` · `triage`를 실행해 확인합니다(`make wheel-smoke`).
+
 ### Intel Mac: 엔진 빌드
 
 2026-10 기준 `pyrewire` wheel에 Intel Mac용 엔진이 없어 한 번 소스 빌드합니다 (약 1~2분).
