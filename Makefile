@@ -1,7 +1,7 @@
 # Development entry points. The venv must be active (see README "설치").
 PY ?= python
 
-.PHONY: install test lint format typecheck check engine package-check wheel-smoke
+.PHONY: install test lint format typecheck check engine package-check wheel-smoke bench
 
 install:
 	$(PY) -m pip install -e ".[dev]"
@@ -37,6 +37,10 @@ wheel-smoke: package-check
 	cd "$(SMOKE)/run" && "$(SMOKE)/venv/bin/event-ops" report data/synthetic/scenarios/pair-mixed.yaml | grep -q '잠정 마감 권고'
 	cd "$(SMOKE)/run" && "$(SMOKE)/venv/bin/event-ops" triage data/synthetic/scenarios/triage/account-length.yaml > /dev/null
 	@echo 'installed wheel runs outside the repo'
+
+# Time report and triage on seeded synthetic sign-ups (#34); a few minutes, not run in CI.
+bench:
+	$(PY) scripts/bench.py
 
 # Intel Mac only: build the wirelog shared library from source into vendor/.
 engine:
