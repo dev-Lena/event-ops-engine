@@ -124,11 +124,11 @@ flowchart LR
 | 폴더 | 내용 |
 |---|---|
 | `rules/` | Datalog 규칙: `ontology.dl`(사실 스키마) · `capacity.dl`(②) · `promotion.dl`(③) · `triage.dl`(① 계약 + 유형 1~7 · 2b 규칙) |
-| `src/event_ops_engine/` | lib(`model` `bands` `clock` `facts` `policy` `loader` `decision`) · services(`engine` `interpreter` `normalizer`) · features(`capacity` `promotion` `harness` `cli`) |
+| `src/event_ops_engine/` | lib(`model` `bands` `clock` `facts` `policy` `loader` `decision` `synthetic`) · services(`engine` `interpreter` `normalizer`) · features(`capacity` `promotion` `harness` `cli`) |
 | `policy/events/` | 모임 정책 YAML 2개 (합성 예시, 확인값 표시가 없는 기준값은 가정값). `synthetic-job-group.yaml`은 LLM이 정규화하는 `job_group` 차원 예시 |
 | `data/synthetic/scenarios/` | 합성 시나리오: 현황 · 홍보 6개(직군 정규화 포함), 문의(`triage/`) 10개 |
 | `tests/` | pytest. 계산 로직은 같은 PR에 테스트를 올립니다. README 출력 예시도 테스트합니다 |
-| `scripts/` | 엔진 빌드 · wirelog 문법 검증 |
+| `scripts/` | 엔진 빌드 · wirelog 문법 검증 · 성능 측정(`make bench`) |
 | `docs/` | 설계 · 용어 · 결정 기록 |
 
 ## 설치
@@ -143,6 +143,8 @@ make install
 ```bash
 pip install "git+https://github.com/dev-Lena/event-ops-engine.git@main"   # 고정하려면 @<태그> (예: @v0.2.0, Releases 참고)
 ```
+
+설치한 패키지는 저장소 없이 돕니다. CI가 Linux에서 wheel을 새 환경에 설치해 저장소 밖에서 `report` · `triage`를 실행해 확인합니다(`make wheel-smoke`).
 
 ### Intel Mac: 엔진 빌드
 

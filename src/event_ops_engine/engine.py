@@ -62,6 +62,10 @@ class Engine:
         src = load_rules() if rules_src is None else rules_src
         self._session = EasySession(src)
         self._inputs: dict[str, dict[Row, int]] = {}
+        # Query cache (#83): sorted rows per relation and, per (relation, prefix length), rows
+        # grouped by their leading columns. Any insert or remove clears both.
+        self._rows_cache: dict[str, list[tuple[Any, ...]]] = {}
+        self._index_cache: dict[tuple[str, int], dict[tuple[Any, ...], list[tuple[Any, ...]]]] = {}
         # Comments are stripped first so a stray quote in one cannot hide a real constant.
         for constant in set(QUOTED_CONSTANT.findall(LINE_COMMENT.sub("", src))):
             self._session.intern(constant)
@@ -69,6 +73,7 @@ class Engine:
     def insert(self, relation: str, row: Row) -> None:
         row = tuple(row)
         self._session.insert(relation, list(row))
+        self._invalidate()
         store = self._inputs.setdefault(relation, {})
         store[row] = store.get(row, 0) + 1
 
@@ -79,6 +84,7 @@ class Engine:
         if row not in store:
             raise KeyError(f"{relation}{row}: not an inserted fact")
         self._session.remove(relation, list(row))
+        self._invalidate()
         store[row] -= 1
         if store[row] == 0:
             del store[row]
@@ -93,15 +99,37 @@ class Engine:
             for row in rows:
                 self.remove(relation, row)
 
+    def _invalidate(self) -> None:
+        self._rows_cache.clear()
+        self._index_cache.clear()
+
+    def _sorted_rows(self, relation: str) -> list[tuple[Any, ...]]:
+        cached = self._rows_cache.get(relation)
+        if cached is None:
+            if relation in self._inputs:
+                cached = sorted(self._inputs[relation])
+            else:
+                cached = sorted(tuple(row) for row in self._session.snapshot(relation))
+            self._rows_cache[relation] = cached
+        return cached
+
     def snapshot(self, relation: str) -> list[tuple[Any, ...]]:
-        """Rows of a derived relation from the engine, or of an input relation from the store."""
-        if relation in self._inputs:
-            return sorted(self._inputs[relation])
-        return sorted(tuple(row) for row in self._session.snapshot(relation))
+        """Rows of a derived relation from the engine, or of an input relation from the store.
+
+        Fetched once per relation until the next insert or remove (#83); callers get a copy.
+        """
+        return list(self._sorted_rows(relation))
 
     def rows(self, relation: str, *prefix: Any) -> list[tuple[Any, ...]]:
-        """Rows of `relation` whose leading columns equal `prefix`."""
-        return [row for row in self.snapshot(relation) if row[: len(prefix)] == prefix]
+        """Rows of `relation` whose leading columns equal `prefix`, in sorted order."""
+        key = (relation, len(prefix))
+        index = self._index_cache.get(key)
+        if index is None:
+            index = {}
+            for row in self._sorted_rows(relation):
+                index.setdefault(row[: len(prefix)], []).append(row)
+            self._index_cache[key] = index
+        return list(index.get(tuple(prefix), ()))
 
     def close(self) -> None:
         self._session.close()
