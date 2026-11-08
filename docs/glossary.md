@@ -12,6 +12,7 @@
 | 한 건의 신청 (1인 · 2인 · 단체 모두 한 건) | 신청 / registration | `registration` | 지원, 예약 | 정원은 신청 건수가 아니라 **사람 수**로 센다 |
 | 신청을 낸 사람 | 신청자 / registrant | `registrant` | 지원자 | 동반자 정보를 함께 적는 사람 |
 | 회차에 자리를 차지하는 한 사람 (신청자 또는 동반자) | 참가자 / attendee | `attendee` | 멤버, 회원 | 신청 1건 → 참가자 n명으로 펼친다 ([design.md 4](design.md#4-인원-환산)) |
+| 같은 사람의 신청인지 가리는 값 | 참가자 키 / participant key | `registration_submitted{participant}` (① 유형 3) | 회원 id, 고객 번호 | 실제 시스템에서는 모임 + 회차 안의 이름 + 번호. 저장소와 엔진에는 **합성 식별자만** 둔다. 같은 키가 둘이면 막지 않고 표시만 한다(운영 자료와 일치, [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy)) |
 | 참가자의 한 가지 속성 (성별 · 나이 구간 · 직군 · 신청 방식) | 속성 / attribute | `dim` (속성 이름), `value` (속성 값) | 카테고리, 태그 | `attendee_attr(attendee, dim, value)` |
 | 회차 · 속성 값마다 정한 인원 하한 · 상한 | 목표 / target | `target(session, dim, value, lo, hi)` | 쿼터, 할당 | wirelog 예약어 때문에 열 이름은 `min` · `max`가 아니라 `lo` · `hi` |
 | 같은 속성의 두 값 사이 허용 차이 (예: 성별 1:1) | 비율 목표 / ratio target | `ratio_target(session, dim, value_a, value_b, max_diff)` | 균형 조건 | `max_diff`는 허용하는 인원 차 |
@@ -94,3 +95,4 @@
 | 2026-11-02 | 용어 추가: 정규화기 · 후보 속성 · 확신도 기준, 속성 표에 `job_group` |
 | 2026-11-02 | 부족분 · 남은 자리에 입금 대기 반영, 문의 기준 값 갱신 (#45 · #46) |
 | 2026-11-07 | 홍보 중단 추가, 홍보 기준의 확인됨/가정 표시, 시작 시각 경계 규칙 (#52) |
+| 2026-11-07 | 참가자 키 추가 (#78) |
