@@ -6,7 +6,7 @@ sees UTC epoch seconds; "days left" is counted in whole days between calendar da
 
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 EVENT_TIME_ZONE = ZoneInfo("Asia/Seoul")
@@ -28,3 +28,14 @@ def days_left(now: datetime, session_date: date) -> int:
     """Whole calendar days from `now` (in event time zone) to the session date; negative if past."""
     today = now.astimezone(EVENT_TIME_ZONE).date()
     return (session_date - today).days
+
+
+def promotion_cutoff(session_date: date, start: time, hours: int) -> datetime:
+    """When promotion stops: `hours` before the session's Asia/Seoul start time (#52)."""
+    return datetime.combine(session_date, start, tzinfo=EVENT_TIME_ZONE) - timedelta(hours=hours)
+
+
+def earliest_promotion_cutoff(session_date: date, hours: int) -> datetime:
+    """Without a start time the session may begin at its date's midnight, so the cutoff may
+    already fall `hours` before that midnight."""
+    return session_start(session_date) - timedelta(hours=hours)
