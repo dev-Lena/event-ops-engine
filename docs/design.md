@@ -47,10 +47,14 @@ Registration
   members: [Member] | None       # 참가자 목록. None이면 구성 미상(옛 신청)
   party_size: int                # members가 있으면 len과 같아야 한다
   status_events: [StatusEvent]   # (ts, status) — status는 glossary "상태 값" 다섯 개만
+  attrs: {속성: 값}               # per: registration 선택 속성의 답 (예: mode)
 Member
   gender: female | male | unknown
   birth_year: int | None
+  attrs: {속성: 값}               # per: member 선택 속성의 답 (예: region)
 ```
+
+**선택 속성 (#31)**: 신청폼에서 정해진 목록 중 고르는 속성(지역, 참여 방식)은 정책 `dimensions.choices`에 이름 · 값 목록 · 단위(`per: member`(기본) | `registration`)로 선언한다. 답은 신청이나 참가자의 `attrs`에 적고, `facts.py`가 그대로 `given_attr`로 넣는다. 정규화하지 않으며 규칙은 바꾸지 않는다(계산은 이미 속성 일반형). `per: registration`이면 함께 신청한 사람 모두 같은 값이다. 답이 없으면 `unknown`이라 목표 집계에서 빠진다(성별 미상과 같음). 목록 밖 값, 선언하지 않은 속성 이름, 단위가 틀린 자리의 답은 모델이 거부한다. 그래서 `attrs`에는 자유 서술이 들어올 수 없다. 함께 고친 것: 목표 · 비율이 정책에 선언하지 않은 (속성, 값)을 가리키면 전에는 오류 없이 받아들여 계속 "부족"으로 나왔다. 이제 정책 · 시나리오를 읽을 때 거부한다. 예시: `policy/events/synthetic-hybrid.yaml`, `data/synthetic/scenarios/hybrid.yaml`.
 
 개인 식별 정보 칸은 **모델에 없다**. 이름 · 연락처 · 계좌 · 자유 서술은 들어올 자리가 없으므로 실수로도 저장소 · 출력에 섞이지 않는다.
 
@@ -364,3 +368,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-07 | 11절 성능 측정 `make bench`와 결과, 12절 속도 항목 갱신 (#34) |
 | 2026-11-07 | 11절 조회 캐시(#83)와 다시 잰 값 |
 | 2026-11-07 | 2절 결과 JSON 출력 `--json` (`event-ops/report@1` · `event-ops/triage@1`, #85) |
+| 2026-11-08 | 3절 선택 속성 `dimensions.choices` · `attrs`, 선언하지 않은 목표 거부 (#31) |
