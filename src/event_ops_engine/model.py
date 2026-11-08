@@ -72,6 +72,8 @@ class Member(StrictModel):
     birth_year: int | None = Field(default=None, ge=1900, le=2100)
     job: str | None = Field(default=None, min_length=1)
     job_group: NormalizedValue | None = None
+    attrs: dict[str, str] = Field(default_factory=dict)
+    """Fixed-choice answers for `per: member` choice dimensions (#31), e.g. region."""
 
 
 class StatusEvent(StrictModel):
@@ -93,6 +95,8 @@ class Registration(StrictModel):
     party_size: int = Field(ge=1)
     members: tuple[Member, ...] | None = None
     status_events: tuple[StatusEvent, ...] = Field(min_length=1)
+    attrs: dict[str, str] = Field(default_factory=dict)
+    """Fixed-choice answers for `per: registration` choice dimensions (#31), e.g. mode."""
 
     @model_validator(mode="before")
     @classmethod
@@ -137,6 +141,12 @@ class AgeBandDimension(StrictModel):
 class GenderDimension(StrictModel):
     values: tuple[Gender, ...] = (Gender.FEMALE, Gender.MALE)
 
+    @model_validator(mode="after")
+    def _no_unknown(self) -> Self:
+        if Gender.UNKNOWN in self.values:
+            raise ValueError(f"gender values must not include {UNKNOWN!r} (reserved)")
+        return self
+
 
 class JobGroupDimension(StrictModel):
     """Free-text job → one of `values`, proposed by an LLM normalizer (docs/design.md 14)."""
@@ -168,10 +178,62 @@ class JobGroupDimension(StrictModel):
         return self
 
 
+class ChoiceDimension(StrictModel):
+    """A fixed-choice attribute picked on the sign-up form (#31), e.g. region or participation
+    mode. The answer is taken as given; nothing is normalized."""
+
+    values: tuple[str, ...] = Field(min_length=1)
+    per: Literal["member", "registration"] = "member"
+    """`registration`: one answer for everyone on the registration (a pair joins the same way)."""
+
+    @model_validator(mode="after")
+    def _values_distinct_and_not_unknown(self) -> Self:
+        if len(set(self.values)) != len(self.values):
+            raise ValueError("choice values must be distinct")
+        if UNKNOWN in self.values or any(not value for value in self.values):
+            raise ValueError(f"choice values must be non-empty and not {UNKNOWN!r}")
+        return self
+
+
+DIM_GENDER = "gender"
+DIM_AGE_BAND = "age_band"
+DIM_JOB_GROUP = "job_group"
+BUILTIN_DIMENSIONS = (DIM_GENDER, DIM_AGE_BAND, DIM_JOB_GROUP)
+
+
 class Dimensions(StrictModel):
     gender: GenderDimension = GenderDimension()
     age_band: AgeBandDimension | None = None
     job_group: JobGroupDimension | None = None
+    choices: dict[str, ChoiceDimension] = Field(default_factory=dict)
+    """Fixed-choice attributes by name (#31). Counted like any other dimension by the rules."""
+
+    @model_validator(mode="after")
+    def _choice_names(self) -> Self:
+        clash = sorted(set(self.choices) & set(BUILTIN_DIMENSIONS))
+        if clash or any(not name for name in self.choices):
+            raise ValueError(f"choice names must be non-empty and not built in: {clash}")
+        return self
+
+    def value_pairs(self) -> tuple[tuple[str, str], ...]:
+        """Every declared (dim, value): what targets, ratios and questions may name."""
+        pairs = [(DIM_GENDER, gender.value) for gender in self.gender.values]
+        if self.age_band is not None:
+            pairs += [(DIM_AGE_BAND, band.name) for band in self.age_band.bands]
+        if self.job_group is not None:
+            pairs += [(DIM_JOB_GROUP, value) for value in self.job_group.values]
+        for name, choice in self.choices.items():
+            pairs += [(name, value) for value in choice.values]
+        return tuple(pairs)
+
+    def check_targets(self, targets: Targets, ratios: tuple[RatioTarget, ...], where: str) -> None:
+        """Reject targets or ratios on an undeclared dim or value: they could never be met."""
+        declared = set(self.value_pairs())
+        named = [(dim, value) for dim, by_value in targets.items() for value in by_value]
+        named += [(ratio.dim, value) for ratio in ratios for value in ratio.values]
+        unknown = sorted({pair for pair in named if pair not in declared})
+        if unknown:
+            raise ValueError(f"{where}: targets name undeclared attribute values {unknown}")
 
 
 class TargetRange(StrictModel):
@@ -246,6 +308,11 @@ class EventPolicy(StrictModel):
     promotion: PromotionPolicy
     triage: TriagePolicy = TriagePolicy()
 
+    @model_validator(mode="after")
+    def _targets_declared(self) -> Self:
+        self.dimensions.check_targets(self.defaults.targets, self.defaults.ratios, "defaults")
+        return self
+
 
 class Session(StrictModel):
     id: str
@@ -299,6 +366,27 @@ class Scenario(StrictModel):
                 raise ValueError(
                     f"registration {registration.id}: unknown session {registration.session}"
                 )
+        dimensions = self.policy.dimensions
+        for session in self.sessions:
+            dimensions.check_targets(
+                session.targets or {}, session.ratios or (), f"session {session.id}"
+            )
+        for registration in self.registrations:
+            answers = [("registration", registration.attrs)]
+            answers += [("member", member.attrs) for member in registration.members or ()]
+            for level, attrs in answers:
+                for name, value in attrs.items():
+                    choice = dimensions.choices.get(name)
+                    if choice is None or choice.per != level:
+                        raise ValueError(
+                            f"registration {registration.id}: {name!r} is not a "
+                            f"per-{level} choice attribute in the policy"
+                        )
+                    if value not in choice.values:
+                        raise ValueError(
+                            f"registration {registration.id}: {name}={value!r} is not one of "
+                            f"{list(choice.values)}"
+                        )
         return self
 
     def session(self, session_id: str) -> Session:

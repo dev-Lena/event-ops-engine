@@ -13,6 +13,9 @@ from typing import Any
 
 from . import bands, clock
 from .model import (
+    DIM_AGE_BAND,
+    DIM_GENDER,
+    DIM_JOB_GROUP,
     TOPICS,
     UNKNOWN,
     CandidateFact,
@@ -27,10 +30,6 @@ from .model import (
 from .policy import resolve_promotion, resolve_ratios, resolve_targets
 
 Row = tuple[Any, ...]
-
-DIM_GENDER = "gender"
-DIM_AGE_BAND = "age_band"
-DIM_JOB_GROUP = "job_group"
 
 
 def confidence_pct(confidence: float) -> int:
@@ -97,11 +96,27 @@ def session_facts(scenario: Scenario, session: Session) -> Facts:
     return facts
 
 
+def choice_attributes(
+    member: Member | None, registration: Registration, scenario: Scenario
+) -> list[Row]:
+    """(dim, value) for every choice dimension (#31): the registration's or the member's
+    answer by the dimension's `per`, `unknown` when it was not given."""
+    pairs: list[Row] = []
+    for name, choice in scenario.policy.dimensions.choices.items():
+        if choice.per == "registration":
+            source = registration.attrs
+        else:
+            source = member.attrs if member is not None else {}
+        pairs.append((name, source.get(name, UNKNOWN)))
+    return pairs
+
+
 def member_attributes(member: Member | None, scenario: Scenario, session: Session) -> list[Row]:
     """`given_attr` (dim, value) pairs for one attendee; `member is None` means unknown composition.
 
     A job_group comes from the normalizer as a `candidate_attr` instead (see
-    `registration_facts`); here it is only `unknown` when there is no candidate.
+    `registration_facts`); here it is only `unknown` when there is no candidate. Choice
+    dimensions come from `choice_attributes`.
     """
     dimensions = scenario.policy.dimensions
     if member is None:
@@ -134,7 +149,9 @@ def registration_facts(scenario: Scenario, registration: Registration) -> Facts:
     for index, member in enumerate(members):
         attendee = attendee_id(registration.id, index)
         facts.add("attendee", registration.id, attendee)
-        for dim, value in member_attributes(member, scenario, session):
+        for dim, value in member_attributes(member, scenario, session) + choice_attributes(
+            member, registration, scenario
+        ):
             facts.add("given_attr", attendee, dim, value)
         if member is not None and member.job_group is not None:
             candidate = member.job_group
@@ -188,13 +205,8 @@ CANDIDATE_RELATIONS: dict[str, tuple[str, ...]] = {
 
 
 def dimension_values(policy: EventPolicy) -> tuple[tuple[str, str], ...]:
-    """Every (dim, value) pair a question may point at: gender, age bands, job groups."""
-    pairs = [(DIM_GENDER, gender.value) for gender in policy.dimensions.gender.values]
-    if policy.dimensions.age_band is not None:
-        pairs += [(DIM_AGE_BAND, band.name) for band in policy.dimensions.age_band.bands]
-    if policy.dimensions.job_group is not None:
-        pairs += [(DIM_JOB_GROUP, value) for value in policy.dimensions.job_group.values]
-    return tuple(pairs)
+    """Every (dim, value) pair a question may point at, choice attributes included (#31)."""
+    return policy.dimensions.value_pairs()
 
 
 def log_facts(scenario: TriageScenario) -> Facts:

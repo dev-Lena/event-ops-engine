@@ -85,12 +85,14 @@ def test_model_has_no_personal_identifier_fields() -> None:
     from event_ops_engine.model import Member
 
     # `job` is a free-text role ("백엔드 3년차"), never a name or contact; `job_group` is the
-    # normalizer's candidate for it.
-    assert set(Member.model_fields) == {"gender", "birth_year", "job", "job_group"}
+    # normalizer's candidate for it. `attrs` holds only answers from a declared choice attribute's
+    # fixed list (#31; free text is rejected, see tests/test_choices.py).
+    assert set(Member.model_fields) == {"gender", "birth_year", "job", "job_group", "attrs"}
     assert set(Registration.model_fields) == {
         "id",
         "session",
         "party_size",
         "members",
         "status_events",
+        "attrs",
     }

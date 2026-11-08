@@ -20,9 +20,9 @@ from typing import Protocol, TypeVar
 
 from pydantic import ValidationError
 
-from .facts import DIM_JOB_GROUP, squash
+from .facts import squash
 from .interpreter import InterpretationError, Runner, json_object, run_subprocess
-from .model import UNKNOWN, Member, NormalizedValue, Registration, Scenario
+from .model import DIM_JOB_GROUP, UNKNOWN, Member, NormalizedValue, Registration, Scenario
 
 ScenarioT = TypeVar("ScenarioT", bound=Scenario)
 

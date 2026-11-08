@@ -1,0 +1,25 @@
+# 선택 속성 시나리오 (#31): 참여 방식(신청 단위) · 지역(참가자 단위). 사람 · id는 모두 합성이다.
+# 기준 시각에서 5일 뒤 회차 (lead_days 안). r5는 선택 칸이 생기기 전 신청이라 방식 · 지역이 unknown이다.
+policy: ../../../policy/events/synthetic-hybrid.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-12 }
+registrations:
+  - { id: r1, session: s1, attrs: { mode: offline },
+      members: [{ gender: female, birth_year: 1995, attrs: { region: seoul } },
+                { gender: male, birth_year: 1994, attrs: { region: gyeonggi } }],
+      status_events: [{ at: 2026-10-20T10:00:00+09:00, status: confirmed }] }
+  - { id: r2, session: s1, attrs: { mode: online },
+      members: [{ gender: male, birth_year: 1990, attrs: { region: other } }],
+      status_events: [{ at: 2026-10-22T10:00:00+09:00, status: confirmed }] }
+  - { id: r3, session: s1, attrs: { mode: offline },
+      members: [{ gender: female, birth_year: 1998, attrs: { region: seoul } }],
+      status_events: [{ at: 2026-10-25T10:00:00+09:00, status: confirmed }] }
+  - { id: r4, session: s1, attrs: { mode: offline },
+      members: [{ gender: male, birth_year: 1993, attrs: { region: gyeonggi } }],
+      status_events: [{ at: 2026-11-05T10:00:00+09:00, status: pending_payment }] }
+  - { id: r5, session: s1, members: [{ gender: female, birth_year: 1992 }],
+      status_events: [{ at: 2026-10-15T10:00:00+09:00, status: confirmed }] }
+  - { id: r6, session: s1, attrs: { mode: online },
+      members: [{ gender: female, birth_year: 1997, attrs: { region: seoul } }],
+      status_events: [{ at: 2026-11-04T10:00:00+09:00, status: confirmed }] }
