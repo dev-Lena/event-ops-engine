@@ -190,3 +190,57 @@ def test_capped_value_is_not_promoted_even_with_its_own_gap(engine: Engine) -> N
     decisions = session_promotion(engine, "s2")
     female = [d for d in decisions if (d.dim, d.value) == ("gender", "female")]
     assert [d.kind for d in female] == ["cap"]
+
+
+# --- promotion cutoff (#52): stops `promote` only, inclusive, needs a start time ---------
+
+
+def at_time(name: str, session_id: str, now: str, **update: object) -> list[Decision]:
+    """Decisions for one session with `now` and session fields replaced."""
+    from datetime import datetime
+
+    base = scenario(name)
+    sessions = tuple(
+        s.model_copy(update=update) if s.id == session_id else s for s in base.sessions
+    )
+    data = base.model_copy(update={"now": datetime.fromisoformat(now), "sessions": sessions})
+    return [d for d in promotion_decisions(data) if d.session == session_id]
+
+
+def test_promotion_stops_at_the_cutoff_inclusive_but_cap_stays() -> None:
+    from datetime import time
+
+    start = {"start_time": time(19, 0)}  # s2 on 2026-11-10: cutoff 17:00
+    before = at_time("pair-mixed", "s2", "2026-11-10T16:59:59+09:00", **start)
+    male = by_value(before)[("gender", "male")]
+    assert male.kind == "recommend" and "imbalance" in male.reasons
+    assert {"promotion_cutoff_ts/s2", "now"} <= set(male.evidence)
+    assert "시작 시각" not in male.message
+
+    after = at_time("pair-mixed", "s2", "2026-11-10T17:00:00+09:00", **start)
+    assert [d.kind for d in after] == ["cap"]  # female still capped; no recommendation
+
+
+def test_full_session_keeps_its_hold_after_the_cutoff() -> None:
+    from datetime import time
+
+    decisions = at_time("ratio", "s4b", "2026-12-07T12:00:00+09:00", start_time=time(13, 0))
+    assert {d.kind for d in decisions} == {"hold"}
+
+
+def test_session_lead_days_zero_overrides_the_policy() -> None:
+    decisions = at_time("pair-mixed", "s2", "2026-11-07T10:00:00+09:00", lead_days=0)
+    assert by_value(decisions)[("gender", "male")].reasons == ("imbalance", "slow_trend")
+
+
+def test_without_start_time_recommendations_flag_a_possibly_passed_cutoff() -> None:
+    # No start time: the cutoff may fall as early as 2026-11-09 22:00 (midnight - 2 h).
+    quiet = at_time("pair-mixed", "s2", "2026-11-09T21:59:59+09:00")
+    assert all("시작 시각" not in d.message for d in quiet)
+    flagged = by_value(at_time("pair-mixed", "s2", "2026-11-09T22:00:00+09:00"))
+    male = flagged[("gender", "male")]
+    assert male.kind == "recommend"  # still judged by date, as before #52
+    assert "홍보 중단(시작 2시간 전)" in male.message
+    assert {"earliest_cutoff_ts/s2", "now", "policy/s2/promotion_cutoff_hours"} <= set(
+        male.evidence
+    )

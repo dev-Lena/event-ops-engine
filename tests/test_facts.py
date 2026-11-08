@@ -62,10 +62,33 @@ def test_scenario_facts_carry_session_targets_policy_and_now() -> None:
     assert ("s1", "gender", "female", 6, 6) in rows(facts, "target")
     assert ("s1", "age_band", "20s", 2, 12) in rows(facts, "target")
     assert rows(facts, "ratio_target") == [("s1", "gender", "female", "male", 1)]
-    assert set(rows(facts, "policy")) == {("s1", "lead_days", 7), ("s1", "trend_min_per_week", 3)}
+    assert set(rows(facts, "policy")) == {
+        ("s1", "lead_days", 7),
+        ("s1", "trend_min_per_week", 3),
+        ("s1", "promotion_cutoff_hours", 2),
+    }
     assert len(rows(facts, "now")) == 1
 
 
 def test_ids_are_stable() -> None:
     assert attendee_id("r7", 0) == "r7#1"
     assert evidence_id("target", "s1", "gender", "female") == "target/s1/gender/female"
+
+
+def test_session_overrides_and_start_time_shape_the_cutoff_facts() -> None:
+    from datetime import datetime, time
+
+    base = scenario("single")  # s1 on 2026-11-21, no start time
+    facts = scenario_facts(base).rows
+    seoul_midnight = datetime.fromisoformat("2026-11-21T00:00:00+09:00").timestamp()
+    assert rows(facts, "earliest_cutoff_ts") == [("s1", int(seoul_midnight) - 2 * 3600)]
+    assert rows(facts, "promotion_cutoff_ts") == []
+
+    session = base.sessions[0].model_copy(
+        update={"start_time": time(19, 30), "lead_days": 0, "promotion_cutoff_hours": 0}
+    )
+    facts = scenario_facts(base.model_copy(update={"sessions": (session,)})).rows
+    start = datetime.fromisoformat("2026-11-21T19:30:00+09:00").timestamp()
+    assert rows(facts, "promotion_cutoff_ts") == [("s1", int(start))]  # 0 hours is kept
+    assert ("s1", "lead_days", 0) in rows(facts, "policy")
+    assert rows(facts, "earliest_cutoff_ts") == []

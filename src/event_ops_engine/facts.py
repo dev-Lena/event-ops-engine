@@ -24,7 +24,7 @@ from .model import (
     Session,
     TriageScenario,
 )
-from .policy import POLICY_KEYS, resolve_ratios, resolve_targets
+from .policy import resolve_promotion, resolve_ratios, resolve_targets
 
 Row = tuple[Any, ...]
 
@@ -82,8 +82,16 @@ def session_facts(scenario: Scenario, session: Session) -> Facts:
         facts.add("target", session.id, dim, value, lo, hi)
     for dim, value_a, value_b, max_diff in resolve_ratios(policy, session):
         facts.add("ratio_target", session.id, dim, value_a, value_b, max_diff)
-    for key in POLICY_KEYS:
-        facts.add("policy", session.id, key, getattr(policy.promotion, key))
+    promotion = resolve_promotion(policy, session)
+    for key, n in promotion.items():
+        facts.add("policy", session.id, key, n)
+    cutoff_hours = promotion["promotion_cutoff_hours"]
+    if session.start_time is not None:
+        cutoff = clock.promotion_cutoff(session.date, session.start_time, cutoff_hours)
+        facts.add("promotion_cutoff_ts", session.id, clock.to_epoch(cutoff))
+    else:
+        earliest = clock.earliest_promotion_cutoff(session.date, cutoff_hours)
+        facts.add("earliest_cutoff_ts", session.id, clock.to_epoch(earliest))
     hours = session.payment_deadline_hours or policy.triage.payment_deadline_hours
     facts.add("deadline_hours", session.id, hours)
     return facts
