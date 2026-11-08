@@ -113,7 +113,11 @@ class Registration(StrictModel):
     @model_validator(mode="before")
     @classmethod
     def _default_party_size(cls, data: object) -> object:
-        if isinstance(data, dict) and data.get("pair") in PAIR_GENDERS and not data.get("members"):
+        if (
+            isinstance(data, dict)
+            and data.get("pair") in PAIR_GENDERS
+            and data.get("members") is None
+        ):
             genders = PAIR_GENDERS[data["pair"]]
             data = {**data, "members": [{"gender": gender.value} for gender in genders]}
         if isinstance(data, dict) and "party_size" not in data and data.get("members"):

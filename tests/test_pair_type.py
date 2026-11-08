@@ -50,6 +50,7 @@ def test_members_given_with_a_pair_must_match_it_in_any_order() -> None:
         {"pair": "male_pair", "members": [{"gender": "male"}]},
         {"pair": "male_pair", "party_size": 3},
         {"pair": "trio"},
+        {"pair": "mixed_pair", "members": []},  # an explicit empty list is not "absent"
     ],
 )
 def test_pairs_that_do_not_add_up_are_rejected(fields: dict[str, Any]) -> None:
