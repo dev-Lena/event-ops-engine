@@ -23,6 +23,8 @@ YAML 시나리오 ─► Python 모델(검증) ─► 사실(fact) ─► wirelo
                                       clock.py
 ```
 
+CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이고, `--json`은 다른 시스템이 읽는 구조다(#85). JSON은 `schema`(`event-ops/report@1` · `event-ops/triage@1`)로 버전을 밝히고, 필드를 바꾸면 번호를 올린다. `Decision` · `Verdict`는 pydantic 모델을 그대로 직렬화해 문장 출력과 같은 판단 · 근거를 담는다. 형식 예시는 README "결과 JSON".
+
 계층 (공용 코드 기준 1번, [CONTRIBUTING.md](../CONTRIBUTING.md)):
 
 | 계층 | 모듈 | 규칙 |
@@ -361,3 +363,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-07 | 11절 설치 확인 `make wheel-smoke`: Linux CI에서 설치한 wheel을 저장소 밖에서 실행 (#80) |
 | 2026-11-07 | 11절 성능 측정 `make bench`와 결과, 12절 속도 항목 갱신 (#34) |
 | 2026-11-07 | 11절 조회 캐시(#83)와 다시 잰 값 |
+| 2026-11-07 | 2절 결과 JSON 출력 `--json` (`event-ops/report@1` · `event-ops/triage@1`, #85) |
