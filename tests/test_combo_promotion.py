@@ -157,3 +157,25 @@ def test_without_a_gender_target_the_sessions_room_decides_the_conflict() -> Non
     (held,) = decide({"combo": {"f25_29": {"lo": 2}}}, people, capacity=3)
     assert (held.kind, held.reasons, held.need) == (DecisionKind.HOLD, ("gender_room",), 2)
     assert "남은 자리 1명" in held.message
+
+
+def test_a_slow_trend_alone_recommends_a_combination_with_only_its_evidence() -> None:
+    # 20 days out (outside lead_days 7): no lead_time. Female has its 2 (aged 40); 25~29 is
+    # 1 short with no confirmation this week, so only slow_trend fires, for the combination.
+    targets = {"gender": {"female": {"lo": 2}}, "combo": {"f25_29": {"lo": 1}}}
+    session = {"date": "2026-11-27"}
+    (rec,) = decide(targets, [woman("r1", 1986), woman("r2", 1986)], session=session)
+    assert rec.reasons == ("slow_trend",) and rec.need == 1
+    assert rec.message == "신청 추세 느림: female 25~29세(연 나이) 1명 부족, 홍보를 권합니다."
+    assert "registration/r1" not in rec.evidence and "target/s/gender/female" not in rec.evidence
+    assert {"target/s/combo/f25_29", "combo_def/s/f25_29"} <= set(rec.evidence)
+
+
+def test_a_full_session_never_counts_a_ratio_difference_as_people() -> None:
+    # Capacity 4: three men, one woman aged 40 -> full. Female trails by 2 (a ratio
+    # difference, held as session_full), and 25~29 is 1 short: the hold needs 1 person, not 2.
+    people = [person(f"m{i}", "male", 1990) for i in range(3)] + [woman("r1", 1986)]
+    ratio = [{"dim": "gender", "values": ["female", "male"], "max_diff": 1}]
+    decisions = decide({"combo": {"f25_29": {"lo": 1}}}, people, capacity=4, ratios=ratio)
+    held = only(decisions, DecisionKind.HOLD, "female")
+    assert held.reasons == ("session_full",) and held.need == 1

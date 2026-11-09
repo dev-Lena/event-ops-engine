@@ -24,9 +24,6 @@ REASON_PRIORITY = ("lead_time", "slow_trend", "imbalance", "session_full", "gend
 """The first reason present supplies `need` and the message. Gap-based reasons come first
 because their number is the target shortfall; `imbalance` carries a ratio difference."""
 
-GAP_REASONS = frozenset({"lead_time", "slow_trend", "session_full", "gender_room"})
-"""Reasons whose `need` is a target shortfall (people), unlike `imbalance` (a difference)."""
-
 REASON_POLICY_KEY = {"lead_time": "lead_days", "slow_trend": "trend_min_per_week"}
 
 CUTOFF_UNKNOWN_NOTE = (
@@ -81,13 +78,11 @@ def _parts(
     engine: Engine,
     session_id: str,
     by_combo: dict[str, dict[str, int]],
+    ranges: dict[str, tuple[str, int, int]],
     contributors: dict[tuple[str, str], list[str]],
 ) -> tuple[list[DecisionPart], list[str]]:
-    """A gender's combinations (#32) as decision parts, youngest first, and their evidence."""
-    ranges = {
-        str(row[1]): (str(row[2]), int(row[3]), int(row[4]))
-        for row in engine.rows("combo_def", session_id)
-    }
+    """A gender's combinations (#32) as decision parts, youngest first, and their evidence.
+    `ranges` maps a combination id to (gender, low, high) from `combo_def`."""
     parts: list[DecisionPart] = []
     evidence: list[str] = []
     for combo in sorted(by_combo, key=lambda name: ranges[name][1:]):
@@ -130,13 +125,16 @@ def _decisions(
     combinations' shortfalls: everyone counted in a combination counts toward the gender too.
     Only combinations the rules recommended (or held) take part.
     """
-    gender_of = {str(row[1]): str(row[2]) for row in engine.rows("combo_def", session_id)}
+    ranges = {
+        str(row[1]): (str(row[2]), int(row[3]), int(row[4]))
+        for row in engine.rows("combo_def", session_id)
+    }
     grouped: dict[tuple[str, str], dict[str, int]] = defaultdict(dict)
     combos: dict[str, dict[str, dict[str, int]]] = defaultdict(lambda: defaultdict(dict))
     for row in engine.rows(relation, session_id):
         dim, value, need, reason = str(row[1]), str(row[2]), int(row[3]), str(row[4])
         if dim == DIM_COMBO:
-            by_reason = combos[gender_of[value]][value]
+            by_reason = combos[ranges[value][0]][value]
         else:
             by_reason = grouped[(dim, value)]
         by_reason[reason] = max(need, by_reason.get(reason, need))
@@ -147,20 +145,29 @@ def _decisions(
     decisions: list[Decision] = []
     for (dim, value), own in sorted(grouped.items()):
         parts, part_evidence = (
-            _parts(engine, session_id, combos[value], contributors)
+            _parts(engine, session_id, combos[value], ranges, contributors)
             if dim == DIM_GENDER and value in combos
             else ([], [])
         )
         reasons = sorted(set(own) | {reason for part in parts for reason in part.reasons})
         primary = next(reason for reason in REASON_PRIORITY if reason in reasons)
         if parts:
-            own_gap = max((n for reason, n in own.items() if reason in GAP_REASONS), default=0)
+            # The gender's own shortfall comes from `gap`: a `session_full` row may carry a
+            # ratio difference instead (the imbalance branch of `blocked`).
+            gap_rows = engine.rows("gap", session_id, dim, value)
+            own_gap = int(gap_rows[0][3]) if gap_rows else 0
             need = max(own_gap, sum(part.need for part in parts))
         else:
             need = own[primary]
-        room_rows = engine.rows("gender_room", session_id, value) if parts else []
-        room = int(room_rows[0][2]) if room_rows else None
-        evidence = _evidence(engine, session_id, dim, value, sorted(own), contributors)
+        room = None
+        if primary == "gender_room":
+            room = int(engine.rows("gender_room", session_id, value)[0][2])
+        if own or primary == "gender_room":
+            # A conflict hold also rests on the gender's room: its target and its people.
+            evidence = _evidence(engine, session_id, dim, value, sorted(own), contributors)
+        else:
+            evidence = [evidence_id("session_capacity", session_id)]
+            evidence.append(evidence_id("days_left", session_id))
         evidence += part_evidence + cutoff_ids
         decisions.append(
             Decision(
