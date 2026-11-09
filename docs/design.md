@@ -182,7 +182,7 @@ blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(
 `imbalance` 홍보 권고는 기간 제한 없이 낸다(운영사는 임박했을 때 광고하지만, 엔진은 더 일찍 알리는 쪽을 택함).
 한 (회차, 속성, 값)에 이유가 여럿이면 `Decision` 하나에 이유 목록으로 모은다. `need`와 문구는 우선순위(`lead_time` > `slow_trend` > `imbalance`)가 가장 높은 이유의 값을 쓴다 — 부족분(gap)과 비율 차(diff)는 다른 수이므로 섞지 않는다.
 
-**조합 권고 (#32)**: 규칙은 조합도 다른 값처럼 `promote` · `blocked`를 내고, `promotion.py`가 그 행을 조합의 성별 결정 하나(`dim = gender`)로 묶는다. 조합 몫은 `Decision.parts`(조합 id · 표시 이름 · 부족 · 이유)에 담는다.
+**조합 권고 (#32, 결정 기록: [decisions/2026-11-09-combination-targets.md](decisions/2026-11-09-combination-targets.md))**: 규칙은 조합도 다른 값처럼 `promote` · `blocked`를 내고, `promotion.py`가 그 행을 조합의 성별 결정 하나(`dim = gender`)로 묶는다. 조합 몫은 `Decision.parts`(조합 id · 표시 이름 · 부족 · 이유)에 담는다.
 - `need` = max(성별 자신의 부족분, 그 성별 조합 부족의 합). 조합에 든 사람은 성별에도 세이므로 둘을 더하지 않는다. 비율 차(`imbalance`)는 부족분이 아니라서 이 계산에 넣지 않는다.
 - 묶는 조합은 규칙이 권고(또는 보류)한 것만이다. 부족분이 있어도 임박 · 추세 조건에 걸리지 않은 조합은 성별과 마찬가지로 아직 권고하지 않는다.
 - 문구는 광고 단위로 쓴다: "회차 임박: female 3명 부족, 홍보가 필요합니다. 광고 대상: female 25~29세(연 나이) 3명 이상." 성별 자신은 부족하지 않고 조합만 부족하면 조합 이름을 바로 쓴다("female 25~29세(연 나이) 1명 부족").
