@@ -69,3 +69,9 @@ def test_pair_attendees_count_by_gender_and_stay_out_of_age_bands() -> None:
     rows = scenario_facts(data).rows["given_attr"]
     assert ("r1#2", "gender", "male") in rows and ("r1#2", "age_band", "unknown") in rows
     assert "unknown_party" not in scenario_facts(data).rows  # composition is known
+    # The sign-up form requires birth years (companions too, operator 2026-11-09), so a pair
+    # given by type alone under an age-reading policy is a data error to review (#32).
+    assert [(r.message.split(":")[0], r.reasons) for r in status.needs_review] == [
+        ("신청 r1", ("missing_birth_year",)),
+        ("신청 r2", ("missing_birth_year",)),
+    ]

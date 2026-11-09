@@ -15,15 +15,16 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from .capacity import SessionStatus, capacity_status
+from .capacity import SessionStatus, ValueStatus, capacity_status
 from .decision import Decision, Verdict, VerdictKind
 from .engine import Engine
 from .facts import scenario_facts
 from .harness import differences, needs_label, run_triage
 from .interpreter import ClaudeCliInterpreter, FakeInterpreter, Interpreter, preflight
 from .loader import load_scenario, load_triage_scenario
-from .model import Scenario, TriageScenario
+from .model import DIM_COMBO, DIM_GENDER, Combos, Scenario, TriageScenario
 from .normalizer import NORMALIZERS, normalize_members
+from .policy import resolve_combos
 from .promotion import cutoff_hours, promotion_decisions, promotion_stopped
 
 REPORT_SCHEMA = "event-ops/report@1"
@@ -51,19 +52,43 @@ inferred fact (derived by the rules), an LLM-extracted candidate that passed val
 "Cannot confirm" has no tier; it is the `ask` / `abstain` verdict itself (docs/design.md 13)."""
 
 
-def format_status(status: SessionStatus) -> list[str]:
+def _counts(value: ValueStatus) -> str:
+    target = f"{value.lo}~{value.hi}" if value.lo is not None else "목표 없음"
+    extra = f" · 부족 {value.gap}" if value.gap else ""
+    extra += " · 목표 충족" if value.is_full else ""
+    return f"확정 {value.filled} · 대기 {value.pending} · 목표 {target}{extra}"
+
+
+def format_status(status: SessionStatus, combos: Combos) -> list[str]:
+    """Session status lines. Combinations (#32) sit under their gender's line, youngest first;
+    a gender without a line of its own gets its combinations at the top level. `combos` is
+    the session's (`policy.resolve_combos`): every `combo` value in `status` is defined there.
+    """
     lines = [
         f"[회차 {status.session}] 정원 {status.capacity} · 확정 {status.filled} · "
         f"입금 대기 {status.pending} · 남은 자리 {status.remaining_seats}"
         + (" · 마감" if status.is_full else "")
     ]
+    nested: dict[str, list[ValueStatus]] = {}
     for value in status.values:
-        target = f"{value.lo}~{value.hi}" if value.lo is not None else "목표 없음"
-        extra = f" · 부족 {value.gap}" if value.gap else ""
-        extra += " · 목표 충족" if value.is_full else ""
-        lines.append(
-            f"  {value.dim}={value.value}: 확정 {value.filled} · 대기 {value.pending} · "
-            f"목표 {target}{extra}"
+        if value.dim == DIM_COMBO:
+            nested.setdefault(combos[value.value].gender.value, []).append(value)
+
+    def children(gender: str) -> list[ValueStatus]:
+        return sorted(nested.pop(gender, []), key=lambda value: combos[value.value].age)
+
+    for value in status.values:
+        if value.dim == DIM_COMBO:
+            continue
+        lines.append(f"  {value.dim}={value.value}: {_counts(value)}")
+        if value.dim == DIM_GENDER:
+            lines.extend(
+                f"    └ {combos[child.value].label}: {_counts(child)}"
+                for child in children(value.value)
+            )
+    for gender in sorted(nested):
+        lines.extend(
+            f"  {combos[child.value].label}: {_counts(child)}" for child in children(gender)
         )
     for review in status.needs_review:
         lines.append(f"  확인 요청: {review.message}")
@@ -112,7 +137,8 @@ def report(scenario_path: Path, normalizer: str = "fake") -> list[str]:
     decisions, stopped = result.decisions, result.stopped
     lines: list[str] = []
     for status in result.statuses:
-        lines.extend(format_status(status))
+        session = result.scenario.session(status.session)
+        lines.extend(format_status(status, resolve_combos(result.scenario.policy, session)))
         own = [d for d in decisions if d.session == status.session]
         if status.session in stopped:
             hours = stopped[status.session]
@@ -121,6 +147,14 @@ def report(scenario_path: Path, normalizer: str = "fake") -> list[str]:
         if not own and status.session not in stopped:
             lines.append("  홍보 판단: 권고 없음")
     return lines
+
+
+def combo_json(combos: Combos) -> dict[str, dict[str, Any]]:
+    """What each `combo` value in `values` means (#32). Added field, so still `report@1`."""
+    return {
+        name: {"gender": combo.gender.value, "age": list(combo.age), "label": combo.label}
+        for name, combo in sorted(combos.items())
+    }
 
 
 def report_json(result: ReportResult) -> dict[str, Any]:
@@ -137,6 +171,9 @@ def report_json(result: ReportResult) -> dict[str, Any]:
                 "is_full": status.is_full,
                 "promotion_stopped": status.session in result.stopped,
                 "values": [dataclasses.asdict(value) for value in status.values],
+                "combos": combo_json(
+                    resolve_combos(result.scenario.policy, result.scenario.session(status.session))
+                ),
                 "needs_review": [d.model_dump(mode="json") for d in status.needs_review],
                 "decisions": [
                     d.model_dump(mode="json")

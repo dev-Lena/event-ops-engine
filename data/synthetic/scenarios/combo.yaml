@@ -1,0 +1,38 @@
+# 조합 목표 시나리오 (#32): 성별 × 나이 범위. 사람 · id는 모두 합성이다. 나이 = 2026 - 출생연도.
+# s1은 정책 기본 조합(여성 25~29세 · 30~34세)을 쓰고, s2는 신청 현황을 본 담당자가 남성 28~33세
+# 조합을 더하고 조합 목표를 그것으로 바꾼 회차다. r6은 출생연도가 빠진 데이터 오류다.
+policy: ../../../policy/events/synthetic-age-combos.yaml
+now: 2026-11-07T10:00:00+09:00
+sessions:
+  - { id: s1, date: 2026-11-14 }
+  - id: s2
+    date: 2026-11-21
+    combos:
+      m28_33: { gender: male, age: [28, 33] }
+    targets:
+      combo:
+        m28_33: { lo: 3 }
+registrations:
+  - { id: r1, session: s1,
+      members: [{ gender: female, birth_year: 1998 }, { gender: male, birth_year: 1996 }],
+      status_events: [{ at: 2026-10-20T10:00:00+09:00, status: confirmed }] }
+  - { id: r2, session: s1, members: [{ gender: female, birth_year: 2001 }],
+      status_events: [{ at: 2026-10-22T10:00:00+09:00, status: confirmed }] }
+  - { id: r3, session: s1, members: [{ gender: female, birth_year: 1996 }],
+      status_events: [{ at: 2026-10-25T10:00:00+09:00, status: confirmed }] }
+  - { id: r4, session: s1, members: [{ gender: female, birth_year: 2000 }],
+      status_events: [{ at: 2026-11-05T10:00:00+09:00, status: pending_payment }] }
+  - { id: r5, session: s1, members: [{ gender: male, birth_year: 1995 }],
+      status_events: [{ at: 2026-10-28T10:00:00+09:00, status: confirmed }] }
+  - { id: r6, session: s1, members: [{ gender: female }],
+      status_events: [{ at: 2026-10-29T10:00:00+09:00, status: confirmed }] }
+  - { id: r7, session: s1, members: [{ gender: female, birth_year: 1999 }],
+      status_events: [{ at: 2026-11-06T10:00:00+09:00, status: applied }] }
+  - { id: r8, session: s2, members: [{ gender: male, birth_year: 1994 }],
+      status_events: [{ at: 2026-10-30T10:00:00+09:00, status: confirmed }] }
+  - { id: r9, session: s2, members: [{ gender: male, birth_year: 1999 }],
+      status_events: [{ at: 2026-10-31T10:00:00+09:00, status: confirmed }] }
+  - { id: r10, session: s2, members: [{ gender: female, birth_year: 1995 }],
+      status_events: [{ at: 2026-11-01T10:00:00+09:00, status: confirmed }] }
+  - { id: r11, session: s2, members: [{ gender: male, birth_year: 1993 }],
+      status_events: [{ at: 2026-11-02T10:00:00+09:00, status: confirmed }] }

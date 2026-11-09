@@ -150,11 +150,12 @@ def contributors_by_value(engine: Engine, session_id: str) -> dict[tuple[str, st
     """(dim, value) -> sorted registration ids whose confirmed attendees carry that value.
 
     Built once per session from three snapshots; callers look every value up in it.
+    Combinations (#32) are included: `counted_attr` is the attributes plus `combo`.
     """
     seated = {row[1] for row in engine.rows("seat", session_id)}
     registration_of = {row[1]: row[0] for row in engine.snapshot("attendee")}
     found: dict[tuple[str, str], set[str]] = {}
-    for attendee, dim, value in engine.snapshot("attendee_attr"):
+    for attendee, dim, value in engine.snapshot("counted_attr"):
         if attendee in seated:
             found.setdefault((str(dim), str(value)), set()).add(registration_of[attendee])
     return {key: sorted(regs) for key, regs in found.items()}

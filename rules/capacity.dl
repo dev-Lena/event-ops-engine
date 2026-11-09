@@ -22,6 +22,20 @@ attendee_attr(A, D, "unknown") :-
 attendee_attr(A, D, "unknown") :-
     candidate_attr(A, D, V, C, _), normalize_threshold(D, Min), C >= Min, !dimension_value(D, V).
 
+// --- combinations (#32): counted as dim "combo" next to the plain attributes ----------
+// An attendee is in a combination when the gender matches and the age is in the range.
+// Ranges of one gender never overlap (model.check_combos), so each person counts once.
+.decl attendee_session(attendee: symbol, session: symbol)
+.decl combo_hit(attendee: symbol, combo: symbol)
+.decl counted_attr(attendee: symbol, dim: symbol, value: symbol)
+
+attendee_session(A, S) :- attendee(R, A), registration(R, S).
+combo_hit(A, C) :-
+    combo_def(S, C, G, Lo, Hi), attendee_session(A, S), attendee_attr(A, "gender", G),
+    attendee_age(A, Age), Age >= Lo, Age <= Hi.
+counted_attr(A, D, V) :- attendee_attr(A, D, V).
+counted_attr(A, "combo", C) :- combo_hit(A, C).
+
 // --- seats: one row per attendee that occupies a seat ------------------------
 .decl seat(session: symbol, attendee: symbol)
 .decl pending_seat(session: symbol, attendee: symbol)
@@ -63,11 +77,11 @@ tracked(S, D, V) :- target(S, D, V, _, _).
 tracked(S, D, V) :- ratio_target(S, D, V, _, _).
 tracked(S, D, V) :- ratio_target(S, D, _, V, _).
 
-filled_raw(S, D, V, count(A)) :- seat(S, A), attendee_attr(A, D, V).
+filled_raw(S, D, V, count(A)) :- seat(S, A), counted_attr(A, D, V).
 filled(S, D, V, N) :- tracked(S, D, V), filled_raw(S, D, V, N).
 filled(S, D, V, 0) :- tracked(S, D, V), !filled_raw(S, D, V, _).
 
-pending_raw(S, D, V, count(A)) :- pending_seat(S, A), attendee_attr(A, D, V).
+pending_raw(S, D, V, count(A)) :- pending_seat(S, A), counted_attr(A, D, V).
 pending(S, D, V, N) :- tracked(S, D, V), pending_raw(S, D, V, N).
 pending(S, D, V, 0) :- tracked(S, D, V), !pending_raw(S, D, V, _).
 
@@ -89,6 +103,8 @@ needs_review(S, R, "unknown_party") :- registration(R, S), occupies(R), unknown_
 needs_review(S, R, "low_confidence") :-
     registration(R, S), occupies(R), attendee(R, A),
     candidate_attr(A, D, _, C, _), normalize_threshold(D, Min), C < Min.
+needs_review(S, R, "missing_birth_year") :-
+    registration(R, S), occupies(R), attendee(R, A), age_missing(A).
 needs_review(S, R, "unknown_value") :-
     registration(R, S), occupies(R), attendee(R, A),
     candidate_attr(A, D, V, C, _), normalize_threshold(D, Min), C >= Min, !dimension_value(D, V).

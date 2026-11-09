@@ -10,12 +10,13 @@
 | 하나의 모임 상품. 여러 회차를 가진다 | 모임 / event | `event` | 개더링, 프로그램, 밋업(부제 제외) | 운영사 문서의 "프로그램"은 상품을 뜻하므로 여기서는 쓰지 않는다 |
 | 모임의 한 번 열림 (날짜 · 장소 · 정원이 있는 단위) | 회차 / session | `session` | 차수, 오프라인 모임 | 판단은 모두 회차 단위로 한다 |
 | 한 건의 신청 (1인 · 2인 · 단체 모두 한 건) | 신청 / registration | `registration` | 지원, 예약 | 정원은 신청 건수가 아니라 **사람 수**로 센다 |
-| 2인 신청이 신청폼에서 고른 성별 구성 | 2인 신청 유형 / pair type | `pair`: `female_pair`(여여) · `male_pair`(남남) · `mixed_pair`(혼성) | 커플, 짝 | 유형만 있으면 성별이 정해진 참가자 2명으로 펼치고 출생 연도는 모른다 ([design.md 4](design.md#4-인원-환산)) |
+| 2인 신청이 신청폼에서 고른 성별 구성 | 2인 신청 유형 / pair type | `pair`: `female_pair`(여여) · `male_pair`(남남) · `mixed_pair`(혼성) | 커플, 짝 | 유형만 있으면 성별이 정해진 참가자 2명으로 펼치고 출생 연도는 모른다. 나이를 읽는 모임에서는 확인 요청이 된다 ([design.md 4](design.md#4-인원-환산)) |
 | 신청을 낸 사람 | 신청자 / registrant | `registrant` | 지원자 | 동반자 정보를 함께 적는 사람 |
 | 회차에 자리를 차지하는 한 사람 (신청자 또는 동반자) | 참가자 / attendee | `attendee` | 멤버, 회원 | 신청 1건 → 참가자 n명으로 펼친다 ([design.md 4](design.md#4-인원-환산)) |
 | 같은 사람의 신청인지 가리는 값 | 참가자 키 / participant key | `registration_submitted{participant}` (① 유형 3) | 회원 id, 고객 번호 | 실제 시스템에서는 모임 + 회차 안의 이름 + 번호. 저장소와 엔진에는 **합성 식별자만** 둔다. 같은 키가 둘이면 막지 않고 표시만 한다(운영 자료와 일치, [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy)) |
 | 참가자의 한 가지 속성 (성별 · 나이 구간 · 직군 · 신청 방식) | 속성 / attribute | `dim` (속성 이름), `value` (속성 값) | 카테고리, 태그 | `attendee_attr(attendee, dim, value)` |
 | 신청폼에서 정해진 목록 중 고른 속성 (지역 · 참여 방식) | 선택 속성 / choice attribute | 정책 `dimensions.choices`, 신청 · 참가자 `attrs` | 카테고리, 태그, 옵션 | 값 목록과 단위(`per: member` · `registration`)를 정책에 선언한다. 정규화하지 않는다. 목록 밖 값은 입력 오류 ([design.md 3](design.md#3-데이터-모델-python-modelpy)) |
+| 성별 하나와 나이 범위를 묶은 모집 단위 (예: 여성 25~29세) | 조합 / combination | 정책 `combos`(회차 덮어쓰기), 목표 `targets.combo.<id>`, 속성 이름 `combo` | 교차 속성, 세그먼트 | 나이 범위는 양 끝 포함, 연 나이. 같은 성별 조합끼리 범위가 겹치면 입력 오류 ([design.md 3](design.md#3-데이터-모델-python-modelpy)) |
 | 회차 · 속성 값마다 정한 인원 하한 · 상한 | 목표 / target | `target(session, dim, value, lo, hi)` | 쿼터, 할당 | wirelog 예약어 때문에 열 이름은 `min` · `max`가 아니라 `lo` · `hi` |
 | 같은 속성의 두 값 사이 허용 차이 (예: 성별 1:1) | 비율 목표 / ratio target | `ratio_target(session, dim, value_a, value_b, max_diff)` | 균형 조건 | `max_diff`는 허용하는 인원 차 |
 | 확정된 참가자가 차지한 자리 수 | 차지한 자리 / filled | `filled` | 현재 인원, 모집 인원 | 입금 대기는 포함하지 않는다 |
@@ -100,3 +101,4 @@
 | 2026-11-07 | 참가자 키 추가 (#78) |
 | 2026-11-08 | 선택 속성 추가 (#31) |
 | 2026-11-08 | 2인 신청 유형 추가 (#33) |
+| 2026-11-09 | 조합 추가 (#32) |
