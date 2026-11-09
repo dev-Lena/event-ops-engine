@@ -87,6 +87,15 @@ class StatusEvent(StrictModel):
         return self
 
 
+PairType = Literal["female_pair", "male_pair", "mixed_pair"]
+PAIR_GENDERS: dict[str, tuple[Gender, Gender]] = {
+    "female_pair": (Gender.FEMALE, Gender.FEMALE),
+    "male_pair": (Gender.MALE, Gender.MALE),
+    "mixed_pair": (Gender.FEMALE, Gender.MALE),
+}
+"""The genders each pair type fixes (#33). Matches the ops data's headcount rule (design.md 4)."""
+
+
 class Registration(StrictModel):
     """One registration. `members` is None for legacy registrations whose composition is unknown."""
 
@@ -97,10 +106,20 @@ class Registration(StrictModel):
     status_events: tuple[StatusEvent, ...] = Field(min_length=1)
     attrs: dict[str, str] = Field(default_factory=dict)
     """Fixed-choice answers for `per: registration` choice dimensions (#31), e.g. mode."""
+    pair: PairType | None = None
+    """Pair type picked on the form (#33). Alone it expands to two attendees of those genders
+    with unknown birth years; with `members` their genders must match it."""
 
     @model_validator(mode="before")
     @classmethod
     def _default_party_size(cls, data: object) -> object:
+        if (
+            isinstance(data, dict)
+            and data.get("pair") in PAIR_GENDERS
+            and data.get("members") is None
+        ):
+            genders = PAIR_GENDERS[data["pair"]]
+            data = {**data, "members": [{"gender": gender.value} for gender in genders]}
         if isinstance(data, dict) and "party_size" not in data and data.get("members"):
             data = {**data, "party_size": len(data["members"])}
         return data
@@ -109,6 +128,13 @@ class Registration(StrictModel):
     def _consistent(self) -> Self:
         if self.members is not None and len(self.members) != self.party_size:
             raise ValueError(f"registration {self.id}: party_size != len(members)")
+        if self.pair is not None:
+            given = sorted(member.gender for member in self.members or ())
+            if given != sorted(PAIR_GENDERS[self.pair]):
+                raise ValueError(
+                    f"registration {self.id}: members do not match pair {self.pair} "
+                    f"({', '.join(given) or 'none'})"
+                )
         times = [event.at for event in self.status_events]
         if len(set(times)) != len(times):
             raise ValueError(f"registration {self.id}: two status events share the same time")
