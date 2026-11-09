@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from .decision import Decision, DecisionKind
 from .engine import Engine, contributors_by_value
 from .facts import evidence_id, scenario_facts
-from .model import Scenario
+from .model import DIM_COMBO, Scenario
 
 
 @dataclass(frozen=True)
@@ -48,6 +48,10 @@ REVIEW_MESSAGES = {
     "unknown_party": "신청 {reg}: 인원 구성이 미상입니다. 참가자 성별·출생 연도를 확인해 주세요.",
     "low_confidence": "신청 {reg}: 직군 정규화 확신도가 기준 미만입니다. 직군을 확인해 주세요.",
     "unknown_value": "신청 {reg}: 정규화된 직군 값이 정책 목록에 없습니다. 직군을 확인해 주세요.",
+    "missing_birth_year": (
+        "신청 {reg}: 출생연도가 없는 참가자가 있습니다(필수 항목). "
+        "나이 집계에서 빠졌으니 출생연도를 확인해 주세요."
+    ),
 }
 
 
@@ -61,11 +65,27 @@ def rejected_candidates(engine: Engine) -> dict[str, list[str]]:
     return rejected
 
 
-def _review(session_id: str, reg: str, reason: str, rejected: dict[str, list[str]]) -> Decision:
+def missing_ages(engine: Engine) -> dict[str, list[str]]:
+    """Evidence ids of attendees without a birth year (#32), per registration."""
+    found: dict[str, list[str]] = defaultdict(list)
+    for (attendee,) in engine.snapshot("age_missing"):
+        found[str(attendee).split("#")[0]].append(evidence_id("age_missing", attendee))
+    return found
+
+
+def _review(
+    session_id: str,
+    reg: str,
+    reason: str,
+    rejected: dict[str, list[str]],
+    missing: dict[str, list[str]],
+) -> Decision:
     """One `needs_review` row as a Decision; evidence names the facts the rule looked at."""
     evidence = [evidence_id("registration", reg)]
     if reason == "unknown_party":
         evidence.append(evidence_id("unknown_party", reg))
+    elif reason == "missing_birth_year":
+        evidence.extend(missing.get(reg, []))
     else:
         evidence.extend(rejected.get(reg, []))
     return Decision(
@@ -95,6 +115,8 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
         dim, value, filled = str(row[1]), str(row[2]), int(row[3])
         lo_hi = targets.get((dim, value))
         evidence = [evidence_id("target", session_id, dim, value)] if lo_hi else []
+        if dim == DIM_COMBO:
+            evidence.append(evidence_id("combo_def", session_id, value))
         evidence.append(evidence_id("session_capacity", session_id))
         evidence.extend(
             evidence_id("registration", reg) for reg in contributors.get((dim, value), [])
@@ -115,8 +137,9 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
         )
 
     rejected = rejected_candidates(engine)
+    missing = missing_ages(engine)
     reviews = tuple(
-        _review(session_id, str(row[1]), str(row[2]), rejected)
+        _review(session_id, str(row[1]), str(row[2]), rejected, missing)
         for row in engine.rows("needs_review", session_id)
     )
     return SessionStatus(

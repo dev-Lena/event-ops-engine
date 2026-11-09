@@ -1,0 +1,29 @@
+# Synthetic policy for an age-sensitive gathering with combination targets (docs/design.md 3, #32).
+# Numbers are ASSUMED unless the comment says 확인값. No real event, client or person is described.
+# Age is year-based (session year - birth year); birth year is required on the sign-up form
+# (운영사 확인, 2026-11-09). Age goes through gender × age combinations only, no age bands.
+event: synthetic-age-matched-meetup
+
+dimensions:
+  gender:
+    values: [female, male]
+
+defaults:
+  capacity: 10
+  combos:                         # 조합: 성별 하나 + 나이 범위(양 끝 포함). 회차마다 더하거나 바꾼다
+    f25_29: { gender: female, age: [25, 29] }
+    f30_34: { gender: female, age: [30, 34] }
+  targets:
+    gender:
+      female: { lo: 5, hi: 5 }    # 가정값
+      male: { lo: 5, hi: 5 }      # 가정값
+    combo:
+      f25_29: { lo: 4 }           # 가정값: 여성 5명 중 25~29세 4명 이상
+      f30_34: { lo: 1 }           # 가정값
+  ratios:
+    - { dim: gender, values: [female, male], max_diff: 1 }   # 가정값
+
+promotion:
+  lead_days: 7                # 가정값
+  trend_min_per_week: 3       # 가정값
+  promotion_cutoff_hours: 2   # 확인값 (#52)

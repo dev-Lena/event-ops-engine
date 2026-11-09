@@ -23,7 +23,7 @@ cutoff_unknown(S) :- earliest_cutoff_ts(S, T), now(N), N >= T, active(S).
 // Confirmations in the last 7 days (604800 s) before `now`. glossary "도메인 경계 규칙".
 confirmed_at(R, T) :- latest_ts(R, T), status_event(R, T, "confirmed").
 recent_seat(S, A) :- registration(R, S), attendee(R, A), confirmed_at(R, T), now(N), T + 604800 > N.
-recent_raw(S, D, V, count(A)) :- recent_seat(S, A), attendee_attr(A, D, V).
+recent_raw(S, D, V, count(A)) :- recent_seat(S, A), counted_attr(A, D, V).
 recent(S, D, V, N) :- tracked(S, D, V), recent_raw(S, D, V, N).
 recent(S, D, V, 0) :- tracked(S, D, V), !recent_raw(S, D, V, _).
 

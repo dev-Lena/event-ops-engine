@@ -23,7 +23,7 @@ YAML 시나리오 ─► Python 모델(검증) ─► 사실(fact) ─► wirelo
                                       clock.py
 ```
 
-CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이고, `--json`은 다른 시스템이 읽는 구조다(#85). JSON은 `schema`(`event-ops/report@1` · `event-ops/triage@1`)로 버전을 밝히고, 필드를 바꾸면 번호를 올린다. `Decision` · `Verdict`는 pydantic 모델을 그대로 직렬화해 문장 출력과 같은 판단 · 근거를 담는다. 형식 예시는 README "결과 JSON".
+CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이고, `--json`은 다른 시스템이 읽는 구조다(#85). JSON은 `schema`(`event-ops/report@1` · `event-ops/triage@1`)로 버전을 밝힌다. 필드를 **더하는** 것은 같은 번호로 두고(읽는 쪽은 모르는 필드를 무시한다), 필드를 바꾸거나 없애면 번호를 올린다(#32에서 정함). `Decision` · `Verdict`는 pydantic 모델을 그대로 직렬화해 문장 출력과 같은 판단 · 근거를 담는다. 형식 예시는 README "결과 JSON".
 
 계층 (공용 코드 기준 1번, [CONTRIBUTING.md](../CONTRIBUTING.md)):
 
@@ -39,7 +39,7 @@ CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이�
 Scenario
   policy: EventPolicy            # 속성 정의 · 기본 목표 · 홍보 기준
   now: datetime                  # 판단 기준 시각 (테스트 재현을 위해 입력으로 받는다)
-  sessions: [Session]            # id, date, capacity, targets 덮어쓰기(선택),
+  sessions: [Session]            # id, date, capacity, targets · combos 덮어쓰기(선택),
                                  # start_time "HH:MM"(서울 시각, 선택), lead_days · promotion_cutoff_hours 덮어쓰기(선택)
   registrations: [Registration]  # id, session_id, members | party_size, status_events
 
@@ -56,6 +56,16 @@ Member
 
 **선택 속성 (#31)**: 신청폼에서 정해진 목록 중 고르는 속성(지역, 참여 방식)은 정책 `dimensions.choices`에 이름 · 값 목록 · 단위(`per: member`(기본) | `registration`)로 선언한다. 답은 신청이나 참가자의 `attrs`에 적고, `facts.py`가 그대로 `given_attr`로 넣는다. 정규화하지 않으며 규칙은 바꾸지 않는다(계산은 이미 속성 일반형). `per: registration`이면 함께 신청한 사람 모두 같은 값이다. 답이 없으면 `unknown`이라 목표 집계에서 빠진다(성별 미상과 같음). 목록 밖 값, 선언하지 않은 속성 이름, 단위가 틀린 자리의 답은 모델이 거부한다. 그래서 `attrs`에는 자유 서술이 들어올 수 없다. 함께 고친 것: 목표 · 비율이 정책에 선언하지 않은 (속성, 값)을 가리키면 전에는 오류 없이 받아들여 계속 "부족"으로 나왔다. 이제 정책 · 시나리오를 읽을 때 거부한다. 예시: `policy/events/synthetic-hybrid.yaml`, `data/synthetic/scenarios/hybrid.yaml`.
 
+**조합 목표 (#32)**: "25~29세 여성 4명"처럼 성별 하나와 나이 범위를 묶은 목표다. 운영사 확인(2026-11-09, 사용자 설명): 신청 때 출생연도를 받고 2인 신청의 동반자 것도 받으며 필수 입력이다. 참가자 구성(성별)을 모르는 신청은 없다. 성별 × 나이로 모집 목표를 두는 모임이 많고, 광고도 성별 × 나이로 나눠 집행한다. 나이를 관리하지 않는 모임도 있고, 나이가 중요한 모임은 10년 단위가 아니라 25~29세처럼 잘게 쓰며 단위는 모임마다 다르다.
+
+- 정책 `defaults.combos`에 `<id>: { gender, age: [하한, 상한] }`으로 적고, 회차의 `combos`가 id 단위로 더하거나 바꾼다. 담당자가 신청 현황을 보고 회차마다 정하기 때문이다. 목표는 `targets.combo.<id>`. 나이 구간(`age_band`)을 쓰지 않는 이유: 구간은 모임마다 한 벌뿐이고, 어느 구간에도 들지 않는 나이는 `unknown`이 된다.
+- 나이는 나이 구간과 같이 연 나이(회차 연도 − 출생연도)다. 출생연도만 받으므로 만 나이는 정확히 알 수 없고, 출력에 "연 나이"로 밝힌다. 광고 플랫폼이 만 나이를 쓰면 경계에서 1살 어긋날 수 있다.
+- 입력 검사: 성별은 `unknown`이 아니고 `0 ≤ 하한 ≤ 상한`. 같은 성별 조합끼리 나이 범위가 겹치면 거부한다(한 사람이 두 조합에 들어 필요 인원 합계가 틀린다). 정의하지 않은 조합을 가리키는 목표, 조합에 거는 비율 목표(신청폼을 닫는 단위는 성별, 운영 자료 T0316 · T0375)도 거부한다. 회차마다 한 성별의 조합 최소 인원 합이 그 성별의 최대 인원(목표가 없으면 정원)을 넘으면 거부한다(`policy.py`).
+- 출생연도가 빠진 참가자는 데이터 오류다. 나이를 읽는 모임(나이 구간이나 조합이 있음)에서는 `needs_review(…, "missing_birth_year")`로 올리고 나이 집계에서 뺀다. 성별 집계에는 들어간다.
+- 나이가 중요한 모임은 나이를 조합으로만 적기를 권한다. 단독 나이 구간 목표와 같이 쓰면 두 목표가 따로 판단된다(막지는 않는다).
+- 현황에서 조합은 그 성별 줄 아래에 나이 순으로 나온다. 조합의 홍보 권고는 #32 둘째 PR에서 성별 권고 한 줄로 묶어 낸다. 그 전까지는 내지 않는다(따로 나오면 겹친 부족분으로 읽힌다).
+- 예시: `policy/events/synthetic-age-combos.yaml`, `data/synthetic/scenarios/combo.yaml`.
+
 개인 식별 정보 칸은 **모델에 없다**. 이름 · 연락처 · 계좌 · 자유 서술은 들어올 자리가 없으므로 실수로도 저장소 · 출력에 섞이지 않는다.
 
 ## 4. 인원 환산
@@ -70,7 +80,7 @@ Member
 | n명 단체 | n | 구성원마다 |
 | 구성 미상 (옛 신청, `members: None`) | `party_size` | 모두 `unknown` → 목표 집계에서 빠지고 `needs_review`로 올라간다 |
 
-참가자 id는 `<registration id>#<순번>`. 나이 구간은 `bands.py`가 `birth_year`와 회차 연도로 계산한다 (경계 규칙은 glossary).
+참가자 id는 `<registration id>#<순번>`. 나이 구간은 `bands.py`가 `birth_year`와 회차 연도로 계산한다 (경계 규칙은 glossary). 조합이 있는 회차는 같은 계산의 나이를 `attendee_age`로 넣는다.
 
 **자료와 일치** (#44 · #78): 운영 대화의 인원 계산 규칙(혼성 1건 = 남녀 각 1명, 같은 성별 2인 1건 = 그 성별 2명, T0468~T0473 · T0558)이 이 표와 같다. 다만 실제 시스템은 1인 회차와 2인 회차를 구분하지 못하므로, 연동할 때는 회차 유형을 입력으로 받아야 한다 (#35).
 
@@ -89,6 +99,10 @@ Member
 | `attendee_attr(attendee, dim, value)` | 참가자 속성 (**파생**: `given_attr`이거나 기준 이상 후보, 14절) | `capacity.dl` |
 | `status_event(reg, ts, status)` | 상태 이력 | 시나리오 |
 | `unknown_party(reg, party_size)` | 구성 미상 신청 | `facts.py` |
+| `attendee_age(attendee, age)` | 연 나이 (조합이 있는 회차만, #32) | `facts.py` + `bands.py` |
+| `age_missing(attendee)` | 나이를 읽는 모임인데 출생연도가 없음 (데이터 오류) | `facts.py` |
+| `combo_def(session, combo, gender, lo, hi)` | 회차의 조합: 성별 + 나이 범위 (양 끝 포함) | `policy.py` |
+| `counted_attr(attendee, dim, value)` | 집계에 쓰는 속성 (**파생**: `attendee_attr` + 조합 `combo`) | `capacity.dl` |
 | `target(session, dim, value, lo, hi)` | 속성 값 목표 | `policy.py` |
 | `ratio_target(session, dim, value_a, value_b, max_diff)` | 비율 목표 | `policy.py` |
 | `policy(session, key, n)` | 홍보 기준값 (회차 덮어쓰기 반영) | `policy.py` |
@@ -102,7 +116,11 @@ latest_ts(R, max(T))        :- status_event(R, T, _).
 current_status(R, St)       :- latest_ts(R, T), status_event(R, T, St).
 confirmed(R)                :- current_status(R, "confirmed").
 seat(S, A)                  :- registration(R, S), attendee(R, A), confirmed(R).
-filled_raw(S, D, V, count(A)) :- seat(S, A), attendee_attr(A, D, V).
+combo_hit(A, C)             :- combo_def(S, C, G, Lo, Hi), attendee_session(A, S),
+                               attendee_attr(A, "gender", G), attendee_age(A, Age), Age >= Lo, Age <= Hi.
+counted_attr(A, D, V)       :- attendee_attr(A, D, V).
+counted_attr(A, "combo", C) :- combo_hit(A, C).
+filled_raw(S, D, V, count(A)) :- seat(S, A), counted_attr(A, D, V).
 filled(S, D, V, F)          :- tracked(S, D, V), filled_raw(S, D, V, F).
 filled(S, D, V, 0)          :- tracked(S, D, V), !filled_raw(S, D, V, _).
 remaining(S, D, V, Hi - F - P) :- target(S, D, V, _, Hi), filled(S, D, V, F), pending(S, D, V, P).
@@ -115,6 +133,7 @@ imbalance(S, D, B, Fa - Fb) :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa
 - **취소 = 자리 반환.** 두 가지 표현을 모두 지원한다: (a) `status_event`에 `cancelled`가 가장 최근으로 들어오면 `confirmed(R)`이 사라진다. (b) 신청 사실을 `remove`하면(철회) 같은 결과가 증분으로 나온다. 테스트는 둘 다 확인한다.
 - `pending_payment`는 `filled`에 넣지 않고 `pending(S, D, V, N)`으로 따로 낸다.
 - `unknown` 값은 `tracked`가 아니므로 목표 집계에서 빠지고, `needs_review(S, R, reason)`로 운영자에게 올라간다. 단, 사람 수이므로 `session_filled`에는 들어간다.
+- 조합(#32)은 `combo`라는 속성 값처럼 센다. 확정 · 입금 대기 · 최근 추세 집계가 모두 `counted_attr`를 쓰므로 목표 · 부족 · 목표 충족 계산이 다른 속성과 같다. 같은 성별의 나이 범위는 겹치지 않으므로(3절) 한 사람은 성별마다 조합 하나에만 든다.
 
 ## 7. 홍보 판단 (③, `rules/promotion.dl`)
 
@@ -369,3 +388,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-07 | 11절 조회 캐시(#83)와 다시 잰 값 |
 | 2026-11-07 | 2절 결과 JSON 출력 `--json` (`event-ops/report@1` · `event-ops/triage@1`, #85) |
 | 2026-11-08 | 3절 선택 속성 `dimensions.choices` · `attrs`, 선언하지 않은 목표 거부 (#31) |
+| 2026-11-09 | 3 · 4 · 5 · 6절 조합 목표(성별 + 나이 범위)와 운영사 확인 사실, 출생연도 없음 확인 요청, 2절 JSON 번호 규칙(필드 추가는 같은 번호) (#32) |

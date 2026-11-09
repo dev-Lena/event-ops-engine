@@ -7,7 +7,7 @@ from collections import defaultdict
 from .decision import Decision, DecisionKind
 from .engine import Engine, contributors_by_value, unique
 from .facts import evidence_id, scenario_facts
-from .model import Scenario
+from .model import DIM_COMBO, Scenario
 
 REASON_MESSAGES = {
     "lead_time": "회차 임박: {value} {need}명 부족, 홍보가 필요합니다.",
@@ -75,6 +75,10 @@ def _decisions(
 ) -> list[Decision]:
     grouped: dict[tuple[str, str], dict[str, int]] = defaultdict(dict)
     for row in engine.rows(relation, session_id):
+        if row[1] == DIM_COMBO:
+            # Combination recommendations come with #32's second PR, which nests them under
+            # the gender line; until then they would read as a second, overlapping shortfall.
+            continue
         by_reason = grouped[(str(row[1]), str(row[2]))]
         reason, need = str(row[4]), int(row[3])
         by_reason[reason] = max(need, by_reason.get(reason, need))

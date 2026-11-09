@@ -198,7 +198,66 @@ class ChoiceDimension(StrictModel):
 DIM_GENDER = "gender"
 DIM_AGE_BAND = "age_band"
 DIM_JOB_GROUP = "job_group"
-BUILTIN_DIMENSIONS = (DIM_GENDER, DIM_AGE_BAND, DIM_JOB_GROUP)
+DIM_COMBO = "combo"
+"""Combination targets (#32): one gender plus an age range, counted as this dimension."""
+BUILTIN_DIMENSIONS = (DIM_GENDER, DIM_AGE_BAND, DIM_JOB_GROUP, DIM_COMBO)
+
+
+class Combo(StrictModel):
+    """One gender plus an inclusive age range (#32), e.g. women aged 25-29.
+
+    Age is year-based like the age bands (session year - birth year): only the birth year is
+    collected, so the exact age is unknown. The range sits on the combination itself because
+    operators pick finer, per-session ranges than an event's one set of bands.
+    """
+
+    gender: Gender
+    age: tuple[int, int]
+
+    @model_validator(mode="after")
+    def _known_gender_and_ordered_ages(self) -> Self:
+        if self.gender == Gender.UNKNOWN:
+            raise ValueError(f"combination gender must not be {UNKNOWN!r}")
+        low, high = self.age
+        if low < 0 or high < low:
+            raise ValueError(f"combination age range {low}~{high} must be 0 <= low <= high")
+        return self
+
+    def overlaps(self, other: Combo) -> bool:
+        return (
+            self.gender == other.gender
+            and self.age[0] <= other.age[1]
+            and other.age[0] <= self.age[1]
+        )
+
+    @property
+    def label(self) -> str:
+        return f"{self.gender.value} {self.age[0]}~{self.age[1]}세(연 나이)"
+
+
+Combos = dict[str, Combo]
+"""Combination id -> definition. Ids name targets as `targets.combo.<id>`."""
+
+
+def effective_combos(defaults: Combos, override: Combos | None) -> Combos:
+    """A session's combinations: the event defaults plus the session's own, by id."""
+    return {**defaults, **(override or {})}
+
+
+def check_combos(combos: Combos, where: str) -> None:
+    """Reject ids that can't be told apart from "unknown" and age ranges that overlap within a
+    gender: overlapping ranges would count one person twice when shortfalls are added up."""
+    bad = sorted(name for name in combos if not name or name == UNKNOWN)
+    if bad:
+        raise ValueError(f"{where}: combination ids must be non-empty and not {UNKNOWN!r}")
+    items = sorted(combos.items())
+    for index, (name, combo) in enumerate(items):
+        for other_name, other in items[index + 1 :]:
+            if combo.overlaps(other):
+                raise ValueError(
+                    f"{where}: combinations {name} and {other_name} overlap "
+                    f"({combo.label}, {other.label})"
+                )
 
 
 class Dimensions(StrictModel):
@@ -226,9 +285,21 @@ class Dimensions(StrictModel):
             pairs += [(name, value) for value in choice.values]
         return tuple(pairs)
 
-    def check_targets(self, targets: Targets, ratios: tuple[RatioTarget, ...], where: str) -> None:
-        """Reject targets or ratios on an undeclared dim or value: they could never be met."""
-        declared = set(self.value_pairs())
+    def check_targets(
+        self,
+        targets: Targets,
+        ratios: tuple[RatioTarget, ...],
+        where: str,
+        combos: Combos | None = None,
+    ) -> None:
+        """Reject targets or ratios on an undeclared dim or value: they could never be met.
+
+        A combination is declared by `combos`. Ratios can't name combinations: the operator
+        closes the sign-up form per gender (ops data T0316 · T0375), not per age range.
+        """
+        if any(ratio.dim == DIM_COMBO for ratio in ratios):
+            raise ValueError(f"{where}: ratio targets can't name combinations")
+        declared = set(self.value_pairs()) | {(DIM_COMBO, name) for name in combos or {}}
         named = [(dim, value) for dim, by_value in targets.items() for value in by_value]
         named += [(ratio.dim, value) for ratio in ratios for value in ratio.values]
         unknown = sorted({pair for pair in named if pair not in declared})
@@ -263,6 +334,7 @@ class SessionDefaults(StrictModel):
     capacity: int = Field(ge=1)
     targets: Targets = Field(default_factory=dict)
     ratios: tuple[RatioTarget, ...] = ()
+    combos: Combos = Field(default_factory=dict)
 
 
 class PromotionPolicy(StrictModel):
@@ -310,7 +382,11 @@ class EventPolicy(StrictModel):
 
     @model_validator(mode="after")
     def _targets_declared(self) -> Self:
-        self.dimensions.check_targets(self.defaults.targets, self.defaults.ratios, "defaults")
+        defaults = self.defaults
+        check_combos(defaults.combos, "defaults")
+        self.dimensions.check_targets(
+            defaults.targets, defaults.ratios, "defaults", defaults.combos
+        )
         return self
 
 
@@ -320,6 +396,9 @@ class Session(StrictModel):
     capacity: int | None = Field(default=None, ge=1)
     targets: Targets | None = None
     ratios: tuple[RatioTarget, ...] | None = None
+    combos: Combos | None = None
+    """Added to (or, by id, replacing) the event's combinations: operators pick age ranges per
+    session once they see who signs up (#32)."""
     payment_deadline_hours: int | None = Field(default=None, ge=1)
     start_time: dt.time | None = None
     """Asia/Seoul wall-clock start. Without it promotion is judged by date only (design.md 7)."""
@@ -368,9 +447,10 @@ class Scenario(StrictModel):
                 )
         dimensions = self.policy.dimensions
         for session in self.sessions:
-            dimensions.check_targets(
-                session.targets or {}, session.ratios or (), f"session {session.id}"
-            )
+            where = f"session {session.id}"
+            combos = effective_combos(self.policy.defaults.combos, session.combos)
+            check_combos(combos, where)
+            dimensions.check_targets(session.targets or {}, session.ratios or (), where, combos)
         for registration in self.registrations:
             answers = [("registration", registration.attrs)]
             answers += [("member", member.attrs) for member in registration.members or ()]

@@ -27,7 +27,7 @@ from .model import (
     Session,
     TriageScenario,
 )
-from .policy import resolve_promotion, resolve_ratios, resolve_targets
+from .policy import resolve_combos, resolve_promotion, resolve_ratios, resolve_targets
 
 Row = tuple[Any, ...]
 
@@ -81,6 +81,9 @@ def session_facts(scenario: Scenario, session: Session) -> Facts:
         facts.add("target", session.id, dim, value, lo, hi)
     for dim, value_a, value_b, max_diff in resolve_ratios(policy, session):
         facts.add("ratio_target", session.id, dim, value_a, value_b, max_diff)
+    for name, combo in resolve_combos(policy, session).items():
+        low, high = combo.age
+        facts.add("combo_def", session.id, name, combo.gender.value, low, high)
     promotion = resolve_promotion(policy, session)
     for key, n in promotion.items():
         facts.add("policy", session.id, key, n)
@@ -135,6 +138,25 @@ def member_attributes(member: Member | None, scenario: Scenario, session: Sessio
     return pairs
 
 
+def age_facts(attendee: str, birth_year: int | None, scenario: Scenario, session: Session) -> Facts:
+    """`attendee_age` for combinations (#32), or `age_missing` when the event reads ages.
+
+    Birth year is required on the real sign-up form, for companions too, so a missing one
+    is a data error the operator should see. Unknown-composition attendees are left out:
+    `unknown_party` already reports them.
+    """
+    facts = Facts()
+    combos = resolve_combos(scenario.policy, session)
+    if birth_year is None:
+        if scenario.policy.dimensions.age_band is not None or combos:
+            facts.add("age_missing", attendee)
+        return facts
+    age = bands.age_in_year(birth_year, session.date.year)
+    if combos and age >= 0:
+        facts.add("attendee_age", attendee, age)
+    return facts
+
+
 def registration_facts(scenario: Scenario, registration: Registration) -> Facts:
     facts = Facts()
     session = scenario.session(registration.session)
@@ -153,6 +175,8 @@ def registration_facts(scenario: Scenario, registration: Registration) -> Facts:
             member, registration, scenario
         ):
             facts.add("given_attr", attendee, dim, value)
+        if member is not None:
+            facts.extend(age_facts(attendee, member.birth_year, scenario, session))
         if member is not None and member.job_group is not None:
             candidate = member.job_group
             facts.add(
