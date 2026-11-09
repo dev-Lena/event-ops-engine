@@ -244,12 +244,16 @@ def effective_combos(defaults: Combos, override: Combos | None) -> Combos:
     return {**defaults, **(override or {})}
 
 
-def check_combos(combos: Combos, where: str) -> None:
-    """Reject ids that can't be told apart from "unknown" and age ranges that overlap within a
-    gender: overlapping ranges would count one person twice when shortfalls are added up."""
+def check_combos(combos: Combos, genders: tuple[Gender, ...], where: str) -> None:
+    """Reject ids that can't be told apart from "unknown", genders the policy doesn't track,
+    and age ranges that overlap within a gender: overlapping ranges would count one person
+    twice when shortfalls are added up."""
     bad = sorted(name for name in combos if not name or name == UNKNOWN)
     if bad:
         raise ValueError(f"{where}: combination ids must be non-empty and not {UNKNOWN!r}")
+    untracked = sorted(name for name, combo in combos.items() if combo.gender not in genders)
+    if untracked:
+        raise ValueError(f"{where}: combinations {untracked} use a gender the policy lacks")
     items = sorted(combos.items())
     for index, (name, combo) in enumerate(items):
         for other_name, other in items[index + 1 :]:
@@ -383,7 +387,7 @@ class EventPolicy(StrictModel):
     @model_validator(mode="after")
     def _targets_declared(self) -> Self:
         defaults = self.defaults
-        check_combos(defaults.combos, "defaults")
+        check_combos(defaults.combos, self.dimensions.gender.values, "defaults")
         self.dimensions.check_targets(
             defaults.targets, defaults.ratios, "defaults", defaults.combos
         )
@@ -449,7 +453,7 @@ class Scenario(StrictModel):
         for session in self.sessions:
             where = f"session {session.id}"
             combos = effective_combos(self.policy.defaults.combos, session.combos)
-            check_combos(combos, where)
+            check_combos(combos, dimensions.gender.values, where)
             dimensions.check_targets(session.targets or {}, session.ratios or (), where, combos)
         for registration in self.registrations:
             answers = [("registration", registration.attrs)]

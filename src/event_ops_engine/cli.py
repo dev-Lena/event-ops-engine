@@ -59,10 +59,11 @@ def _counts(value: ValueStatus) -> str:
     return f"확정 {value.filled} · 대기 {value.pending} · 목표 {target}{extra}"
 
 
-def format_status(status: SessionStatus, combos: Combos | None = None) -> list[str]:
+def format_status(status: SessionStatus, combos: Combos) -> list[str]:
     """Session status lines. Combinations (#32) sit under their gender's line, youngest first;
-    a gender without a line of its own gets its combinations at the top level."""
-    combos = combos or {}
+    a gender without a line of its own gets its combinations at the top level. `combos` is
+    the session's (`policy.resolve_combos`): every `combo` value in `status` is defined there.
+    """
     lines = [
         f"[회차 {status.session}] 정원 {status.capacity} · 확정 {status.filled} · "
         f"입금 대기 {status.pending} · 남은 자리 {status.remaining_seats}"

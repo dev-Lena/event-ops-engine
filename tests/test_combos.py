@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from event_ops_engine.capacity import capacity_status
 from event_ops_engine.cli import report, report_json, run_report
 from event_ops_engine.facts import scenario_facts
-from event_ops_engine.model import Combo, EventPolicy, Scenario
+from event_ops_engine.model import Combo, EventPolicy, Registration, Scenario
 from event_ops_engine.policy import resolve_targets
 from event_ops_engine.promotion import promotion_decisions
 from tests.conftest import SCENARIOS, scenario
@@ -68,6 +68,38 @@ def test_ratios_cannot_name_combinations_because_forms_close_by_gender() -> None
     ratio = {"dim": "combo", "values": ["f25_29", "f30_34"]}
     with pytest.raises(ValidationError, match="can't name combinations"):
         policy(combos=combos, ratios=[ratio])
+
+
+def test_a_combination_must_use_a_gender_the_policy_tracks() -> None:
+    data = {**BASE, "dimensions": {"gender": {"values": ["female"]}}}
+    data["defaults"] = {
+        **BASE["defaults"],
+        "combos": {"m25_29": {"gender": "male", "age": [25, 29]}},
+    }
+    data["defaults"]["targets"] = {}
+    with pytest.raises(ValidationError, match="gender the policy lacks"):
+        EventPolicy.model_validate(data)
+
+
+def test_a_birth_year_after_the_session_year_is_flagged_like_a_missing_one() -> None:
+    data = with_session().model_copy(
+        update={
+            "registrations": (
+                Registration.model_validate(
+                    {
+                        "id": "r",
+                        "session": "s",
+                        "members": [{"gender": "female", "birth_year": 2027}],
+                        "status_events": [{"at": NOW, "status": "confirmed"}],
+                    }
+                ),
+            )
+        }
+    )
+    facts = scenario_facts(data).rows
+    assert facts["age_missing"] == [("r#1",)] and "attendee_age" not in facts
+    (review,) = capacity_status(data)[0].needs_review
+    assert review.reasons == ("missing_birth_year",)
 
 
 def test_the_same_age_range_for_both_genders_does_not_overlap() -> None:
