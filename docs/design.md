@@ -23,7 +23,7 @@ YAML 시나리오 ─► Python 모델(검증) ─► 사실(fact) ─► wirelo
                                       clock.py
 ```
 
-CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이고, `--json`은 다른 시스템이 읽는 구조다(#85). JSON은 `schema`(`event-ops/report@1` · `event-ops/triage@1`)로 버전을 밝힌다. 필드를 **더하는** 것은 같은 번호로 두고(읽는 쪽은 모르는 필드를 무시한다), 필드를 바꾸거나 없애면 번호를 올린다(#32에서 정함). `Decision` · `Verdict`는 pydantic 모델을 그대로 직렬화해 문장 출력과 같은 판단 · 근거를 담는다. 형식 예시는 README "결과 JSON".
+CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이고, `--json`은 다른 시스템이 읽는 구조다(#85). JSON은 `schema`(`event-ops/report@1` · `event-ops/triage@1`)로 버전을 밝힌다. 성별 결정에 묶인 조합 몫은 `Decision.parts`에 담는다(#32). 필드를 **더하는** 것은 같은 번호로 두고(읽는 쪽은 모르는 필드를 무시한다), 필드를 바꾸거나 없애면 번호를 올린다(#32에서 정함). `Decision` · `Verdict`는 pydantic 모델을 그대로 직렬화해 문장 출력과 같은 판단 · 근거를 담는다. 형식 예시는 README "결과 JSON".
 
 계층 (공용 코드 기준 1번, [CONTRIBUTING.md](../CONTRIBUTING.md)):
 
@@ -64,7 +64,7 @@ Member
 - 입력 검사: 성별은 `unknown`이 아니고 `0 ≤ 하한 ≤ 상한`. 같은 성별 조합끼리 나이 범위가 겹치면 거부한다(한 사람이 두 조합에 들어 필요 인원 합계가 틀린다). 정의하지 않은 조합을 가리키는 목표, 조합에 거는 비율 목표(신청폼을 닫는 단위는 성별, 운영 자료 T0316 · T0375)도 거부한다. 회차마다 한 성별의 조합 최소 인원 합이 그 성별의 최대 인원(목표가 없으면 정원)을 넘으면 거부한다(`policy.py`).
 - 출생연도가 빠진 참가자는 데이터 오류다. 나이를 읽는 모임(나이 구간이나 조합이 있음)에서는 `needs_review(…, "missing_birth_year")`로 올리고 나이 집계에서 뺀다. 성별 집계에는 들어간다.
 - 나이가 중요한 모임은 나이를 조합으로만 적기를 권한다. 단독 나이 구간 목표와 같이 쓰면 두 목표가 따로 판단된다(막지는 않는다).
-- 현황에서 조합은 그 성별 줄 아래에 나이 순으로 나온다. 조합의 홍보 권고는 #32 둘째 PR에서 성별 권고 한 줄로 묶어 낸다. 그 전까지는 내지 않는다(따로 나오면 겹친 부족분으로 읽힌다).
+- 현황에서 조합은 그 성별 줄 아래에 나이 순으로 나온다. 홍보 권고도 성별 한 줄에 묶어 낸다(7절). 따로 내면 "여성 2명 부족" + "25~29세 여성 1명 부족"이 3명으로 읽히기 때문이다.
 - 예시: `policy/events/synthetic-age-combos.yaml`, `data/synthetic/scenarios/combo.yaml`.
 
 개인 식별 정보 칸은 **모델에 없다**. 이름 · 연락처 · 계좌 · 자유 서술은 들어올 자리가 없으므로 실수로도 저장소 · 출력에 섞이지 않는다.
@@ -152,7 +152,14 @@ promote(S, D, V, G, "slow_trend")    :- gap(S, D, V, G), active(S), !session_ful
 promote(S, D, V, Diff, "imbalance")  :- imbalance(S, D, V, Diff), active(S), !session_full(S).
 blocked(S, D, V, G, "session_full")  :- gap(S, D, V, G), active(S), session_full(S).
 cap(S, D, A, Fb + Max, B, Fb, Max) :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb), Fa - Fb > Max, active(S), !session_full(S).   // 대칭 규칙도 있음
-capped(S, D, V)             :- cap(S, D, V, _, _, _, _).   // promote 세 규칙은 !capped, !past_cutoff
+capped(S, D, V)             :- cap(S, D, V, _, _, _, _).   // promote 세 규칙은 !capped, !held, !past_cutoff
+combo_gap_sum(S, G, sum(N)) :- gap(S, "combo", C, N), combo_gender(S, C, G).        // 조합 (#32)
+gender_room(S, G, R)        :- remaining(S, "gender", G, R) | 성별 목표가 없으면 remaining_seats(S, R)
+combo_conflict(S, G)        :- combo_gap_sum(S, G, N), gender_room(S, G, R), N > R.
+held(S, "combo", C)         :- combo_gender(S, C, G), cap(S, "gender", G, …).        // 조용히
+held(S, "combo", C)         :- combo_gender(S, C, G), combo_conflict(S, G).          // 보류로
+blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(S, C, G),
+                                            combo_conflict(S, G), active(S), !session_full(S).
 ```
 
 | 이유 | 뜻 | 권고 문구(사용자) |
@@ -161,6 +168,7 @@ capped(S, D, V)             :- cap(S, D, V, _, _, _, _).   // promote 세 규칙
 | `slow_trend` | 최근 1주 확정 수가 `trend_min_per_week`보다 적음 | "신청 추세 느림, {value} {n}명 홍보 권장" |
 | `imbalance` | 비율 목표의 허용 차를 넘음 | "{value} 쪽 {n}명 부족(비율)" |
 | `blocked: session_full` | 부족분은 있으나 정원이 찼음 (지난 회차는 제외) | "정원 마감 — 목표와 정원이 충돌, 운영자 확인" |
+| `blocked: gender_room` | 한 성별의 조합 부족 합이 그 성별의 남은 자리보다 큼 (#32) | "목표 충돌: {성별} 조합 부족 합 {n}명이 남은 자리보다 많음, 운영자 확인" |
 
 **기준값** (#52, 2026-11-06 결정. 바꿀 때는 `policy/events/*.yaml`만 바꾼다. 결정 기록: [decisions/2026-11-07-promotion-thresholds.md](decisions/2026-11-07-promotion-thresholds.md)):
 
@@ -173,7 +181,15 @@ capped(S, D, V)             :- cap(S, D, V, _, _, _, _).   // promote 세 규칙
 
 `imbalance` 홍보 권고는 기간 제한 없이 낸다(운영사는 임박했을 때 광고하지만, 엔진은 더 일찍 알리는 쪽을 택함).
 한 (회차, 속성, 값)에 이유가 여럿이면 `Decision` 하나에 이유 목록으로 모은다. `need`와 문구는 우선순위(`lead_time` > `slow_trend` > `imbalance`)가 가장 높은 이유의 값을 쓴다 — 부족분(gap)과 비율 차(diff)는 다른 수이므로 섞지 않는다.
-값 하나의 `lo`·`hi`가 정원보다 크면 입력 오류로 거부한다(`policy.py`). 여러 값의 `lo` 합이 정원을 넘는 것은 허용하며, 그 충돌이 `blocked`로 드러난다. 같은 값에 `promote`와 `blocked`가 동시에 나올 수는 없다 (`!session_full` / `session_full`로 갈린다).
+
+**조합 권고 (#32)**: 규칙은 조합도 다른 값처럼 `promote` · `blocked`를 내고, `promotion.py`가 그 행을 조합의 성별 결정 하나(`dim = gender`)로 묶는다. 조합 몫은 `Decision.parts`(조합 id · 표시 이름 · 부족 · 이유)에 담는다.
+- `need` = max(성별 자신의 부족분, 그 성별 조합 부족의 합). 조합에 든 사람은 성별에도 세이므로 둘을 더하지 않는다. 비율 차(`imbalance`)는 부족분이 아니라서 이 계산에 넣지 않는다.
+- 묶는 조합은 규칙이 권고(또는 보류)한 것만이다. 부족분이 있어도 임박 · 추세 조건에 걸리지 않은 조합은 성별과 마찬가지로 아직 권고하지 않는다.
+- 문구는 광고 단위로 쓴다: "회차 임박: female 3명 부족, 홍보가 필요합니다. 광고 대상: female 25~29세(연 나이) 3명 이상." 성별 자신은 부족하지 않고 조합만 부족하면 조합 이름을 바로 쓴다("female 25~29세(연 나이) 1명 부족").
+- 성별이 잠정 마감 중이면 그 성별의 조합 권고를 내지 않는다(잠정 마감 권고가 이유를 말한다). 홍보 중단(`past_cutoff`)과 정원 마감(`session_full`)은 다른 값과 같다.
+- 조합 부족의 합이 그 성별이 더 받을 수 있는 자리(성별 목표의 남은 자리, 목표가 없으면 회차의 남은 자리)보다 크면 홍보로 함께 채울 수 없다. 그 성별의 조합은 권고 대신 `blocked(…, "gender_room")` 보류가 되고 운영자가 목표를 정한다(`session_full`과 같은 성격). 범위 밖 나이의 사람이 자리를 차지하면 생긴다. 같으면 충돌이 아니다.
+- 이때 성별 자신의 부족분 권고는 그대로 낸다(조합 몫 없이). 그래서 조합이 묶인 성별에는 권고와 보류가 함께 나올 수 있다.
+값 하나의 `lo`·`hi`가 정원보다 크면 입력 오류로 거부한다(`policy.py`). 여러 값의 `lo` 합이 정원을 넘는 것은 허용하며, 그 충돌이 `blocked`로 드러난다. 같은 값에 `promote`와 `blocked`가 동시에 나올 수는 없다 (`!session_full` / `session_full`로 갈린다). 예외는 위의 조합 충돌 보류다(성별 결정과 조합 보류가 따로 나온다).
 
 **홍보 중단 (#52)**: 회차에 시작 시각(`start_time`, 서울 시각 `"HH:MM"`)이 있으면 시작 `promotion_cutoff_hours`시간 전부터 홍보 권고(`promote`의 세 이유)를 내지 않는다. 정확히 그 시각부터 멈춘다(경계 포함). 마감 시각은 `clock.py`가 계산해 `promotion_cutoff_ts`로 넣고, 규칙은 `now`와 비교만 한다(9절의 본문 산술 제약). 정원 충돌 보류(`blocked`)와 잠정 마감(`cap`)은 홍보가 아니므로 지금처럼 날짜 단위 `active`를 따른다. `event-ops report`는 마감이 지난 회차에 "홍보 중단" 줄을 보여, 부족분이 남았는데 "권고 없음"으로 읽히지 않게 한다. 시작 시각이 없으면 예전처럼 날짜 단위(당일까지)로 판단한다. 다만 마감이 이미 지났을 수 있는 때(`earliest_cutoff_ts` = 회차 날 자정 − `promotion_cutoff_hours` 이후)에는 홍보 권고 문구에 "시작 시각이 없어 홍보 중단이 지났는지 확인하지 못함"을 붙이고 근거에 `earliest_cutoff_ts/<회차>` · `now` · `policy/<회차>/promotion_cutoff_hours`를 넣는다. 시작 시각은 YAML에서 따옴표로 감싼다. 따옴표가 없으면 YAML 1.1이 `19:30`을 정수 1170으로 읽어 00:19:30이 되므로 모델이 거부한다.
 
@@ -393,3 +409,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-08 | 3절 선택 속성 `dimensions.choices` · `attrs`, 선언하지 않은 목표 거부 (#31) |
 | 2026-11-08 | 3 · 4절 2인 신청 유형 `pair` (#33) |
 | 2026-11-09 | 3 · 4 · 5 · 6절 조합 목표(성별 + 나이 범위)와 운영사 확인 사실, 출생연도 없음 확인 요청, 2절 JSON 번호 규칙(필드 추가는 같은 번호) (#32) |
+| 2026-11-09 | 7절 조합 권고: 성별 결정에 묶기(`Decision.parts`), 필요 인원, 잠정 마감이면 조용히, 남은 자리보다 크면 `gender_room` 보류 (#32) |

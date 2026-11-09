@@ -258,7 +258,12 @@ class Combo(StrictModel):
 
     @property
     def label(self) -> str:
-        return f"{self.gender.value} {self.age[0]}~{self.age[1]}세(연 나이)"
+        return combo_label(self.gender.value, *self.age)
+
+
+def combo_label(gender: str, low: int, high: int) -> str:
+    """How a combination reads in the report: codes like every other value, year-based age."""
+    return f"{gender} {low}~{high}세(연 나이)"
 
 
 Combos = dict[str, Combo]

@@ -161,7 +161,7 @@ def test_combination_minimums_must_fit_under_the_gender(defaults: Any, message: 
 
 def test_rules_count_gender_and_age_with_inclusive_bounds() -> None:
     data = scenario("combo")
-    s1, s2 = capacity_status(data)
+    s1, s2, _ = capacity_status(data)
     counts = {(v.dim, v.value): (v.filled, v.pending, v.gap) for v in s1.values}
     # 25 (r2) and 28 (r1) are in 25~29, 26 (r4) is waiting for payment, 30 (r3) is not.
     assert counts[("combo", "f25_29")] == (2, 1, 1)
@@ -195,9 +195,19 @@ def test_events_without_ages_get_no_age_facts() -> None:
     assert "attendee_age" not in facts and "age_missing" not in facts and "combo_def" not in facts
 
 
-def test_no_combination_recommendations_until_they_nest_under_the_gender() -> None:
+def test_combo_scenario_holds_s1_and_keeps_capped_s2_quiet() -> None:
     decisions = promotion_decisions(scenario("combo"))
-    assert decisions and all(d.dim != "combo" for d in decisions)
+    # s1: female full (4 confirmed + 1 waiting of 5) while 25~29 is 1 short -> target conflict.
+    (held,) = [d for d in decisions if d.parts and d.session == "s1"]
+    assert (held.session, held.kind, held.reasons, held.need) == ("s1", "hold", ("gender_room",), 1)
+    # s2: male is capped by the ratio, so its 28~33 shortfall is not promoted.
+    assert all(not d.parts for d in decisions if d.session == "s2")
+    # s3: women 26 and 31 of 5 wanted, 25~29 at least 4 -> one line, 3 people, 3 of them 25~29.
+    (female,) = [d for d in decisions if d.session == "s3" and d.value == "female"]
+    assert female.message == (
+        "회차 임박: female 3명 부족, 홍보가 필요합니다. "
+        "광고 대상: female 25~29세(연 나이) 3명 이상."
+    )
 
 
 def test_report_nests_combinations_under_their_gender() -> None:

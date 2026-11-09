@@ -28,9 +28,9 @@ recent(S, D, V, N) :- tracked(S, D, V), recent_raw(S, D, V, N).
 recent(S, D, V, 0) :- tracked(S, D, V), !recent_raw(S, D, V, _).
 
 // A value under a temporary cap (below) is never promoted: it must wait for its partner.
-promote(S, D, V, G, "lead_time") :- gap(S, D, V, G), active(S), !session_full(S), !capped(S, D, V), !past_cutoff(S), days_left(S, Days), policy(S, "lead_days", L), Days <= L.
-promote(S, D, V, G, "slow_trend") :- gap(S, D, V, G), active(S), !session_full(S), !capped(S, D, V), !past_cutoff(S), recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
-promote(S, D, V, Diff, "imbalance") :- imbalance(S, D, V, Diff), active(S), !session_full(S), !capped(S, D, V), !past_cutoff(S).
+promote(S, D, V, G, "lead_time") :- gap(S, D, V, G), active(S), !session_full(S), !capped(S, D, V), !held(S, D, V), !past_cutoff(S), days_left(S, Days), policy(S, "lead_days", L), Days <= L.
+promote(S, D, V, G, "slow_trend") :- gap(S, D, V, G), active(S), !session_full(S), !capped(S, D, V), !held(S, D, V), !past_cutoff(S), recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
+promote(S, D, V, Diff, "imbalance") :- imbalance(S, D, V, Diff), active(S), !session_full(S), !capped(S, D, V), !held(S, D, V), !past_cutoff(S).
 
 blocked(S, D, V, G, "session_full") :- gap(S, D, V, G), active(S), session_full(S).
 blocked(S, D, V, Diff, "session_full") :- imbalance(S, D, V, Diff), active(S), session_full(S).
@@ -46,3 +46,24 @@ cap(S, D, B, Fa + Max, A, Fa, Max) :-
     ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb),
     Fb - Fa > Max, active(S), !session_full(S).
 capped(S, D, V) :- cap(S, D, V, _, _, _, _).
+
+// --- combinations (#32): when their gender can't take the people they need -------------
+// A gender's combinations go quiet while the gender is capped (the cap explains why), and
+// are held when their shortfalls add up to more than the gender's room: the room left
+// under the gender's target, or the session's when the gender has none. Promotion can't
+// meet those targets together, so the operator decides (like `session_full`).
+.decl combo_gender(session: symbol, combo: symbol, gender: symbol)
+.decl combo_gap_sum(session: symbol, gender: symbol, n: int64)
+.decl gender_room(session: symbol, gender: symbol, n: int64)
+.decl combo_conflict(session: symbol, gender: symbol)
+.decl held(session: symbol, dim: symbol, value: symbol)
+
+combo_gender(S, C, G) :- combo_def(S, C, G, _, _).
+combo_gap_sum(S, G, sum(N)) :- gap(S, "combo", C, N), combo_gender(S, C, G).
+gender_room(S, G, R) :- combo_gap_sum(S, G, _), remaining(S, "gender", G, R).
+gender_room(S, G, R) :- combo_gap_sum(S, G, _), !target(S, "gender", G, _, _), remaining_seats(S, R).
+combo_conflict(S, G) :- combo_gap_sum(S, G, N), gender_room(S, G, R), N > R.
+held(S, "combo", C) :- combo_gender(S, C, G), cap(S, "gender", G, _, _, _, _).
+held(S, "combo", C) :- combo_gender(S, C, G), combo_conflict(S, G).
+blocked(S, "combo", C, N, "gender_room") :-
+    gap(S, "combo", C, N), combo_gender(S, C, G), combo_conflict(S, G), active(S), !session_full(S).
