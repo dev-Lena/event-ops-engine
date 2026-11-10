@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from .capacity import AgeGroup, SessionStatus, ValueStatus, capacity_status
+from .capacity import AgeGroup, RangeSuggestion, SessionStatus, ValueStatus, capacity_status
 from .decision import Decision, Verdict, VerdictKind
 from .engine import Engine
 from .facts import scenario_facts
@@ -74,6 +74,17 @@ def _ages(group: AgeGroup) -> str:
     return text
 
 
+def _suggestion(suggestion: RangeSuggestion) -> str:
+    """'나이 범위 제안(…): 21~33세 — 확정·대기 4명 중 3명. …'; ties are joined with 또는."""
+    ranges = " 또는 ".join(f"{low}~{high}세" for low, high in suggestion.ranges)
+    each = "씩" if len(suggestion.ranges) > 1 else ""
+    return (
+        f"나이 범위 제안(지금 확정·대기 기준, 폭 {suggestion.width}살, 연 나이): {ranges} — "
+        f"{suggestion.seated}명 중 {suggestion.covered}명{each} 포함. "
+        "고른 범위를 조합으로 적으면 광고 대상이 됩니다."
+    )
+
+
 def format_status(status: SessionStatus, combos: Combos) -> list[str]:
     """Session status lines. Under each gender's line come its ages per pool when the event
     keeps a similar age (#91), then its combinations (#32), youngest first. A gender without
@@ -93,14 +104,19 @@ def format_status(status: SessionStatus, combos: Combos) -> list[str]:
     for group in status.ages:
         ages.setdefault(group.gender, []).append(group)
 
+    suggestions = {s.gender: s for s in status.range_suggestions}
+
     def children(gender: str, under_gender: bool) -> list[str]:
-        """Age lines then combination lines of one gender, each emitted once. Under the
-        gender's own line they are indented; otherwise they sit at the top level and name it."""
+        """Age lines, a range suggestion, then combination lines of one gender, each emitted
+        once. Under the gender's own line they are indented; otherwise they sit at the top
+        level and name it."""
         indent, prefix, marker = ("    ", "", "└ ") if under_gender else ("  ", f"{gender} ", "")
         out = [
             f"{indent}{prefix}나이(연 나이) {AGE_POOL_LABELS[group.pool]}: {_ages(group)}"
             for group in ages.pop(gender, [])
         ]
+        if gender in suggestions:
+            out.append(f"{indent}{prefix}{_suggestion(suggestions.pop(gender))}")
         out.extend(
             f"{indent}{marker}{combos[child.value].label}: {_counts(child)}"
             for child in sorted(nested.pop(gender, []), key=lambda v: combos[v.value].age)
@@ -113,7 +129,7 @@ def format_status(status: SessionStatus, combos: Combos) -> list[str]:
         lines.append(f"  {value.dim}={value.value}: {_counts(value)}")
         if value.dim == DIM_GENDER:
             lines.extend(children(value.value, under_gender=True))
-    for gender in sorted(set(nested) | set(ages)):
+    for gender in sorted(set(nested) | set(ages) | set(suggestions)):
         lines.extend(children(gender, under_gender=False))
     for review in status.needs_review:
         lines.append(f"  확인 요청: {review.message}")
@@ -202,6 +218,8 @@ def report_json(result: ReportResult) -> dict[str, Any]:
                 "needs_review": [d.model_dump(mode="json") for d in status.needs_review],
                 # Added field (#91), so still report@1. Ages only, never registration ids.
                 "ages": [dataclasses.asdict(group) for group in status.ages],
+                # Added field (#91 C), so still report@1. Ranges and counts, no ids.
+                "range_suggestions": [dataclasses.asdict(s) for s in status.range_suggestions],
                 "decisions": [
                     d.model_dump(mode="json")
                     for d in result.decisions
