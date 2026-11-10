@@ -108,3 +108,30 @@ needs_review(S, R, "missing_birth_year") :-
 needs_review(S, R, "unknown_value") :-
     registration(R, S), occupies(R), attendee(R, A),
     candidate_attr(A, D, V, C, _), normalize_threshold(D, Min), C >= Min, !dimension_value(D, V).
+
+// --- ages per gender for "similar age" (#91) ------------------------------------
+// Two pools: "occupying" (confirmed or waiting for payment) is who will be in the room,
+// "applied" is who the person in charge still picks from. Attendees without a birth year
+// are counted apart so a shorter list never goes unexplained. No rule here names a person.
+.decl applied(reg: symbol)
+.decl age_pool(reg: symbol, pool: symbol)
+.decl age_entry(session: symbol, gender: symbol, pool: symbol, attendee: symbol, age: int64)
+.decl age_low(session: symbol, gender: symbol, pool: symbol, age: int64)
+.decl age_high(session: symbol, gender: symbol, pool: symbol, age: int64)
+.decl age_spread(session: symbol, gender: symbol, pool: symbol, years: int64)
+.decl age_unknown(session: symbol, gender: symbol, pool: symbol, attendee: symbol)
+.decl age_unknown_count(session: symbol, gender: symbol, pool: symbol, n: int64)
+
+applied(R) :- current_status(R, "applied").
+age_pool(R, "occupying") :- occupies(R).
+age_pool(R, "applied") :- applied(R).
+age_entry(S, G, P, A, Age) :-
+    similar_age(S), registration(R, S), age_pool(R, P), attendee(R, A),
+    attendee_attr(A, "gender", G), attendee_age(A, Age).
+age_low(S, G, P, min(Age)) :- age_entry(S, G, P, _, Age).
+age_high(S, G, P, max(Age)) :- age_entry(S, G, P, _, Age).
+age_spread(S, G, P, Hi - Lo) :- age_high(S, G, P, Hi), age_low(S, G, P, Lo).
+age_unknown(S, G, P, A) :-
+    similar_age(S), registration(R, S), age_pool(R, P), attendee(R, A),
+    attendee_attr(A, "gender", G), age_missing(A).
+age_unknown_count(S, G, P, count(A)) :- age_unknown(S, G, P, A).

@@ -84,6 +84,8 @@ def session_facts(scenario: Scenario, session: Session) -> Facts:
     for name, combo in resolve_combos(policy, session).items():
         low, high = combo.age
         facts.add("combo_def", session.id, name, combo.gender.value, low, high)
+    if policy.similar_age is not None:
+        facts.add("similar_age", session.id)
     promotion = resolve_promotion(policy, session)
     for key, n in promotion.items():
         facts.add("policy", session.id, key, n)
@@ -139,9 +141,10 @@ def member_attributes(member: Member | None, scenario: Scenario, session: Sessio
 
 
 def age_facts(
-    attendee: str, birth_year: int | None, session: Session, reads_age: bool, has_combos: bool
+    attendee: str, birth_year: int | None, session: Session, reads_age: bool, keeps_age: bool
 ) -> Facts:
-    """`attendee_age` for combinations (#32), or `age_missing` when the event reads ages.
+    """`attendee_age` where the rules use the age itself (combinations #32, similar age #91),
+    or `age_missing` when the event reads ages.
 
     Birth year is required on the real sign-up form, for companions too, so a missing one,
     or one after the session's year, is a data error the operator should see.
@@ -152,7 +155,7 @@ def age_facts(
     if age is None or age < 0:
         if reads_age:
             facts.add("age_missing", attendee)
-    elif has_combos:
+    elif keeps_age:
         facts.add("attendee_age", attendee, age)
     return facts
 
@@ -168,8 +171,10 @@ def registration_facts(scenario: Scenario, registration: Registration) -> Facts:
     )
     if registration.is_unknown_party:
         facts.add("unknown_party", registration.id, registration.party_size)
-    has_combos = bool(resolve_combos(scenario.policy, session))
-    reads_age = has_combos or scenario.policy.dimensions.age_band is not None
+    keeps_age = (
+        bool(resolve_combos(scenario.policy, session)) or scenario.policy.similar_age is not None
+    )
+    reads_age = keeps_age or scenario.policy.dimensions.age_band is not None
     for index, member in enumerate(members):
         attendee = attendee_id(registration.id, index)
         facts.add("attendee", registration.id, attendee)
@@ -178,7 +183,7 @@ def registration_facts(scenario: Scenario, registration: Registration) -> Facts:
         ):
             facts.add("given_attr", attendee, dim, value)
         if member is not None:
-            facts.extend(age_facts(attendee, member.birth_year, session, reads_age, has_combos))
+            facts.extend(age_facts(attendee, member.birth_year, session, reads_age, keeps_age))
         if member is not None and member.job_group is not None:
             candidate = member.job_group
             facts.add(

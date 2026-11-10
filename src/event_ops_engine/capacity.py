@@ -25,6 +25,26 @@ class ValueStatus:
     evidence: tuple[str, ...]
 
 
+AGE_POOLS = ("occupying", "applied")
+"""Pools of `age_entry` (#91), in display order: seat holders, then sign-ups not yet picked."""
+
+
+@dataclass(frozen=True)
+class AgeGroup:
+    """One gender's ages in one pool (#91), youngest first. No registration ids on purpose:
+    the engine never singles out a person to drop (design.md 1)."""
+
+    gender: str
+    pool: str
+    ages: tuple[int, ...]
+    low: int | None
+    high: int | None
+    spread: int | None
+    """Oldest minus youngest, in calendar-year age; None when no age is known."""
+    unknown: int
+    """Attendees left out because their birth year is missing."""
+
+
 @dataclass(frozen=True)
 class SessionStatus:
     session: str
@@ -35,6 +55,8 @@ class SessionStatus:
     is_full: bool
     values: tuple[ValueStatus, ...]
     needs_review: tuple[Decision, ...]
+    ages: tuple[AgeGroup, ...] = ()
+    """Per gender and pool, only for events that keep a similar age (#91)."""
 
 
 def _single_int(engine: Engine, relation: str, *key: str) -> int:
@@ -99,6 +121,37 @@ def _review(
     )
 
 
+def age_groups(engine: Engine, session_id: str) -> tuple[AgeGroup, ...]:
+    """Ages per (gender, pool) from `age_entry`, one entry per attendee, with the rules'
+    low / high / spread and the count left out for a missing birth year."""
+    per_attendee = {
+        (str(gender), str(pool), str(attendee)): int(age)
+        for _, gender, pool, attendee, age in engine.rows("age_entry", session_id)
+    }
+    ages: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for (gender, pool, _attendee), age in per_attendee.items():
+        ages[(gender, pool)].append(age)
+
+    def by_key(relation: str) -> dict[tuple[str, str], int]:
+        return {(str(r[1]), str(r[2])): int(r[3]) for r in engine.rows(relation, session_id)}
+
+    low, high = by_key("age_low"), by_key("age_high")
+    spread, unknown = by_key("age_spread"), by_key("age_unknown_count")
+    keys = sorted(set(ages) | set(unknown), key=lambda k: (k[0], AGE_POOLS.index(k[1])))
+    return tuple(
+        AgeGroup(
+            gender=gender,
+            pool=pool,
+            ages=tuple(sorted(ages.get((gender, pool), []))),
+            low=low.get((gender, pool)),
+            high=high.get((gender, pool)),
+            spread=spread.get((gender, pool)),
+            unknown=unknown.get((gender, pool), 0),
+        )
+        for gender, pool in keys
+    )
+
+
 def session_status(engine: Engine, session_id: str) -> SessionStatus:
     capacity = _single_int(engine, "session_capacity", session_id)
     targets = {
@@ -151,6 +204,7 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
         is_full=bool(engine.rows("session_full", session_id)),
         values=tuple(values),
         needs_review=reviews,
+        ages=age_groups(engine, session_id),
     )
 
 

@@ -12,8 +12,9 @@
 .decl given_attr(attendee: symbol, dim: symbol, value: symbol)
 .decl status_event(reg: symbol, ts: int64, status: symbol)
 .decl unknown_party(reg: symbol, party_size: int64)
-// Age facts from facts.py (#32): year-based age when the session has combinations, or a
-// marker when the event reads ages and the birth year is missing (a data error).
+// Age facts from facts.py: year-based age when the session has combinations (#32) or the
+// event keeps a similar age (#91), or a marker when the event reads ages and the birth year
+// is missing (a data error).
 .decl attendee_age(attendee: symbol, age: int64)
 .decl age_missing(attendee: symbol)
 
@@ -30,6 +31,8 @@
 .decl ratio_target(session: symbol, dim: symbol, value_a: symbol, value_b: symbol, max_diff: int64)
 // Combination (#32): one gender plus an inclusive age range, per session.
 .decl combo_def(session: symbol, combo: symbol, gender: symbol, lo: int64, hi: int64)
+// The event keeps sessions to a "similar age" (#91): report each gender's ages and spread.
+.decl similar_age(session: symbol)
 .decl policy(session: symbol, key: symbol, n: int64)
 // Promotion cutoff (#52), epoch from clock.py: start time minus promotion_cutoff_hours, or,
 // without a start time, the earliest moment it could be (the date's midnight minus the hours).

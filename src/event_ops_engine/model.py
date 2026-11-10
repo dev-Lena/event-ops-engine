@@ -408,12 +408,20 @@ class TriagePolicy(StrictModel):
         return self
 
 
+class SimilarAgePolicy(StrictModel):
+    """Declares an event that keeps sessions to a "similar age" (#91). The person in charge
+    picks the range after seeing sign-ups (usually within 10~15 years, operator, 2026-11-09),
+    so nothing is fixed here yet; `report` shows each gender's ages to judge it by."""
+
+
 class EventPolicy(StrictModel):
     event: str
     dimensions: Dimensions = Dimensions()
     defaults: SessionDefaults
     promotion: PromotionPolicy
     triage: TriagePolicy = TriagePolicy()
+    similar_age: SimilarAgePolicy | None = None
+    """None = the event doesn't keep a similar age. A blank YAML key is refused by the loader."""
 
     @model_validator(mode="after")
     def _targets_declared(self) -> Self:

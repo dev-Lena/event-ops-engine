@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from .capacity import SessionStatus, ValueStatus, capacity_status
+from .capacity import AgeGroup, SessionStatus, ValueStatus, capacity_status
 from .decision import Decision, Verdict, VerdictKind
 from .engine import Engine
 from .facts import scenario_facts
@@ -59,10 +59,26 @@ def _counts(value: ValueStatus) -> str:
     return f"확정 {value.filled} · 대기 {value.pending} · 목표 {target}{extra}"
 
 
+AGE_POOL_LABELS = {"occupying": "확정·대기", "applied": "신청 접수"}
+
+
+def _ages(group: AgeGroup) -> str:
+    """'26 · 27 · 33 — 26~33세, 폭 7살' plus how many were left out for a missing birth year."""
+    if group.ages:
+        span = f"{group.low}세" if group.low == group.high else f"{group.low}~{group.high}세"
+        text = f"{' · '.join(str(age) for age in group.ages)} — {span}, 폭 {group.spread}살"
+    else:
+        text = "없음"
+    if group.unknown:
+        text += f" · 출생연도 없음 {group.unknown}명 제외"
+    return text
+
+
 def format_status(status: SessionStatus, combos: Combos) -> list[str]:
-    """Session status lines. Combinations (#32) sit under their gender's line, youngest first;
-    a gender without a line of its own gets its combinations at the top level. `combos` is
-    the session's (`policy.resolve_combos`): every `combo` value in `status` is defined there.
+    """Session status lines. Under each gender's line come its ages per pool when the event
+    keeps a similar age (#91), then its combinations (#32), youngest first. A gender without
+    a line of its own gets both at the top level. `combos` is the session's
+    (`policy.resolve_combos`): every `combo` value in `status` is defined there.
     """
     lines = [
         f"[회차 {status.session}] 정원 {status.capacity} · 확정 {status.filled} · "
@@ -73,23 +89,31 @@ def format_status(status: SessionStatus, combos: Combos) -> list[str]:
     for value in status.values:
         if value.dim == DIM_COMBO:
             nested.setdefault(combos[value.value].gender.value, []).append(value)
+    ages: dict[str, list[AgeGroup]] = {}
+    for group in status.ages:
+        ages.setdefault(group.gender, []).append(group)
 
-    def children(gender: str) -> list[ValueStatus]:
-        return sorted(nested.pop(gender, []), key=lambda value: combos[value.value].age)
+    def children(gender: str, indent: str, prefix: str) -> list[str]:
+        """Age lines then combination lines of one gender, each emitted once."""
+        out = [
+            f"{indent}{prefix}나이(연 나이) {AGE_POOL_LABELS[group.pool]}: {_ages(group)}"
+            for group in ages.pop(gender, [])
+        ]
+        marker = "└ " if indent == "    " else ""
+        out.extend(
+            f"{indent}{marker}{combos[child.value].label}: {_counts(child)}"
+            for child in sorted(nested.pop(gender, []), key=lambda v: combos[v.value].age)
+        )
+        return out
 
     for value in status.values:
         if value.dim == DIM_COMBO:
             continue
         lines.append(f"  {value.dim}={value.value}: {_counts(value)}")
         if value.dim == DIM_GENDER:
-            lines.extend(
-                f"    └ {combos[child.value].label}: {_counts(child)}"
-                for child in children(value.value)
-            )
-    for gender in sorted(nested):
-        lines.extend(
-            f"  {combos[child.value].label}: {_counts(child)}" for child in children(gender)
-        )
+            lines.extend(children(value.value, "    ", ""))
+    for gender in sorted(set(nested) | set(ages)):
+        lines.extend(children(gender, "  ", f"{gender} "))
     for review in status.needs_review:
         lines.append(f"  확인 요청: {review.message}")
     return lines
@@ -175,6 +199,8 @@ def report_json(result: ReportResult) -> dict[str, Any]:
                     resolve_combos(result.scenario.policy, result.scenario.session(status.session))
                 ),
                 "needs_review": [d.model_dump(mode="json") for d in status.needs_review],
+                # Added field (#91), so still report@1. Ages only, never registration ids.
+                "ages": [dataclasses.asdict(group) for group in status.ages],
                 "decisions": [
                     d.model_dump(mode="json")
                     for d in result.decisions
