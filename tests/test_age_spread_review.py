@@ -40,6 +40,12 @@ def test_seat_holders_spread_past_the_limit_raise_one_review_for_that_gender(
     # The event's setting is the evidence; no registration is named.
     assert review.evidence == ("similar_age/s3", "age_spread_limit/s3")
     assert "  확인 요청: " + review.message in report(SCENARIOS / "similar-age.yaml")
+    s3 = report_json(run_report(SCENARIOS / "similar-age.yaml"))["sessions"][2]
+    assert s3["session"] == "s3"
+    assert [r for r in s3["needs_review"] if r["reasons"] == ["age_spread"]] == [
+        review.model_dump(mode="json")
+    ]
+    assert s3["needs_review"][0]["dim"] == "gender" and s3["needs_review"][0]["value"] == "female"
 
 
 def test_sign_ups_not_yet_picked_never_raise_it(engine: Engine) -> None:
