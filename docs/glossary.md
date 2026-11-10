@@ -19,6 +19,7 @@
 | 성별 하나와 나이 범위를 묶은 모집 단위 (예: 여성 25~29세) | 조합 / combination | 정책 `combos`(회차 덮어쓰기), 목표 `targets.combo.<id>`, 속성 이름 `combo` | 교차 속성, 세그먼트 | 나이 범위는 양 끝 포함, 연 나이. 같은 성별 조합끼리 범위가 겹치면 입력 오류 ([design.md 3](design.md#3-데이터-모델-python-modelpy)) |
 | 한 회차 사람들의 나이가 서로 가까운 상태. 범위는 담당자가 신청 현황을 보고 정한다(보통 10~15살 차이 이내, 운영사 확인) | 비슷한 나잇대 / similar age | 정책 `similar_age`, `similar_age(session)` | 연령 제한, 나이 필터 | 엔진은 범위를 정하거나 사람을 거르지 않고, 성별마다 나이를 보여 준다 ([design.md 3](design.md#3-데이터-모델-python-modelpy)) |
 | 한 성별 · 묶음 안에서 가장 많은 나이 − 가장 적은 나이 (연 나이) | 나이 폭 / age spread | `age_spread(session, gender, pool, years)` | 나이 차, 연령 범위 | 폭은 성별마다 잰다(사용자 결정 2026-11-09). 기준 `similar_age.max_spread`(가정값)보다 확정·대기 폭이 크면 확인 요청, 같으면 괜찮음 (#91 B) |
+| 조합이 아직 없는 성별에서, 폭 기준만큼의 나이 범위 중 확정·대기가 가장 많이 드는 것 | 나이 범위 제안 / range suggestion | `range_suggestion(session, gender, low, high, covered)` | 추천 연령, 타깃 연령 | 든 사람들을 가운데에 둔다. 동점이면 후보를 모두 보인다. 담당자가 골라 조합으로 적는다 (#91 C) |
 | 나이를 모으는 두 묶음: 자리를 차지한 사람(확정 · 입금 대기)과 아직 고르지 않은 사람(신청 접수) | 확정·대기 / 신청 접수 (age pool) | `age_pool(reg, pool)`, `occupying` · `applied` | 참가자 / 대기자 | 출력은 나이와 수만 쓴다. 신청 id는 붙이지 않는다 |
 | 회차 · 속성 값마다 정한 인원 하한 · 상한 | 목표 / target | `target(session, dim, value, lo, hi)` | 쿼터, 할당 | wirelog 예약어 때문에 열 이름은 `min` · `max`가 아니라 `lo` · `hi` |
 | 같은 속성의 두 값 사이 허용 차이 (예: 성별 1:1) | 비율 목표 / ratio target | `ratio_target(session, dim, value_a, value_b, max_diff)` | 균형 조건 | `max_diff`는 허용하는 인원 차 |
@@ -107,3 +108,4 @@
 | 2026-11-09 | 조합 추가 (#32) |
 | 2026-11-10 | 용어 추가: 비슷한 나잇대 · 나이 폭 · 확정·대기 / 신청 접수 (#91) |
 | 2026-11-10 | 나이 폭에 폭 기준과 확인 요청 (#91 B) |
+| 2026-11-10 | 나이 범위 제안 추가 (#91 C) |

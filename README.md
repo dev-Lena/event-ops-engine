@@ -61,12 +61,13 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
   홍보 권고: 회차 임박: female 3명 부족, 홍보가 필요합니다. 광고 대상: female 25~29세(연 나이) 3명 이상. (이유: lead_time, slow_trend; 근거: ...)
 ```
 
-"비슷한 나잇대"를 관리하는 모임은 정책 맨 위에 `similar_age: {}`를 둡니다. 그러면 성별마다 확정·대기와 신청 접수의 나이 목록과 폭이 나옵니다. 범위는 담당자가 이것을 보고 정합니다. `similar_age: { max_spread: 12 }`처럼 폭 기준을 두면, 어떤 성별의 확정·대기 폭이 기준보다 클 때 "확인 요청"이 나옵니다(회차마다 덮어쓸 수 있고, 기준값은 가정값). 출력에는 나이와 수만 있고 신청 id는 없습니다(`similar-age.yaml`의 s1 부분, 줄임. `tests/test_similar_age.py`가 고정합니다):
+"비슷한 나잇대"를 관리하는 모임은 정책 맨 위에 `similar_age: {}`를 둡니다. 그러면 성별마다 확정·대기와 신청 접수의 나이 목록과 폭이 나옵니다. 범위는 담당자가 이것을 보고 정합니다. `similar_age: { max_spread: 12 }`처럼 폭 기준을 두면, 어떤 성별의 확정·대기 폭이 기준보다 클 때 "확인 요청"이 나옵니다(회차마다 덮어쓸 수 있고, 기준값은 가정값). 기준이 있으면 조합이 아직 없는 성별마다 그 폭의 범위 중 확정·대기가 가장 많이 드는 것을 제안합니다(가운데 맞춤, 동점이면 후보를 모두). 출력에는 나이와 수만 있고 신청 id는 없습니다(`similar-age.yaml`의 s1 부분, 줄임. `tests/test_similar_age.py`가 고정합니다):
 
 ```
   gender=female: 확정 2 · 대기 1 · 목표 4~4 · 부족 1
     나이(연 나이) 확정·대기: 26 · 28 · 28 — 26~28세, 폭 2살
     나이(연 나이) 신청 접수: 24 · 41 — 24~41세, 폭 17살
+    나이 범위 제안(지금 확정·대기 기준, 폭 12살, 연 나이): 21~33세 — 3명 중 3명 포함. 고른 범위를 조합으로 적으면 광고 대상이 됩니다.
 ```
 
 ### 운영 문의 판정 (①)
@@ -104,7 +105,7 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
 
 ### 결과 JSON (`--json`)
 
-다른 시스템(운영 관리 화면, 웹)이 결과를 받을 때는 `report`와 `triage`에 `--json`을 붙입니다. 사람용 문장 대신 아래 구조를 출력하고, 종료 코드는 같습니다. `schema`는 형식 버전입니다. 필드를 바꾸거나 없애면 `@2`로 올리고, 필드를 더하는 것은 같은 번호로 둡니다. `combos`는 그 회차의 조합 정의(성별 · 나이 범위 · 표시 이름)이고, 결정의 `parts`는 성별 권고에 묶인 조합 몫(조합 id · 표시 이름 · 부족 · 이유)입니다. `ages`는 `similar_age` 모임의 성별 · 묶음(`occupying` 확정·대기, `applied` 신청 접수)별 나이 목록 · 폭 · 출생연도 없음 수이고, 신청 id는 담지 않습니다. `decisions` · `needs_review`의 각 항목은 `Decision`, `verdicts`의 각 항목은 `Verdict` 모델 그대로입니다(`src/event_ops_engine/decision.py`). `trace`는 `--json --trace`일 때만 들어갑니다.
+다른 시스템(운영 관리 화면, 웹)이 결과를 받을 때는 `report`와 `triage`에 `--json`을 붙입니다. 사람용 문장 대신 아래 구조를 출력하고, 종료 코드는 같습니다. `schema`는 형식 버전입니다. 필드를 바꾸거나 없애면 `@2`로 올리고, 필드를 더하는 것은 같은 번호로 둡니다. `combos`는 그 회차의 조합 정의(성별 · 나이 범위 · 표시 이름)이고, 결정의 `parts`는 성별 권고에 묶인 조합 몫(조합 id · 표시 이름 · 부족 · 이유)입니다. `ages`는 `similar_age` 모임의 성별 · 묶음(`occupying` 확정·대기, `applied` 신청 접수)별 나이 목록 · 폭 · 출생연도 없음 수이고, `range_suggestions`는 성별 범위 제안(범위들 · 든 수 · 확정·대기 수 · 폭)입니다. 둘 다 신청 id는 담지 않습니다. `decisions` · `needs_review`의 각 항목은 `Decision`, `verdicts`의 각 항목은 `Verdict` 모델 그대로입니다(`src/event_ops_engine/decision.py`). `trace`는 `--json --trace`일 때만 들어갑니다.
 
 ```json
 // event-ops report data/synthetic/scenarios/pair-mixed.yaml --json (줄임)
@@ -114,7 +115,7 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
                   "values": [ { "dim": "gender", "value": "male", "lo": 6, "hi": 6, "filled": 1, "pending": 1,
                                 "gap": 4, "remaining": 4, "is_full": false, "evidence": ["..."] } ],
                   "combos": {},
-                  "needs_review": [], "ages": [],
+                  "needs_review": [], "ages": [], "range_suggestions": [],
                   "decisions": [ { "kind": "recommend", "session": "s2", "dim": "gender", "value": "male", "need": 4,
                                    "reasons": ["imbalance", "lead_time", "slow_trend"], "evidence": ["..."],
                                    "message": "회차 임박: male 4명 부족, 홍보가 필요합니다.", "parts": [] } ] } ] }
