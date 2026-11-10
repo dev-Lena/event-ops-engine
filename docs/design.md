@@ -39,7 +39,7 @@ CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이�
 Scenario
   policy: EventPolicy            # 속성 정의 · 기본 목표 · 홍보 기준
   now: datetime                  # 판단 기준 시각 (테스트 재현을 위해 입력으로 받는다)
-  sessions: [Session]            # id, date, capacity, targets · combos 덮어쓰기(선택),
+  sessions: [Session]            # id, date, capacity, targets · combos · similar_age 덮어쓰기(선택),
                                  # start_time "HH:MM"(서울 시각, 선택), lead_days · promotion_cutoff_hours 덮어쓰기(선택)
   registrations: [Registration]  # id, session_id, members | party_size, status_events
 
@@ -67,14 +67,17 @@ Member
 - 현황에서 조합은 그 성별 줄 아래에 나이 순으로 나온다. 홍보 권고도 성별 한 줄에 묶어 낸다(7절). 따로 내면 "여성 2명 부족" + "25~29세 여성 1명 부족"이 3명으로 읽히기 때문이다.
 - 예시: `policy/events/synthetic-age-combos.yaml`, `data/synthetic/scenarios/combo.yaml`.
 
-**비슷한 나잇대 (#91 A, 결정 기록: [decisions/2026-11-10-similar-age.md](decisions/2026-11-10-similar-age.md))**: 운영사 확인(2026-11-09, 사용자 설명): 나이가 중요한 모임은 "비슷한 나잇대"를 미리 정하지 않는다. 담당자가 신청 현황을 보고 정하고, 보통 10~15살 차이 이내다. 사용자 결정(2026-11-09 · 10): 폭은 성별마다 잰다. 정한 범위는 신청자 선별, 광고 대상 나이, 조합 목표 인원에 쓰인다.
+**비슷한 나잇대 (#91 A · B, 결정 기록: [decisions/2026-11-10-similar-age.md](decisions/2026-11-10-similar-age.md))**: 운영사 확인(2026-11-09, 사용자 설명): 나이가 중요한 모임은 "비슷한 나잇대"를 미리 정하지 않는다. 담당자가 신청 현황을 보고 정하고, 보통 10~15살 차이 이내다. 사용자 결정(2026-11-09 · 10): 폭은 성별마다 잰다. 정한 범위는 신청자 선별, 광고 대상 나이, 조합 목표 인원에 쓰인다.
 
-- 정책 맨 위에 `similar_age: {}`를 두면 그 모임의 `report`가 성별마다 나이 목록과 폭(가장 많은 나이 − 가장 적은 나이, 연 나이)을 보인다. 나이를 관리하지 않는 모임이 있어서 켜는 방식이다. 조합을 켜는 조건으로 쓰지 않는 이유: 범위를 정하기 전, 곧 조합을 적기 전이 가장 필요한 때다. 폭 기준(#91 B)도 이 블록에 들어간다.
+- 정책 맨 위에 `similar_age: {}`를 두면 그 모임의 `report`가 성별마다 나이 목록과 폭(가장 많은 나이 − 가장 적은 나이, 연 나이)을 보인다. 나이를 관리하지 않는 모임이 있어서 켜는 방식이다. 조합을 켜는 조건으로 쓰지 않는 이유: 범위를 정하기 전, 곧 조합을 적기 전이 가장 필요한 때다.
 - `similar_age:`처럼 값을 비우면 YAML이 null로 읽어 조용히 꺼지므로, 정책을 읽을 때 거부한다(`loader.py`). 모델에서 막지 않는 이유: `model_dump`한 정책이 `similar_age: None`을 담아 다시 검증되지 않는다.
 - 두 묶음을 따로 보인다. **확정·대기**(자리를 차지한 사람, 그 자리에 올 사람)와 **신청 접수**(`applied`, 담당자가 아직 고르는 사람)다. 선별을 돕는 것은 신청 접수 줄이다.
 - 사람을 가리키지 않는다. 출력(문장 · JSON)에는 나이와 수만 있고 신청 id나 "범위 밖" 표시는 없다. 엔진은 개별 신청자를 거절하지 않는다(1절). 나이는 작은 순으로 적어 신청 순서와 이어지지 않게 한다.
 - 출생연도가 없거나 회차 연도보다 늦은 참가자는 목록에서 빠지고 그 수를 "출생연도 없음·오류 N명 제외"로 붙인다. 목록이 성별 인원보다 짧은 이유가 보이게 하려는 것이다. `similar_age`를 둔 모임도 나이를 읽는 모임이라, 자리를 차지한 사람의 출생연도가 없으면 지금처럼 `missing_birth_year` 확인 요청이 나온다.
 - 현황에서 나이 줄은 그 성별 줄 바로 아래, 조합보다 먼저 나온다. 성별 줄이 없는 성별(목표가 없음)은 맨 위 줄에 성별 이름을 붙여 나온다.
+- **폭 확인 요청 (#91 B)**: `similar_age: { max_spread: N }`을 두면, 어떤 성별의 확정·대기 폭이 N보다 **클 때** 확인 요청을 낸다("N살 차이 이내"이므로 같으면 괜찮다). 회차는 `similar_age: { max_spread: M }`으로 덮어쓴다. 기준이 없으면 나이만 보이고 확인 요청은 없다. 회차만 `similar_age`를 켤 수는 없다(모임 단위 결정이라서). 기준값은 **가정값**이다. 운영사 설명 "보통 10~15살"은 모임별 값이 아니다.
+  - 신청 접수는 세지 않는다. 아직 고르지 않은 사람 때문에 경고하지 않고, 선별 뒤 검사로 둔다("신청 접수까지 모두 받으면" 표시는 사용자가 넣지 않기로 함, 2026-11-10). 지난 회차에도 내지 않는다.
+  - 기존 `needs_review(회차, 신청, 이유)`는 신청 단위라서 쓰지 않는다. 쓰면 폭을 넓힌 사람을 가리키게 된다. 회차 × 성별 관계 `age_spread_review`를 따로 두고, `report`의 "확인 요청" 줄과 JSON `needs_review`에 `Decision`(`kind: ask`, `dim: gender`, `reasons: [age_spread]`)으로 나온다. 근거는 신청 id가 아니라 `similar_age/<회차>` · `age_spread_limit/<회차>`다.
 - 예시: `policy/events/synthetic-similar-age.yaml`, `data/synthetic/scenarios/similar-age.yaml`.
 
 개인 식별 정보 칸은 **모델에 없다**. 이름 · 연락처 · 계좌 · 자유 서술은 들어올 자리가 없으므로 실수로도 저장소 · 출력에 섞이지 않는다.
@@ -114,6 +117,7 @@ Member
 | `unknown_party(reg, party_size)` | 구성 미상 신청 | `facts.py` |
 | `attendee_age(attendee, age)` | 연 나이 (조합이 있는 회차(#32)나 `similar_age` 모임(#91)만) | `facts.py` + `bands.py` |
 | `similar_age(session)` | 비슷한 나잇대를 관리하는 모임의 회차 (#91) | 정책 `similar_age` |
+| `age_spread_limit(session, years)` | 성별 확정·대기 폭의 기준 (회차 덮어쓰기 반영, 없으면 사실 없음, #91 B) | `policy.py` |
 | `age_missing(attendee)` | 나이를 읽는 모임인데 출생연도가 없음 (데이터 오류) | `facts.py` |
 | `combo_def(session, combo, gender, lo, hi)` | 회차의 조합: 성별 + 나이 범위 (양 끝 포함) | `policy.py` |
 | `counted_attr(attendee, dim, value)` | 집계에 쓰는 속성 (**파생**: `attendee_attr` + 조합 `combo`) | `capacity.dl` |
@@ -159,6 +163,8 @@ age_low(S, G, P, min(Age))   :- age_entry(S, G, P, _, Age).
 age_high(S, G, P, max(Age))  :- age_entry(S, G, P, _, Age).
 age_spread(S, G, P, Hi - Lo) :- age_high(S, G, P, Hi), age_low(S, G, P, Lo).
 age_unknown_count(S, G, P, count(A)) :- age_unknown(S, G, P, A).   // 출생연도 없음 (age_missing)
+age_spread_review(S, G, N, L) :- age_spread(S, G, "occupying", N), age_spread_limit(S, L), N > L,
+                                 days_left(S, D), D >= 0.         // 폭 확인 요청 (#91 B)
 ```
 
 ## 7. 홍보 판단 (③, `rules/promotion.dl`)
@@ -434,3 +440,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-09 | 3 · 4 · 5 · 6절 조합 목표(성별 + 나이 범위)와 운영사 확인 사실, 출생연도 없음 확인 요청, 2절 JSON 번호 규칙(필드 추가는 같은 번호) (#32) |
 | 2026-11-09 | 7절 조합 권고: 성별 결정에 묶기(`Decision.parts`), 필요 인원, 잠정 마감이면 조용히, 남은 자리보다 크면 `gender_room` 보류 (#32) |
 | 2026-11-10 | 3 · 5 · 6절 비슷한 나잇대(#91 A): 정책 `similar_age`, 성별 · 묶음(확정·대기 / 신청 접수)별 나이 목록과 폭, 출생연도 없음 수, 2절 JSON `ages`. 9 · 12절 `min` 집계 검증 |
+| 2026-11-10 | 3 · 5 · 6절 폭 확인 요청(#91 B): `similar_age.max_spread`(회차 덮어쓰기), 회차 × 성별 `age_spread_review`, 확인 요청 줄 |
