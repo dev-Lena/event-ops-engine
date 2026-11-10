@@ -53,6 +53,14 @@ def test_an_odd_spare_year_goes_to_the_older_side(engine: Engine) -> None:
     assert found is not None and found.ranges == ((22, 33),)
 
 
+def test_people_exactly_the_limit_apart_share_one_range(engine: Engine) -> None:
+    loaded(engine, "similar-age")
+    engine.remove("age_spread_limit", ("s3", 12))
+    engine.insert("age_spread_limit", ("s3", 14))  # s3 women 27 and 41: "within 14 years"
+    found = suggestion(engine, "s3", "female")
+    assert found is not None and (found.ranges, found.covered) == (((27, 41),), 2)
+
+
 def test_a_gender_with_a_combination_gets_no_suggestion(engine: Engine) -> None:
     loaded(engine, "similar-age")
     assert suggestion(engine, "s2", "female") is None  # f27_32 is written already
