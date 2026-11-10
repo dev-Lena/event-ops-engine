@@ -143,3 +143,31 @@ age_unknown_count(S, G, P, count(A)) :- age_unknown(S, G, P, A).
 .decl age_spread_review(session: symbol, gender: symbol, spread: int64, allowed: int64)
 age_spread_review(S, G, N, L) :-
     age_spread(S, G, "occupying", N), age_spread_limit(S, L), N > L, days_left(S, D), D >= 0.
+
+// --- range suggestion (#91 C) -----------------------------------------------------
+// For a gender with no combination yet, the windows as wide as the limit that hold the
+// most seat holders, centred on the people they hold (an odd spare year goes to the older
+// side). Every tied window is kept: picking one would be a choice with no basis. Anchoring
+// windows at seat holders' ages finds all the best ones, since a best window can slide up
+// until its youngest person sits on its lower edge. wirelog can't parse parentheses in
+// arithmetic (design.md 9), hence the separate `window_slack`.
+.decl gender_has_combo(session: symbol, gender: symbol)
+.decl window_member(session: symbol, gender: symbol, low: int64, attendee: symbol)
+.decl window_count(session: symbol, gender: symbol, low: int64, n: int64)
+.decl window_top(session: symbol, gender: symbol, low: int64, age: int64)
+.decl window_slack(session: symbol, gender: symbol, low: int64, years: int64)
+.decl best_window_count(session: symbol, gender: symbol, n: int64)
+.decl range_suggestion(session: symbol, gender: symbol, low: int64, high: int64, covered: int64)
+
+gender_has_combo(S, G) :- combo_def(S, _, G, _, _).
+window_member(S, G, Lo, A) :-
+    age_entry(S, G, "occupying", _, Lo), age_entry(S, G, "occupying", A, Age),
+    age_spread_limit(S, W), Age >= Lo, Age <= Lo + W.
+window_count(S, G, Lo, count(A)) :- window_member(S, G, Lo, A).
+window_top(S, G, Lo, max(Age)) :-
+    window_member(S, G, Lo, A), age_entry(S, G, "occupying", A, Age).
+window_slack(S, G, Lo, W - Hi + Lo) :- window_top(S, G, Lo, Hi), age_spread_limit(S, W).
+best_window_count(S, G, max(N)) :- window_count(S, G, _, N).
+range_suggestion(S, G, Lo - Sl / 2, Lo - Sl / 2 + W, N) :-
+    window_count(S, G, Lo, N), best_window_count(S, G, N), window_slack(S, G, Lo, Sl),
+    age_spread_limit(S, W), !gender_has_combo(S, G), days_left(S, D), D >= 0.

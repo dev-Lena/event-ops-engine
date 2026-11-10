@@ -4,7 +4,7 @@ Each check prints PASS / FAIL / ERROR with the observed result so the report
 can separate facts from opinions. Run with WIRELOG_LIB pointing at the
 Intel-Mac build of libwirelog (or unset on Linux to use the wheel engine).
 
-Expected result on wirelog 0.70.0: 25/26 PASS. The one FAIL (body binding
+Expected result on wirelog 0.70.0: 27/28 PASS. The one FAIL (body binding
 `Z = X - Y`) documents a known limitation; see docs/design.md 9.
 """
 
@@ -237,6 +237,25 @@ spread(S, G, H - L) :- hi(S, G, H), lo(S, G, L).
         before == {("s1", "female", 14), ("s1", "male", 0)}
         and after == {("s1", "female", 2), ("s1", "male", 0)},
         f"before={sorted(before)} after={sorted(after)}",
+    )
+
+
+# ---------------------------------------------------------------- 3d. head division and precedence (#91 C)
+def t_head_division() -> None:
+    src = """
+.decl a(x: int64, y: int64)
+.decl r(name: symbol, z: int64)
+r("div", X / 2) :- a(X, Y).
+r("prec", X - Y / 2) :- a(X, Y).
+r("chain", X - Y / 2 + X) :- a(X, Y).
+"""
+    with open_session(src) as s:
+        s.insert("a", [11, 2])
+        got = set(s.snapshot("r"))
+    record(
+        "3d head integer division truncates, / binds tighter than - and +",
+        got == {("div", 5), ("prec", 10), ("chain", 21)},
+        f"got {sorted(got)}",
     )
 
 
@@ -492,6 +511,20 @@ def t_reserved_names() -> None:
     )
 
 
+def t_parentheses() -> None:
+    src = ".decl a(x: int64, y: int64)\n.decl r(z: int64)\nr(X - (Y - X)) :- a(X, Y).\n"
+    try:
+        BatchProgram.from_string(src).close()
+        rejected = False
+    except Exception:
+        rejected = True
+    record(
+        "11d parentheses in arithmetic are a parse error (split into relations)",
+        rejected,
+        f"rejected={rejected}",
+    )
+
+
 if __name__ == "__main__":
     print("pyrewire", pyrewire.__version__, "wirelog", pyrewire.wirelog_version())
     for fn in [
@@ -502,6 +535,7 @@ if __name__ == "__main__":
         t_lww,
         t_lww_nonadjacent,
         t_min_spread,
+        t_head_division,
         t_negation,
         t_retract_snapshot,
         t_retract_step,
@@ -513,6 +547,7 @@ if __name__ == "__main__":
         t_batch_ints,
         t_body_binding,
         t_reserved_names,
+        t_parentheses,
     ]:
         check(fn.__name__, fn)
     print()

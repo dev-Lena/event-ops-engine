@@ -23,7 +23,7 @@ YAML 시나리오 ─► Python 모델(검증) ─► 사실(fact) ─► wirelo
                                       clock.py
 ```
 
-CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이고, `--json`은 다른 시스템이 읽는 구조다(#85). JSON은 `schema`(`event-ops/report@1` · `event-ops/triage@1`)로 버전을 밝힌다. 성별 결정에 묶인 조합 몫은 `Decision.parts`에 담는다(#32). 비슷한 나잇대 모임의 성별 · 묶음별 나이는 회차의 `ages`에 담는다(#91, 나이와 수만). 필드를 **더하는** 것은 같은 번호로 두고(읽는 쪽은 모르는 필드를 무시한다), 필드를 바꾸거나 없애면 번호를 올린다(#32에서 정함). `Decision` · `Verdict`는 pydantic 모델을 그대로 직렬화해 문장 출력과 같은 판단 · 근거를 담는다. 형식 예시는 README "결과 JSON".
+CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이고, `--json`은 다른 시스템이 읽는 구조다(#85). JSON은 `schema`(`event-ops/report@1` · `event-ops/triage@1`)로 버전을 밝힌다. 성별 결정에 묶인 조합 몫은 `Decision.parts`에 담는다(#32). 비슷한 나잇대 모임의 성별 · 묶음별 나이는 회차의 `ages`, 범위 제안은 `range_suggestions`에 담는다(#91, 나이 · 범위와 수만). 필드를 **더하는** 것은 같은 번호로 두고(읽는 쪽은 모르는 필드를 무시한다), 필드를 바꾸거나 없애면 번호를 올린다(#32에서 정함). `Decision` · `Verdict`는 pydantic 모델을 그대로 직렬화해 문장 출력과 같은 판단 · 근거를 담는다. 형식 예시는 README "결과 JSON".
 
 계층 (공용 코드 기준 1번, [CONTRIBUTING.md](../CONTRIBUTING.md)):
 
@@ -67,7 +67,7 @@ Member
 - 현황에서 조합은 그 성별 줄 아래에 나이 순으로 나온다. 홍보 권고도 성별 한 줄에 묶어 낸다(7절). 따로 내면 "여성 2명 부족" + "25~29세 여성 1명 부족"이 3명으로 읽히기 때문이다.
 - 예시: `policy/events/synthetic-age-combos.yaml`, `data/synthetic/scenarios/combo.yaml`.
 
-**비슷한 나잇대 (#91 A · B, 결정 기록: [decisions/2026-11-10-similar-age.md](decisions/2026-11-10-similar-age.md))**: 운영사 확인(2026-11-09, 사용자 설명): 나이가 중요한 모임은 "비슷한 나잇대"를 미리 정하지 않는다. 담당자가 신청 현황을 보고 정하고, 보통 10~15살 차이 이내다. 사용자 결정(2026-11-09 · 10): 폭은 성별마다 잰다. 정한 범위는 신청자 선별, 광고 대상 나이, 조합 목표 인원에 쓰인다.
+**비슷한 나잇대 (#91 A · B · C, 결정 기록: [decisions/2026-11-10-similar-age.md](decisions/2026-11-10-similar-age.md))**: 운영사 확인(2026-11-09, 사용자 설명): 나이가 중요한 모임은 "비슷한 나잇대"를 미리 정하지 않는다. 담당자가 신청 현황을 보고 정하고, 보통 10~15살 차이 이내다. 사용자 결정(2026-11-09 · 10): 폭은 성별마다 잰다. 정한 범위는 신청자 선별, 광고 대상 나이, 조합 목표 인원에 쓰인다.
 
 - 정책 맨 위에 `similar_age: {}`를 두면 그 모임의 `report`가 성별마다 나이 목록과 폭(가장 많은 나이 − 가장 적은 나이, 연 나이)을 보인다. 나이를 관리하지 않는 모임이 있어서 켜는 방식이다. 조합을 켜는 조건으로 쓰지 않는 이유: 범위를 정하기 전, 곧 조합을 적기 전이 가장 필요한 때다.
 - `similar_age:`처럼 값을 비우면 YAML이 null로 읽어 조용히 꺼지므로, 정책을 읽을 때 거부한다(`loader.py`). 모델에서 막지 않는 이유: `model_dump`한 정책이 `similar_age: None`을 담아 다시 검증되지 않는다.
@@ -78,6 +78,11 @@ Member
 - **폭 확인 요청 (#91 B)**: `similar_age: { max_spread: N }`을 두면, 어떤 성별의 확정·대기 폭이 N보다 **클 때** 확인 요청을 낸다("N살 차이 이내"이므로 같으면 괜찮다). 회차는 `similar_age: { max_spread: M }`으로 덮어쓴다. 기준이 없으면 나이만 보이고 확인 요청은 없다. 회차만 `similar_age`를 켤 수는 없다(모임 단위 결정이라서). 기준값은 **가정값**이다. 운영사 설명 "보통 10~15살"은 모임별 값이 아니다.
   - 신청 접수는 세지 않는다. 아직 고르지 않은 사람 때문에 경고하지 않고, 선별 뒤 검사로 둔다("신청 접수까지 모두 받으면" 표시는 사용자가 넣지 않기로 함, 2026-11-10). 지난 회차에도 내지 않는다.
   - 기존 `needs_review(회차, 신청, 이유)`는 신청 단위라서 쓰지 않는다. 쓰면 폭을 넓힌 사람을 가리키게 된다. 회차 × 성별 관계 `age_spread_review`를 따로 두고, `report`의 "확인 요청" 줄과 JSON `needs_review`에 `Decision`(`kind: ask`, `dim: gender`, `reasons: [age_spread]`)으로 나온다. 근거는 신청 id가 아니라 `similar_age/<회차>` · `age_spread_limit/<회차>`다.
+- **범위 제안 (#91 C)**: 폭 기준이 있는 모임에서, 조합이 아직 없는 성별마다 기준 폭의 범위 중 확정·대기가 가장 많이 드는 것을 제안한다. 문구에 "지금 확정·대기 기준"을 밝히고, 고른 범위를 조합으로 적으면 기존 조합 권고가 광고 대상을 낸다(7절). 사용자 결정(2026-11-10) 세 가지:
+  - **가운데 맞춤**: 든 사람들(가장 어린 ~ 가장 많은 나이)을 범위 가운데에 둔다. 남는 해가 홀수면 한 해는 나이 많은 쪽으로 간다. 예: 26 · 28 · 28, 폭 12 → 21~33세. 아무도 없는 나이까지 넓혀질 수 있다(운영사의 최소 나이 기준은 확인하지 않음).
+  - **동점이면 후보를 모두** "또는"으로 보인다. 엔진이 근거 없이 하나를 고르지 않는다.
+  - **조합이 있는 성별에는 내지 않는다.** 제안은 조합을 적도록 돕는 것이고, 적은 뒤에는 조합 줄이 범위 안팎을 보인다.
+  - 신청 접수는 세지 않고, 지난 회차에는 내지 않는다. 범위 계산은 규칙(`range_suggestion`)이 하고, 출력에는 범위와 수만 있다.
 - 예시: `policy/events/synthetic-similar-age.yaml`, `data/synthetic/scenarios/similar-age.yaml`.
 
 개인 식별 정보 칸은 **모델에 없다**. 이름 · 연락처 · 계좌 · 자유 서술은 들어올 자리가 없으므로 실수로도 저장소 · 출력에 섞이지 않는다.
@@ -165,6 +170,11 @@ age_spread(S, G, P, Hi - Lo) :- age_high(S, G, P, Hi), age_low(S, G, P, Lo).
 age_unknown_count(S, G, P, count(A)) :- age_unknown(S, G, P, A).   // 출생연도 없음 (age_missing)
 age_spread_review(S, G, N, L) :- age_spread(S, G, "occupying", N), age_spread_limit(S, L), N > L,
                                  days_left(S, D), D >= 0.         // 폭 확인 요청 (#91 B)
+// 범위 제안 (#91 C): 각 확정·대기 나이에서 시작하는 기준 폭 범위를 세고, 가장 많이 든 범위를 가운데 맞춤
+window_count(S, G, Lo, count(A))  :- window_member(S, G, Lo, A).          // Lo ≤ 나이 ≤ Lo + W
+window_slack(S, G, Lo, W - Hi + Lo) :- window_top(S, G, Lo, Hi), age_spread_limit(S, W).
+range_suggestion(S, G, Lo - Sl / 2, Lo - Sl / 2 + W, N) :- window_count(S, G, Lo, N), best_window_count(S, G, N),
+                                 window_slack(S, G, Lo, Sl), age_spread_limit(S, W), !gender_has_combo(S, G), …
 ```
 
 ## 7. 홍보 판단 (③, `rules/promotion.dl`)
@@ -237,12 +247,13 @@ blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(
 | 제약 (사실) | 우회 |
 |---|---|
 | 본문에서 `G = Lo - F` 같은 변수 바인딩은 오류 없이 **빈 결과**를 낸다 | 산술은 head에 쓴다: `gap(S, D, V, Lo - F) :- ..., Lo - F > 0.` 필요하면 중간 관계로 나눈다 |
+| 산술의 괄호 `X - (Y - X)`는 파싱 오류다. `/`(정수 나눗셈, 버림)는 되고 `-` · `+`보다 먼저 계산된다 | 괄호가 필요한 식은 중간 관계로 나눈다(`window_slack`, #91 C) |
 | `min` `max` `count` `sum`은 열 이름으로 못 쓴다 (파싱 오류) | 목표 열은 `lo` · `hi` |
 | PyreWire는 Python에서 intern하지 않은 symbol을 되돌리지 못한다 (`.dl` 안의 상수 · head 상수는 정수 id로 나옴) | `engine.py`가 규칙 파일의 따옴표 상수를 미리 `intern`하고, 데이터 사실은 모두 Python에서 `insert`한다 |
 | `EasySession.snapshot`은 입력 관계(EDB)에 빈 결과를 돌려준다 | `engine.py`가 넣은 사실을 함께 보관하고 입력 관계는 거기서 읽는다 |
 | `BatchProgram`은 inline 사실을 자동 적재하므로 `load_all_facts()`를 또 부르면 두 배로 센다. 결과 symbol도 id로만 나온다 | `EasySession`만 쓴다. `.dl`에 데이터 사실을 쓰지 않는다 |
 
-검증 스크립트: `scripts/verify_wirelog.py` (26건 중 25건 통과, 실패 1건은 위 첫 줄의 기록용). 3c는 `min` · `max` 집계와 head 산술, 사실을 지운 뒤 다시 계산되는지 확인한다(#91).
+검증 스크립트: `scripts/verify_wirelog.py` (28건 중 27건 통과, 실패 1건은 위 첫 줄의 기록용). 3c는 `min` · `max` 집계와 head 산술, 사실을 지운 뒤 다시 계산되는지 확인한다(#91). 3d는 head 나눗셈과 우선순위, 11d는 괄호가 거부되는 것을 확인한다(#91 C).
 
 ## 10. 저장소 구조
 
@@ -441,3 +452,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-09 | 7절 조합 권고: 성별 결정에 묶기(`Decision.parts`), 필요 인원, 잠정 마감이면 조용히, 남은 자리보다 크면 `gender_room` 보류 (#32) |
 | 2026-11-10 | 3 · 5 · 6절 비슷한 나잇대(#91 A): 정책 `similar_age`, 성별 · 묶음(확정·대기 / 신청 접수)별 나이 목록과 폭, 출생연도 없음 수, 2절 JSON `ages`. 9 · 12절 `min` 집계 검증 |
 | 2026-11-10 | 3 · 5 · 6절 폭 확인 요청(#91 B): `similar_age.max_spread`(회차 덮어쓰기), 회차 × 성별 `age_spread_review`, 확인 요청 줄 |
+| 2026-11-10 | 2 · 3 · 6 · 9절 범위 제안(#91 C): 가운데 맞춤 · 동점 후보 모두 · 조합 있는 성별 제외, JSON `range_suggestions`, wirelog 나눗셈 · 괄호 제약 |

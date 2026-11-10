@@ -57,6 +57,23 @@ class SessionStatus:
     needs_review: tuple[Decision, ...]
     ages: tuple[AgeGroup, ...] = ()
     """Per gender and pool, only for events that keep a similar age (#91)."""
+    range_suggestions: tuple[RangeSuggestion, ...] = ()
+    """Per gender without a combination, when the event sets a spread limit (#91 C)."""
+
+
+@dataclass(frozen=True)
+class RangeSuggestion:
+    """Age ranges as wide as the limit that hold the most seat holders of one gender (#91 C),
+    youngest first. Several ranges mean a tie: the person in charge picks one."""
+
+    gender: str
+    ranges: tuple[tuple[int, int], ...]
+    covered: int
+    """Seat holders inside each range."""
+    seated: int
+    """Seat holders of this gender with a known age."""
+    width: int
+    """The session's spread limit, the width of every range."""
 
 
 def _single_int(engine: Engine, relation: str, *key: str) -> int:
@@ -207,6 +224,33 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
         values=tuple(values),
         needs_review=reviews + spread_reviews(engine, session_id, ages),
         ages=ages,
+        range_suggestions=range_suggestions(engine, session_id, ages),
+    )
+
+
+def range_suggestions(
+    engine: Engine, session_id: str, ages: tuple[AgeGroup, ...]
+) -> tuple[RangeSuggestion, ...]:
+    """`range_suggestion` rows grouped by gender (#91 C). Ranges carry no ids, like the ages."""
+    limits = engine.rows("age_spread_limit", session_id)
+    if not limits:
+        return ()
+    width = int(limits[0][1])
+    seated = {g.gender: len(g.ages) for g in ages if g.pool == "occupying"}
+    ranges: dict[str, set[tuple[int, int]]] = defaultdict(set)
+    covered: dict[str, int] = {}
+    for _, gender, low, high, n in engine.rows("range_suggestion", session_id):
+        ranges[str(gender)].add((int(low), int(high)))
+        covered[str(gender)] = int(n)
+    return tuple(
+        RangeSuggestion(
+            gender=gender,
+            ranges=tuple(sorted(found)),
+            covered=covered[gender],
+            seated=seated[gender],
+            width=width,
+        )
+        for gender, found in sorted(ranges.items())
     )
 
 
