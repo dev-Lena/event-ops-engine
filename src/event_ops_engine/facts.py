@@ -27,7 +27,13 @@ from .model import (
     Session,
     TriageScenario,
 )
-from .policy import resolve_combos, resolve_promotion, resolve_ratios, resolve_targets
+from .policy import (
+    resolve_combos,
+    resolve_max_spread,
+    resolve_promotion,
+    resolve_ratios,
+    resolve_targets,
+)
 
 Row = tuple[Any, ...]
 
@@ -86,6 +92,9 @@ def session_facts(scenario: Scenario, session: Session) -> Facts:
         facts.add("combo_def", session.id, name, combo.gender.value, low, high)
     if policy.similar_age is not None:
         facts.add("similar_age", session.id)
+    max_spread = resolve_max_spread(policy, session)
+    if max_spread is not None:
+        facts.add("age_spread_limit", session.id, max_spread)
     promotion = resolve_promotion(policy, session)
     for key, n in promotion.items():
         facts.add("policy", session.id, key, n)

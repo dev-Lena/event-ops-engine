@@ -33,6 +33,9 @@
 .decl combo_def(session: symbol, combo: symbol, gender: symbol, lo: int64, hi: int64)
 // The event keeps sessions to a "similar age" (#91): report each gender's ages and spread.
 .decl similar_age(session: symbol)
+// Widest spread (years) a gender's seat holders may have before a review (#91 B), the
+// session's own or the event's. Absent: ages are shown without a review.
+.decl age_spread_limit(session: symbol, years: int64)
 .decl policy(session: symbol, key: symbol, n: int64)
 // Promotion cutoff (#52), epoch from clock.py: start time minus promotion_cutoff_hours, or,
 // without a start time, the earliest moment it could be (the date's midnight minus the hours).

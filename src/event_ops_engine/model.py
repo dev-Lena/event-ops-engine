@@ -411,7 +411,13 @@ class TriagePolicy(StrictModel):
 class SimilarAgePolicy(StrictModel):
     """Declares an event that keeps sessions to a "similar age" (#91). The person in charge
     picks the range after seeing sign-ups (usually within 10~15 years, operator, 2026-11-09),
-    so nothing is fixed here yet; `report` shows each gender's ages to judge it by."""
+    so no range is fixed here; `report` shows each gender's ages to judge it by. A session
+    may override `max_spread` with its own `similar_age` block."""
+
+    max_spread: int | None = Field(default=None, ge=0)
+    """Widest spread, in years, a gender's seat holders may have before the operator is
+    asked to look (#91 B). Values are assumed until the operator gives them per event.
+    None: show the ages without a review."""
 
 
 class EventPolicy(StrictModel):
@@ -447,6 +453,9 @@ class Session(StrictModel):
     """Asia/Seoul wall-clock start. Without it promotion is judged by date only (design.md 7)."""
     lead_days: int | None = Field(default=None, ge=0)
     promotion_cutoff_hours: int | None = Field(default=None, ge=0)
+    similar_age: SimilarAgePolicy | None = None
+    """Overrides the event's `similar_age` settings it names (#91 B). Only for events that
+    declare `similar_age`; a session can't turn it on by itself."""
 
     @field_validator("start_time", mode="before")
     @classmethod
@@ -494,6 +503,8 @@ class Scenario(StrictModel):
             combos = effective_combos(self.policy.defaults.combos, session.combos)
             check_combos(combos, dimensions.gender.values, where)
             dimensions.check_targets(session.targets or {}, session.ratios or (), where, combos)
+            if session.similar_age is not None and self.policy.similar_age is None:
+                raise ValueError(f"{where}: similar_age is set but the event doesn't declare it")
         for registration in self.registrations:
             answers = [("registration", registration.attrs)]
             answers += [("member", member.attrs) for member in registration.members or ()]

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from .decision import Decision, DecisionKind
 from .engine import Engine, contributors_by_value
 from .facts import evidence_id, scenario_facts
-from .model import DIM_COMBO, Scenario
+from .model import DIM_COMBO, DIM_GENDER, Scenario
 
 
 @dataclass(frozen=True)
@@ -196,6 +196,7 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
         _review(session_id, str(row[1]), str(row[2]), rejected, missing)
         for row in engine.rows("needs_review", session_id)
     )
+    ages = age_groups(engine, session_id)
     return SessionStatus(
         session=session_id,
         capacity=capacity,
@@ -204,9 +205,39 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
         remaining_seats=_single_int(engine, "remaining_seats", session_id),
         is_full=bool(engine.rows("session_full", session_id)),
         values=tuple(values),
-        needs_review=reviews,
-        ages=age_groups(engine, session_id),
+        needs_review=reviews + spread_reviews(engine, session_id, ages),
+        ages=ages,
     )
+
+
+def spread_reviews(
+    engine: Engine, session_id: str, ages: tuple[AgeGroup, ...]
+) -> tuple[Decision, ...]:
+    """`age_spread_review` rows as asks, one per gender (#91 B). The message names the range
+    and the limit, never a person; evidence is the event's setting, not registrations."""
+    seated = {group.gender: group for group in ages if group.pool == "occupying"}
+    out = []
+    for _, gender, spread, allowed in engine.rows("age_spread_review", session_id):
+        group = seated[str(gender)]
+        out.append(
+            Decision(
+                kind=DecisionKind.ASK,
+                session=session_id,
+                dim=DIM_GENDER,
+                value=str(gender),
+                reasons=("age_spread",),
+                evidence=(
+                    evidence_id("similar_age", session_id),
+                    evidence_id("age_spread_limit", session_id),
+                ),
+                message=(
+                    f"나이 폭 확인: {gender} 확정·대기 폭 {spread}살({group.low}~{group.high}세, "
+                    f"연 나이)이 기준 {allowed}살을 넘습니다. "
+                    "선별 · 광고 나이를 확인해 주세요."
+                ),
+            )
+        )
+    return tuple(out)
 
 
 def capacity_status(scenario: Scenario, engine: Engine | None = None) -> list[SessionStatus]:
