@@ -70,7 +70,7 @@ def _ages(group: AgeGroup) -> str:
     else:
         text = "없음"
     if group.unknown:
-        text += f" · 출생연도 없음 {group.unknown}명 제외"
+        text += f" · 출생연도 없음·오류 {group.unknown}명 제외"
     return text
 
 
@@ -93,13 +93,14 @@ def format_status(status: SessionStatus, combos: Combos) -> list[str]:
     for group in status.ages:
         ages.setdefault(group.gender, []).append(group)
 
-    def children(gender: str, indent: str, prefix: str) -> list[str]:
-        """Age lines then combination lines of one gender, each emitted once."""
+    def children(gender: str, under_gender: bool) -> list[str]:
+        """Age lines then combination lines of one gender, each emitted once. Under the
+        gender's own line they are indented; otherwise they sit at the top level and name it."""
+        indent, prefix, marker = ("    ", "", "└ ") if under_gender else ("  ", f"{gender} ", "")
         out = [
             f"{indent}{prefix}나이(연 나이) {AGE_POOL_LABELS[group.pool]}: {_ages(group)}"
             for group in ages.pop(gender, [])
         ]
-        marker = "└ " if indent == "    " else ""
         out.extend(
             f"{indent}{marker}{combos[child.value].label}: {_counts(child)}"
             for child in sorted(nested.pop(gender, []), key=lambda v: combos[v.value].age)
@@ -111,9 +112,9 @@ def format_status(status: SessionStatus, combos: Combos) -> list[str]:
             continue
         lines.append(f"  {value.dim}={value.value}: {_counts(value)}")
         if value.dim == DIM_GENDER:
-            lines.extend(children(value.value, "    ", ""))
+            lines.extend(children(value.value, under_gender=True))
     for gender in sorted(set(nested) | set(ages)):
-        lines.extend(children(gender, "  ", f"{gender} "))
+        lines.extend(children(gender, under_gender=False))
     for review in status.needs_review:
         lines.append(f"  확인 요청: {review.message}")
     return lines

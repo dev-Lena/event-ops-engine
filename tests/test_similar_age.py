@@ -30,7 +30,7 @@ def test_report_shows_each_genders_ages_per_pool() -> None:
     male = lines.index("  gender=male: 확정 2 · 대기 0 · 목표 4~4 · 부족 2")
     assert lines[male + 1 : male + 3] == [
         "    나이(연 나이) 확정·대기: 31 · 33 — 31~33세, 폭 2살",
-        "    나이(연 나이) 신청 접수: 없음 · 출생연도 없음 1명 제외",
+        "    나이(연 나이) 신청 접수: 없음 · 출생연도 없음·오류 1명 제외",
     ]
     # s2: ages come before the gender's combinations; male has no target line of its own.
     s2 = lines.index("  gender=female: 확정 2 · 대기 0 · 목표 4~4 · 부족 2")

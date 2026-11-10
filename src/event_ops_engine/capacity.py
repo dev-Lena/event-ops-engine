@@ -123,7 +123,8 @@ def _review(
 
 def age_groups(engine: Engine, session_id: str) -> tuple[AgeGroup, ...]:
     """Ages per (gender, pool) from `age_entry`, one entry per attendee, with the rules'
-    low / high / spread and the count left out for a missing birth year."""
+    low / high / spread and the count left out for a missing birth year. Rows are keyed by
+    attendee first because wirelog can keep duplicate derived rows (design.md 14)."""
     per_attendee = {
         (str(gender), str(pool), str(attendee)): int(age)
         for _, gender, pool, attendee, age in engine.rows("age_entry", session_id)
