@@ -18,6 +18,18 @@ class DecisionKind(StrEnum):
     """Hold one side of a ratio at a limit until the other catches up (operator applies it)."""
 
 
+class DecisionPart(BaseModel):
+    """A combination's share of a gender's promotion decision (#32)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    dim: str
+    value: str
+    label: str
+    need: int
+    reasons: tuple[str, ...]
+
+
 class Decision(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -29,6 +41,8 @@ class Decision(BaseModel):
     reasons: tuple[str, ...] = ()
     evidence: tuple[str, ...] = Field(min_length=1)
     message: str
+    parts: tuple[DecisionPart, ...] = ()
+    """Combinations nested under this gender (#32): who, within `need`, the ads should reach."""
 
 
 class VerdictKind(StrEnum):

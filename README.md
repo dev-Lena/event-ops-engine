@@ -49,7 +49,17 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
   잠정 마감 권고: 비율 조정: female 잠정 마감 권고. 확정 3명이 male 1명보다 허용 차이 1명을 넘었습니다. 상한 2명으로 두고 male 쪽이 늘면 다시 엽니다. (이유: imbalance; 근거: ...)
 ```
 
-시나리오는 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`입니다. 홍보 기준값 중 홍보 중단(`promotion_cutoff_hours`, 모임 시작 2시간 전)만 운영사가 확인한 값이고, `lead_days` 등 나머지는 **가정값**입니다. 회차에 시작 시각(`start_time: "19:30"`, 따옴표 필수)을 적으면 그 시각부터 홍보 권고를 멈춥니다. 입금 대기 중인 자리는 차지한 것으로 보아 남은 자리 · 부족분에서 뺍니다(운영사 규칙). 지역 · 참여 방식처럼 신청폼에서 고르는 값은 정책 `dimensions.choices`에 선언하고 신청 · 참가자의 `attrs`에 적습니다(`hybrid.yaml`, 목록 밖 값은 거부). 2인 신청은 `pair: mixed_pair`처럼 유형만 적어도 성별이 정해진 2명으로 셉니다(`pair-type.yaml`). "25~29세 여성 4명"처럼 성별과 나이 범위를 묶은 목표는 정책 `combos`에 적고 `targets.combo`로 목표를 둡니다(`combo.yaml`, 회차마다 더하거나 바꿀 수 있음). 나이는 회차 연도 − 출생연도이고, 현황에서 그 성별 줄 아래에 나옵니다. 직군 정규화가 있는 시나리오(`job-group.yaml`)는 먼저 정책의 **별칭 사전**(사람이 승인한 단어 목록)으로 맞추고, 남은 문구만 정규화기에 한 번에 묻습니다. 기본 정규화기는 파일의 `canned_job_groups` 답을 쓰고, `--normalizer claude`를 주면 Claude Code CLI가 분류합니다.
+시나리오는 `data/synthetic/scenarios/*.yaml`, 정책(속성 정의 · 목표 · 홍보 기준)은 `policy/events/*.yaml`입니다. 홍보 기준값 중 홍보 중단(`promotion_cutoff_hours`, 모임 시작 2시간 전)만 운영사가 확인한 값이고, `lead_days` 등 나머지는 **가정값**입니다. 회차에 시작 시각(`start_time: "19:30"`, 따옴표 필수)을 적으면 그 시각부터 홍보 권고를 멈춥니다. 입금 대기 중인 자리는 차지한 것으로 보아 남은 자리 · 부족분에서 뺍니다(운영사 규칙). 지역 · 참여 방식처럼 신청폼에서 고르는 값은 정책 `dimensions.choices`에 선언하고 신청 · 참가자의 `attrs`에 적습니다(`hybrid.yaml`, 목록 밖 값은 거부). 2인 신청은 `pair: mixed_pair`처럼 유형만 적어도 성별이 정해진 2명으로 셉니다(`pair-type.yaml`). "25~29세 여성 4명"처럼 성별과 나이 범위를 묶은 목표는 정책 `combos`에 적고 `targets.combo`로 목표를 둡니다(`combo.yaml`, 회차마다 더하거나 바꿀 수 있음). 나이는 회차 연도 − 출생연도이고, 현황에서 그 성별 줄 아래에 나옵니다. 홍보 권고는 성별 한 줄에 광고 대상으로 묶여 나오고, 조합 부족의 합이 그 성별의 남은 자리보다 크면 "목표 충돌"로 보류합니다. 직군 정규화가 있는 시나리오(`job-group.yaml`)는 먼저 정책의 **별칭 사전**(사람이 승인한 단어 목록)으로 맞추고, 남은 문구만 정규화기에 한 번에 묻습니다. 기본 정규화기는 파일의 `canned_job_groups` 답을 쓰고, `--normalizer claude`를 주면 Claude Code CLI가 분류합니다.
+
+조합 목표 예시(`combo.yaml`의 s3 부분, 줄임. 권고 줄은 `tests/test_combos.py`가 고정합니다):
+
+```
+[회차 s3] 정원 10 · 확정 4 · 입금 대기 0 · 남은 자리 6
+  gender=female: 확정 2 · 대기 0 · 목표 5~5 · 부족 3
+    └ female 25~29세(연 나이): 확정 1 · 대기 0 · 목표 4~10 · 부족 3
+    └ female 30~34세(연 나이): 확정 1 · 대기 0 · 목표 1~10
+  홍보 권고: 회차 임박: female 3명 부족, 홍보가 필요합니다. 광고 대상: female 25~29세(연 나이) 3명 이상. (이유: lead_time, slow_trend; 근거: ...)
+```
 
 ### 운영 문의 판정 (①)
 
@@ -86,7 +96,7 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
 
 ### 결과 JSON (`--json`)
 
-다른 시스템(운영 관리 화면, 웹)이 결과를 받을 때는 `report`와 `triage`에 `--json`을 붙입니다. 사람용 문장 대신 아래 구조를 출력하고, 종료 코드는 같습니다. `schema`는 형식 버전입니다. 필드를 바꾸거나 없애면 `@2`로 올리고, 필드를 더하는 것은 같은 번호로 둡니다. `combos`는 그 회차의 조합 정의(성별 · 나이 범위 · 표시 이름)입니다. `decisions` · `needs_review`의 각 항목은 `Decision`, `verdicts`의 각 항목은 `Verdict` 모델 그대로입니다(`src/event_ops_engine/decision.py`). `trace`는 `--json --trace`일 때만 들어갑니다.
+다른 시스템(운영 관리 화면, 웹)이 결과를 받을 때는 `report`와 `triage`에 `--json`을 붙입니다. 사람용 문장 대신 아래 구조를 출력하고, 종료 코드는 같습니다. `schema`는 형식 버전입니다. 필드를 바꾸거나 없애면 `@2`로 올리고, 필드를 더하는 것은 같은 번호로 둡니다. `combos`는 그 회차의 조합 정의(성별 · 나이 범위 · 표시 이름)이고, 결정의 `parts`는 성별 권고에 묶인 조합 몫(조합 id · 표시 이름 · 부족 · 이유)입니다. `decisions` · `needs_review`의 각 항목은 `Decision`, `verdicts`의 각 항목은 `Verdict` 모델 그대로입니다(`src/event_ops_engine/decision.py`). `trace`는 `--json --trace`일 때만 들어갑니다.
 
 ```json
 // event-ops report data/synthetic/scenarios/pair-mixed.yaml --json (줄임)
@@ -99,7 +109,7 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
                   "needs_review": [],
                   "decisions": [ { "kind": "recommend", "session": "s2", "dim": "gender", "value": "male", "need": 4,
                                    "reasons": ["imbalance", "lead_time", "slow_trend"], "evidence": ["..."],
-                                   "message": "회차 임박: male 4명 부족, 홍보가 필요합니다." } ] } ] }
+                                   "message": "회차 임박: male 4명 부족, 홍보가 필요합니다.", "parts": [] } ] } ] }
 
 // event-ops triage data/synthetic/scenarios/triage/account-length.yaml --json
 { "schema": "event-ops/triage@1", "question": "q1", "matched": true,

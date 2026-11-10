@@ -1,6 +1,8 @@
 # 조합 목표 시나리오 (#32): 성별 × 나이 범위. 사람 · id는 모두 합성이다. 나이 = 2026 - 출생연도.
-# s1은 정책 기본 조합(여성 25~29세 · 30~34세)을 쓰고, s2는 신청 현황을 본 담당자가 남성 28~33세
-# 조합을 더하고 조합 목표를 그것으로 바꾼 회차다. r6은 출생연도가 빠진 데이터 오류다.
+# s1은 정책 기본 조합(여성 25~29세 · 30~34세)을 쓴다. 여성 자리가 찼는데 25~29세가 모자라 목표 충돌로
+# 보류된다. r6은 출생연도가 빠진 데이터 오류다. s2는 신청 현황을 본 담당자가 남성 28~33세 조합을 더하고
+# 조합 목표를 그것으로 바꾼 회차인데, 남성이 비율에서 앞서 잠정 마감 중이라 조합 권고를 내지 않는다.
+# s3는 여성 권고 한 줄에 25~29세 광고 대상이 함께 나오는 회차다.
 policy: ../../../policy/events/synthetic-age-combos.yaml
 now: 2026-11-07T10:00:00+09:00
 sessions:
@@ -12,6 +14,7 @@ sessions:
     targets:
       combo:
         m28_33: { lo: 3 }
+  - { id: s3, date: 2026-11-12 }
 registrations:
   - { id: r1, session: s1,
       members: [{ gender: female, birth_year: 1998 }, { gender: male, birth_year: 1996 }],
@@ -36,3 +39,10 @@ registrations:
       status_events: [{ at: 2026-11-01T10:00:00+09:00, status: confirmed }] }
   - { id: r11, session: s2, members: [{ gender: male, birth_year: 1993 }],
       status_events: [{ at: 2026-11-02T10:00:00+09:00, status: confirmed }] }
+  - { id: r12, session: s3, members: [{ gender: female, birth_year: 2000 }],
+      status_events: [{ at: 2026-10-20T10:00:00+09:00, status: confirmed }] }
+  - { id: r13, session: s3, members: [{ gender: female, birth_year: 1995 }],
+      status_events: [{ at: 2026-10-21T10:00:00+09:00, status: confirmed }] }
+  - { id: r14, session: s3,
+      members: [{ gender: male, birth_year: 1996 }, { gender: male, birth_year: 1993 }],
+      status_events: [{ at: 2026-10-22T10:00:00+09:00, status: confirmed }] }
