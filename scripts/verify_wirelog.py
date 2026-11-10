@@ -4,7 +4,7 @@ Each check prints PASS / FAIL / ERROR with the observed result so the report
 can separate facts from opinions. Run with WIRELOG_LIB pointing at the
 Intel-Mac build of libwirelog (or unset on Linux to use the wheel engine).
 
-Expected result on wirelog 0.70.0: 24/25 PASS. The one FAIL (body binding
+Expected result on wirelog 0.70.0: 25/26 PASS. The one FAIL (body binding
 `Z = X - Y`) documents a known limitation; see docs/design.md 9.
 """
 
@@ -208,6 +208,35 @@ current_status(R, S) :- latest_ts(R, T), status_event(R, S, T).
         "3b max(ts) when ts is not adjacent to key",
         out["current_status"] == {("r1", "confirmed")},
         f"got {sorted(out['current_status'])}",
+    )
+
+
+# ---------------------------------------------------------------- 3c. min + max per group, spread in the head, after removal (#91)
+def t_min_spread() -> None:
+    src = """
+.decl age(s: symbol, g: symbol, a: symbol, n: int64)
+.decl lo(s: symbol, g: symbol, n: int64)
+.decl hi(s: symbol, g: symbol, n: int64)
+.decl spread(s: symbol, g: symbol, n: int64)
+lo(S, G, min(N)) :- age(S, G, _, N).
+hi(S, G, max(N)) :- age(S, G, _, N).
+spread(S, G, H - L) :- hi(S, G, H), lo(S, G, L).
+"""
+    with open_session(src) as s:
+        for const in ["s1", "female", "male", "a1", "a2", "a3", "a4"]:
+            s.intern(const)
+        rows = [("s1", "female", "a1", 27), ("s1", "female", "a2", 41)]
+        rows += [("s1", "female", "a3", 29), ("s1", "male", "a4", 33)]
+        for row in rows:
+            s.insert("age", list(row))
+        before = set(s.snapshot("spread"))
+        s.remove("age", ["s1", "female", "a2", 41])
+        after = set(s.snapshot("spread"))
+    record(
+        "3c min/max per group, spread via head arithmetic, updated after removal",
+        before == {("s1", "female", 14), ("s1", "male", 0)}
+        and after == {("s1", "female", 2), ("s1", "male", 0)},
+        f"before={sorted(before)} after={sorted(after)}",
     )
 
 
@@ -472,6 +501,7 @@ if __name__ == "__main__":
         t_arith_head,
         t_lww,
         t_lww_nonadjacent,
+        t_min_spread,
         t_negation,
         t_retract_snapshot,
         t_retract_step,
