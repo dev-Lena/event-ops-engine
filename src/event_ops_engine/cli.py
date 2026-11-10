@@ -75,7 +75,7 @@ def _ages(group: AgeGroup) -> str:
 
 
 def _suggestion(suggestion: RangeSuggestion) -> str:
-    """'나이 범위 제안(…): 21~33세 — 확정·대기 4명 중 3명. …'; ties are joined with 또는."""
+    """'나이 범위 제안(…): 21~33세 — 4명 중 3명 포함. …'; ties are joined with 또는."""
     ranges = " 또는 ".join(f"{low}~{high}세" for low, high in suggestion.ranges)
     each = "씩" if len(suggestion.ranges) > 1 else ""
     return (
