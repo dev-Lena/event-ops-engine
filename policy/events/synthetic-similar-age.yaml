@@ -1,0 +1,24 @@
+# Synthetic policy for a gathering kept to a "similar age" (docs/design.md 3, #91).
+# Numbers are ASSUMED unless the comment says 확인값. No real event, client or person is described.
+# The person in charge picks the age range per session after seeing sign-ups, usually within
+# 10~15 years (운영사 확인, 2026-11-09). So the policy only declares it, and report shows each
+# gender's ages to judge by. Age is year-based (session year - birth year).
+event: synthetic-similar-age-meetup
+
+dimensions:
+  gender:
+    values: [female, male]
+
+similar_age: {}               # 비슷한 나잇대를 관리하는 모임 (#91). 폭 기준은 #91의 B에서 더한다
+
+defaults:
+  capacity: 8
+  targets:
+    gender:
+      female: { lo: 4, hi: 4 }    # 가정값
+      male: { lo: 4, hi: 4 }      # 가정값
+
+promotion:
+  lead_days: 7                # 가정값
+  trend_min_per_week: 3       # 가정값
+  promotion_cutoff_hours: 2   # 확인값 (#52)
