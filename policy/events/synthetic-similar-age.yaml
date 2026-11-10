@@ -1,15 +1,17 @@
 # Synthetic policy for a gathering kept to a "similar age" (docs/design.md 3, #91).
 # Numbers are ASSUMED unless the comment says 확인값. No real event, client or person is described.
 # The person in charge picks the age range per session after seeing sign-ups, usually within
-# 10~15 years (운영사 확인, 2026-11-09). So the policy only declares it, and report shows each
-# gender's ages to judge by. Age is year-based (session year - birth year).
+# 10~15 years (운영사 확인, 2026-11-09). So the policy fixes no range: report shows each gender's
+# ages to judge by, and asks for a look when seat holders spread wider than `max_spread` (a
+# session may set its own). Age is year-based (session year - birth year).
 event: synthetic-similar-age-meetup
 
 dimensions:
   gender:
     values: [female, male]
 
-similar_age: {}               # 비슷한 나잇대를 관리하는 모임 (#91). 폭 기준은 #91의 B에서 더한다
+similar_age:                  # 비슷한 나잇대를 관리하는 모임 (#91)
+  max_spread: 12              # 가정값: 성별마다 확정·대기 폭이 12살을 넘으면 확인 요청 (운영사: 보통 10~15살 이내, 모임별 값은 미확인)
 
 defaults:
   capacity: 8

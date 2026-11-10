@@ -135,3 +135,11 @@ age_unknown(S, G, P, A) :-
     similar_age(S), registration(R, S), age_pool(R, P), attendee(R, A),
     attendee_attr(A, "gender", G), age_missing(A).
 age_unknown_count(S, G, P, count(A)) :- age_unknown(S, G, P, A).
+
+// --- spread review (#91 B) --------------------------------------------------------
+// A gender's seat holders are further apart than the event allows ("within N years", so
+// equal is fine). Keyed by session and gender, never by registration: whoever widened the
+// spread is not named. Sign-ups not yet picked don't count; past sessions are left alone.
+.decl age_spread_review(session: symbol, gender: symbol, spread: int64, allowed: int64)
+age_spread_review(S, G, N, L) :-
+    age_spread(S, G, "occupying", N), age_spread_limit(S, L), N > L, days_left(S, D), D >= 0.

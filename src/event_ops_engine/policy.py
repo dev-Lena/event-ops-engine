@@ -44,6 +44,16 @@ def resolve_targets(policy: EventPolicy, session: Session) -> list[tuple[str, st
     return rows
 
 
+def resolve_max_spread(policy: EventPolicy, session: Session) -> int | None:
+    """The session's age spread limit (#91 B): the session's own, else the event's. None when
+    the event doesn't keep a similar age or sets no limit. 0 is a real limit, hence `is None`."""
+    if policy.similar_age is None:
+        return None
+    if session.similar_age is not None and session.similar_age.max_spread is not None:
+        return session.similar_age.max_spread
+    return policy.similar_age.max_spread
+
+
 def resolve_combos(policy: EventPolicy, session: Session) -> Combos:
     """The session's combinations (#32): event defaults plus the session's own, by id."""
     return effective_combos(policy.defaults.combos, session.combos)

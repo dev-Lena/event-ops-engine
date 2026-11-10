@@ -61,7 +61,7 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
   홍보 권고: 회차 임박: female 3명 부족, 홍보가 필요합니다. 광고 대상: female 25~29세(연 나이) 3명 이상. (이유: lead_time, slow_trend; 근거: ...)
 ```
 
-"비슷한 나잇대"를 관리하는 모임은 정책 맨 위에 `similar_age: {}`를 둡니다. 그러면 성별마다 확정·대기와 신청 접수의 나이 목록과 폭이 나옵니다. 범위는 담당자가 이것을 보고 정합니다. 출력에는 나이와 수만 있고 신청 id는 없습니다(`similar-age.yaml`의 s1 부분, 줄임. `tests/test_similar_age.py`가 고정합니다):
+"비슷한 나잇대"를 관리하는 모임은 정책 맨 위에 `similar_age: {}`를 둡니다. 그러면 성별마다 확정·대기와 신청 접수의 나이 목록과 폭이 나옵니다. 범위는 담당자가 이것을 보고 정합니다. `similar_age: { max_spread: 12 }`처럼 폭 기준을 두면, 어떤 성별의 확정·대기 폭이 기준보다 클 때 "확인 요청"이 나옵니다(회차마다 덮어쓸 수 있고, 기준값은 가정값). 출력에는 나이와 수만 있고 신청 id는 없습니다(`similar-age.yaml`의 s1 부분, 줄임. `tests/test_similar_age.py`가 고정합니다):
 
 ```
   gender=female: 확정 2 · 대기 1 · 목표 4~4 · 부족 1

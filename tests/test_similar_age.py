@@ -112,11 +112,10 @@ def test_json_lists_ages_without_naming_anyone() -> None:
 
 
 def test_a_blank_similar_age_key_is_refused(tmp_path: Path) -> None:
+    # Drop the block's only setting: what is left is the key and a comment, i.e. YAML null.
+    lines = POLICY.read_text(encoding="utf-8").splitlines(keepends=True)
     blank = tmp_path / "policy.yaml"
-    blank.write_text(
-        POLICY.read_text(encoding="utf-8").replace("similar_age: {}", "similar_age:"),
-        encoding="utf-8",
-    )
+    blank.write_text("".join(line for line in lines if "max_spread" not in line), encoding="utf-8")
     with pytest.raises(ValueError, match="similar_age is blank"):
         load_policy(blank)
     run = tmp_path / "scenario.yaml"
