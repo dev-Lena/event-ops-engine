@@ -23,7 +23,7 @@ YAML 시나리오 ─► Python 모델(검증) ─► 사실(fact) ─► wirelo
                                       clock.py
 ```
 
-CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이고, `--json`은 다른 시스템이 읽는 구조다(#85). JSON은 `schema`(`event-ops/report@1` · `event-ops/triage@1`)로 버전을 밝힌다. 성별 결정에 묶인 조합 몫은 `Decision.parts`에 담는다(#32). 필드를 **더하는** 것은 같은 번호로 두고(읽는 쪽은 모르는 필드를 무시한다), 필드를 바꾸거나 없애면 번호를 올린다(#32에서 정함). `Decision` · `Verdict`는 pydantic 모델을 그대로 직렬화해 문장 출력과 같은 판단 · 근거를 담는다. 형식 예시는 README "결과 JSON".
+CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이고, `--json`은 다른 시스템이 읽는 구조다(#85). JSON은 `schema`(`event-ops/report@1` · `event-ops/triage@1`)로 버전을 밝힌다. 성별 결정에 묶인 조합 몫은 `Decision.parts`에 담는다(#32). 비슷한 나잇대 모임의 성별 · 묶음별 나이는 회차의 `ages`에 담는다(#91, 나이와 수만). 필드를 **더하는** 것은 같은 번호로 두고(읽는 쪽은 모르는 필드를 무시한다), 필드를 바꾸거나 없애면 번호를 올린다(#32에서 정함). `Decision` · `Verdict`는 pydantic 모델을 그대로 직렬화해 문장 출력과 같은 판단 · 근거를 담는다. 형식 예시는 README "결과 JSON".
 
 계층 (공용 코드 기준 1번, [CONTRIBUTING.md](../CONTRIBUTING.md)):
 
@@ -67,6 +67,16 @@ Member
 - 현황에서 조합은 그 성별 줄 아래에 나이 순으로 나온다. 홍보 권고도 성별 한 줄에 묶어 낸다(7절). 따로 내면 "여성 2명 부족" + "25~29세 여성 1명 부족"이 3명으로 읽히기 때문이다.
 - 예시: `policy/events/synthetic-age-combos.yaml`, `data/synthetic/scenarios/combo.yaml`.
 
+**비슷한 나잇대 (#91 A, 결정 기록: [decisions/2026-11-10-similar-age.md](decisions/2026-11-10-similar-age.md))**: 운영사 확인(2026-11-09, 사용자 설명): 나이가 중요한 모임은 "비슷한 나잇대"를 미리 정하지 않는다. 담당자가 신청 현황을 보고 정하고, 보통 10~15살 차이 이내다. 사용자 결정(2026-11-09 · 10): 폭은 성별마다 잰다. 정한 범위는 신청자 선별, 광고 대상 나이, 조합 목표 인원에 쓰인다.
+
+- 정책 맨 위에 `similar_age: {}`를 두면 그 모임의 `report`가 성별마다 나이 목록과 폭(가장 많은 나이 − 가장 적은 나이, 연 나이)을 보인다. 나이를 관리하지 않는 모임이 있어서 켜는 방식이다. 조합을 켜는 조건으로 쓰지 않는 이유: 범위를 정하기 전, 곧 조합을 적기 전이 가장 필요한 때다. 폭 기준(#91 B)도 이 블록에 들어간다.
+- `similar_age:`처럼 값을 비우면 YAML이 null로 읽어 조용히 꺼지므로, 정책을 읽을 때 거부한다(`loader.py`). 모델에서 막지 않는 이유: `model_dump`한 정책이 `similar_age: None`을 담아 다시 검증되지 않는다.
+- 두 묶음을 따로 보인다. **확정·대기**(자리를 차지한 사람, 그 자리에 올 사람)와 **신청 접수**(`applied`, 담당자가 아직 고르는 사람)다. 선별을 돕는 것은 신청 접수 줄이다.
+- 사람을 가리키지 않는다. 출력(문장 · JSON)에는 나이와 수만 있고 신청 id나 "범위 밖" 표시는 없다. 엔진은 개별 신청자를 거절하지 않는다(1절). 나이는 작은 순으로 적어 신청 순서와 이어지지 않게 한다.
+- 출생연도가 없는 참가자는 목록에서 빠지고 그 수를 "출생연도 없음 N명 제외"로 붙인다. 목록이 성별 인원보다 짧은 이유가 보이게 하려는 것이다. `similar_age`를 둔 모임도 나이를 읽는 모임이라, 자리를 차지한 사람의 출생연도가 없으면 지금처럼 `missing_birth_year` 확인 요청이 나온다.
+- 현황에서 나이 줄은 그 성별 줄 바로 아래, 조합보다 먼저 나온다. 성별 줄이 없는 성별(목표가 없음)은 맨 위 줄에 성별 이름을 붙여 나온다.
+- 예시: `policy/events/synthetic-similar-age.yaml`, `data/synthetic/scenarios/similar-age.yaml`.
+
 개인 식별 정보 칸은 **모델에 없다**. 이름 · 연락처 · 계좌 · 자유 서술은 들어올 자리가 없으므로 실수로도 저장소 · 출력에 섞이지 않는다.
 
 ## 4. 인원 환산
@@ -102,7 +112,8 @@ Member
 | `attendee_attr(attendee, dim, value)` | 참가자 속성 (**파생**: `given_attr`이거나 기준 이상 후보, 14절) | `capacity.dl` |
 | `status_event(reg, ts, status)` | 상태 이력 | 시나리오 |
 | `unknown_party(reg, party_size)` | 구성 미상 신청 | `facts.py` |
-| `attendee_age(attendee, age)` | 연 나이 (조합이 있는 회차만, #32) | `facts.py` + `bands.py` |
+| `attendee_age(attendee, age)` | 연 나이 (조합이 있는 회차(#32)나 `similar_age` 모임(#91)만) | `facts.py` + `bands.py` |
+| `similar_age(session)` | 비슷한 나잇대를 관리하는 모임의 회차 (#91) | 정책 `similar_age` |
 | `age_missing(attendee)` | 나이를 읽는 모임인데 출생연도가 없음 (데이터 오류) | `facts.py` |
 | `combo_def(session, combo, gender, lo, hi)` | 회차의 조합: 성별 + 나이 범위 (양 끝 포함) | `policy.py` |
 | `counted_attr(attendee, dim, value)` | 집계에 쓰는 속성 (**파생**: `attendee_attr` + 조합 `combo`) | `capacity.dl` |
@@ -137,6 +148,18 @@ imbalance(S, D, B, Fa - Fb) :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa
 - `pending_payment`는 `filled`에 넣지 않고 `pending(S, D, V, N)`으로 따로 낸다.
 - `unknown` 값은 `tracked`가 아니므로 목표 집계에서 빠지고, `needs_review(S, R, reason)`로 운영자에게 올라간다. 단, 사람 수이므로 `session_filled`에는 들어간다.
 - 조합(#32)은 `combo`라는 속성 값처럼 센다. 확정 · 입금 대기 · 최근 추세 집계가 모두 `counted_attr`를 쓰므로 목표 · 부족 · 목표 충족 계산이 다른 속성과 같다. 같은 성별의 나이 범위는 겹치지 않으므로(3절) 한 사람은 성별마다 조합 하나에만 든다.
+- 비슷한 나잇대(#91 A)는 성별 × 묶음마다 나이를 모은다. 묶음 `occupying`은 확정 · 입금 대기(`occupies`), `applied`는 신청 접수다. 폭은 `min` · `max` 집계와 head 산술로 낸다(9절 검증 3c). 규칙은 사람을 가리키는 관계를 내지 않고, 출력은 나이와 수만 쓴다(3절).
+
+```
+age_pool(R, "occupying")     :- occupies(R).
+age_pool(R, "applied")       :- applied(R).
+age_entry(S, G, P, A, Age)   :- similar_age(S), registration(R, S), age_pool(R, P), attendee(R, A),
+                                attendee_attr(A, "gender", G), attendee_age(A, Age).
+age_low(S, G, P, min(Age))   :- age_entry(S, G, P, _, Age).
+age_high(S, G, P, max(Age))  :- age_entry(S, G, P, _, Age).
+age_spread(S, G, P, Hi - Lo) :- age_high(S, G, P, Hi), age_low(S, G, P, Lo).
+age_unknown_count(S, G, P, count(A)) :- age_unknown(S, G, P, A).   // 출생연도 없음 (age_missing)
+```
 
 ## 7. 홍보 판단 (③, `rules/promotion.dl`)
 
@@ -213,7 +236,7 @@ blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(
 | `EasySession.snapshot`은 입력 관계(EDB)에 빈 결과를 돌려준다 | `engine.py`가 넣은 사실을 함께 보관하고 입력 관계는 거기서 읽는다 |
 | `BatchProgram`은 inline 사실을 자동 적재하므로 `load_all_facts()`를 또 부르면 두 배로 센다. 결과 symbol도 id로만 나온다 | `EasySession`만 쓴다. `.dl`에 데이터 사실을 쓰지 않는다 |
 
-검증 스크립트: `scripts/verify_wirelog.py` (25건 중 24건 통과, 실패 1건은 위 첫 줄의 기록용).
+검증 스크립트: `scripts/verify_wirelog.py` (26건 중 25건 통과, 실패 1건은 위 첫 줄의 기록용). 3c는 `min` · `max` 집계와 head 산술, 사실을 지운 뒤 다시 계산되는지 확인한다(#91).
 
 ## 10. 저장소 구조
 
@@ -266,7 +289,7 @@ docs/             design.md glossary.md decisions/
 ## 12. 확인하지 못한 것
 
 - Linux에서의 속도 — `make bench`는 Intel Mac에서만 쟀다 (11절).
-- `average` 등 다른 집계 함수 — 이번 규칙은 `count` · `max`만 쓴다.
+- `average` 등 다른 집계 함수 — 규칙은 `count` · `max` · `min`만 쓴다(`min`은 #91에서 검증 3c로 확인).
 - 실제 운영사 정책값 — 7절 기준값 중 `promotion_cutoff_hours`만 확인됨이고 나머지는 가정값이다 (#52).
 
 ## 13. 운영 문의 판정 (①, `rules/triage.dl`, `harness.py`)
@@ -410,3 +433,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-08 | 3 · 4절 2인 신청 유형 `pair` (#33) |
 | 2026-11-09 | 3 · 4 · 5 · 6절 조합 목표(성별 + 나이 범위)와 운영사 확인 사실, 출생연도 없음 확인 요청, 2절 JSON 번호 규칙(필드 추가는 같은 번호) (#32) |
 | 2026-11-09 | 7절 조합 권고: 성별 결정에 묶기(`Decision.parts`), 필요 인원, 잠정 마감이면 조용히, 남은 자리보다 크면 `gender_room` 보류 (#32) |
+| 2026-11-10 | 3 · 5 · 6절 비슷한 나잇대(#91 A): 정책 `similar_age`, 성별 · 묶음(확정·대기 / 신청 접수)별 나이 목록과 폭, 출생연도 없음 수, 2절 JSON `ages`. 9 · 12절 `min` 집계 검증 |

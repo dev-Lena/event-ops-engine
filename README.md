@@ -61,6 +61,14 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
   홍보 권고: 회차 임박: female 3명 부족, 홍보가 필요합니다. 광고 대상: female 25~29세(연 나이) 3명 이상. (이유: lead_time, slow_trend; 근거: ...)
 ```
 
+"비슷한 나잇대"를 관리하는 모임은 정책 맨 위에 `similar_age: {}`를 둡니다. 그러면 성별마다 확정·대기와 신청 접수의 나이 목록과 폭이 나옵니다. 범위는 담당자가 이것을 보고 정합니다. 출력에는 나이와 수만 있고 신청 id는 없습니다(`similar-age.yaml`의 s1 부분, 줄임. `tests/test_similar_age.py`가 고정합니다):
+
+```
+  gender=female: 확정 2 · 대기 1 · 목표 4~4 · 부족 1
+    나이(연 나이) 확정·대기: 26 · 28 · 28 — 26~28세, 폭 2살
+    나이(연 나이) 신청 접수: 24 · 41 — 24~41세, 폭 17살
+```
+
 ### 운영 문의 판정 (①)
 
 원인이 하나로 가려지면 `accept`, 근거 로그 id가 붙습니다. 근거는 믿을 수 있는 순서로 나눠 보여 줍니다: 명시 사실(asserted, 기록된 로그) → 추론 사실(inferred, 규칙이 기록에서 끌어낸 사실) → LLM 추출 후보(해석기가 질문에서 뽑아 검증을 통과한 사실).
@@ -96,7 +104,7 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
 
 ### 결과 JSON (`--json`)
 
-다른 시스템(운영 관리 화면, 웹)이 결과를 받을 때는 `report`와 `triage`에 `--json`을 붙입니다. 사람용 문장 대신 아래 구조를 출력하고, 종료 코드는 같습니다. `schema`는 형식 버전입니다. 필드를 바꾸거나 없애면 `@2`로 올리고, 필드를 더하는 것은 같은 번호로 둡니다. `combos`는 그 회차의 조합 정의(성별 · 나이 범위 · 표시 이름)이고, 결정의 `parts`는 성별 권고에 묶인 조합 몫(조합 id · 표시 이름 · 부족 · 이유)입니다. `decisions` · `needs_review`의 각 항목은 `Decision`, `verdicts`의 각 항목은 `Verdict` 모델 그대로입니다(`src/event_ops_engine/decision.py`). `trace`는 `--json --trace`일 때만 들어갑니다.
+다른 시스템(운영 관리 화면, 웹)이 결과를 받을 때는 `report`와 `triage`에 `--json`을 붙입니다. 사람용 문장 대신 아래 구조를 출력하고, 종료 코드는 같습니다. `schema`는 형식 버전입니다. 필드를 바꾸거나 없애면 `@2`로 올리고, 필드를 더하는 것은 같은 번호로 둡니다. `combos`는 그 회차의 조합 정의(성별 · 나이 범위 · 표시 이름)이고, 결정의 `parts`는 성별 권고에 묶인 조합 몫(조합 id · 표시 이름 · 부족 · 이유)입니다. `ages`는 `similar_age` 모임의 성별 · 묶음(`occupying` 확정·대기, `applied` 신청 접수)별 나이 목록 · 폭 · 출생연도 없음 수이고, 신청 id는 담지 않습니다. `decisions` · `needs_review`의 각 항목은 `Decision`, `verdicts`의 각 항목은 `Verdict` 모델 그대로입니다(`src/event_ops_engine/decision.py`). `trace`는 `--json --trace`일 때만 들어갑니다.
 
 ```json
 // event-ops report data/synthetic/scenarios/pair-mixed.yaml --json (줄임)
@@ -106,7 +114,7 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
                   "values": [ { "dim": "gender", "value": "male", "lo": 6, "hi": 6, "filled": 1, "pending": 1,
                                 "gap": 4, "remaining": 4, "is_full": false, "evidence": ["..."] } ],
                   "combos": {},
-                  "needs_review": [],
+                  "needs_review": [], "ages": [],
                   "decisions": [ { "kind": "recommend", "session": "s2", "dim": "gender", "value": "male", "need": 4,
                                    "reasons": ["imbalance", "lead_time", "slow_trend"], "evidence": ["..."],
                                    "message": "회차 임박: male 4명 부족, 홍보가 필요합니다.", "parts": [] } ] } ] }
@@ -136,8 +144,8 @@ flowchart LR
 |---|---|
 | `rules/` | Datalog 규칙: `ontology.dl`(사실 스키마) · `capacity.dl`(②) · `promotion.dl`(③) · `triage.dl`(① 계약 + 유형 1~7 · 2b 규칙) |
 | `src/event_ops_engine/` | lib(`model` `bands` `clock` `facts` `policy` `loader` `decision` `synthetic`) · services(`engine` `interpreter` `normalizer`) · features(`capacity` `promotion` `harness` `cli`) |
-| `policy/events/` | 모임 정책 YAML 4개 (합성 예시, 확인값 표시가 없는 기준값은 가정값). `synthetic-job-group.yaml`은 LLM이 정규화하는 `job_group` 차원, `synthetic-hybrid.yaml`은 선택 속성(지역 · 참여 방식), `synthetic-age-combos.yaml`은 조합 목표(성별 + 나이 범위) 예시 |
-| `data/synthetic/scenarios/` | 합성 시나리오: 현황 · 홍보 9개(직군 정규화 · 선택 속성 · 2인 유형 · 조합 포함), 문의(`triage/`) 10개 |
+| `policy/events/` | 모임 정책 YAML 5개 (합성 예시, 확인값 표시가 없는 기준값은 가정값). `synthetic-job-group.yaml`은 LLM이 정규화하는 `job_group` 차원, `synthetic-hybrid.yaml`은 선택 속성(지역 · 참여 방식), `synthetic-age-combos.yaml`은 조합 목표(성별 + 나이 범위), `synthetic-similar-age.yaml`은 비슷한 나잇대 관리 예시 |
+| `data/synthetic/scenarios/` | 합성 시나리오: 현황 · 홍보 10개(직군 정규화 · 선택 속성 · 2인 유형 · 조합 · 비슷한 나잇대 포함), 문의(`triage/`) 10개 |
 | `tests/` | pytest. 계산 로직은 같은 PR에 테스트를 올립니다. README 출력 예시도 테스트합니다 |
 | `scripts/` | 엔진 빌드 · wirelog 문법 검증 · 성능 측정(`make bench`) |
 | `docs/` | 설계 · 용어 · 결정 기록 |
