@@ -27,7 +27,7 @@
 | 목표 하한까지 더 필요한 사람 수 | 부족분 / gap | `gap` | 미달, 결원 | `lo - filled - pending`, 0보다 클 때만. 입금 대기도 자리를 차지한 것으로 본다 |
 | 목표 상한까지 더 받을 수 있는 사람 수 | 남은 목표 자리 / remaining | `remaining` | — | `hi - filled - pending` (음수면 초과) |
 | 회차 정원에서 남은 사람 수 | 남은 자리 / remaining seats | `remaining_seats` | 잔여석 | `session_capacity - session_filled - session_pending` (운영사 규칙) |
-| 신청했으나 아직 입금하지 않은 상태 | 입금 대기 / pending payment | `pending_payment` | 미입금, 대기 | 자리를 차지하지 않는다. 현황에는 따로 보여 준다 |
+| 신청했으나 아직 입금하지 않은 상태 | 입금 대기 / pending payment | `pending_payment` | 미입금, 대기 | `filled`(확정)에는 넣지 않고 현황에 따로 보여 준다. 남은 자리 · 남은 목표 자리 · 부족분에서는 확정과 함께 뺀다(자리를 차지함, 운영사 규칙, [design.md 6](design.md#6-현황-규칙-②-rulescapacitydl)) |
 | 입금이 확인되어 자리가 확정된 상태 | 확정 / confirmed | `confirmed` | 승인, 완료 | `filled`에 세는 유일한 상태 |
 | 신청자가 취소하거나 운영사가 취소 처리한 상태 | 취소 / cancelled | `cancelled` | 철회, 반려 | 자리를 돌려준다. 규칙에서는 "최신 상태가 cancelled" 또는 사실 철회(remove)로 표현 |
 | 환불까지 끝난 취소 | 환불 / refunded | `refunded` | — | 자리 계산은 `cancelled`와 같다 |
@@ -42,15 +42,15 @@
 | 판단 결과 하나 (권고 · 보류 · 확인 요청) | 판단 / decision | `Decision` (Python) | 알림 | 근거 사실 id 목록을 반드시 같이 가진다 |
 | 판단을 떠받치는 입력 사실 | 근거 / evidence | `evidence` (fact id 목록) | — | 예: `target/s1/gender/female`, `registration/r3` |
 | 담당자가 올린 운영 문의 한 건 | 문의 / question | `question(q)` | 티켓, 이슈 | 합성 질문만 둔다. 자유 서술은 해석기 입력으로만 쓰고 저장소에는 합성 문장만 |
-| 해석기(LLM)가 문의에서 뽑아 제안한 사실. 검증 전 | 후보 사실 / candidate fact | `CandidateFact` (relation · args · provenance · confidence) | 추출 결과, 엔티티 | 관계 네 개(`asks_about` · `about_registration` · `about_session` · `about_event`)만 허용. 규칙이 파생한 사실과 구분한다 |
+| 해석기(LLM)가 문의에서 뽑아 제안한 사실. 검증 전 | 후보 사실 / candidate fact | `CandidateFact` (relation · args · provenance · confidence) | 추출 결과, 엔티티 | 관계 다섯 개(`asks_about` · `about_registration` · `about_session` · `about_event` · `about_value`)만 허용. 규칙이 파생한 사실과 구분한다 |
 | 후보 사실이 어디서 왔는지 (원문 인용) | 근거 출처 / provenance | `Provenance(source, quote)` | — | 없으면 입력에서 거부 |
 | 시스템이 남긴 사건 기록 (발송 · 결제 시도 · 수신증 등) | 이벤트 로그 / event log | `log_event(id, reg, kind, ts)` · `log_attr(id, key, value)` | 히스토리 | 합성 로그만. `status_event`(신청 상태)와 다르다 |
 | 규칙이 문의에서 가려낸 원인 | 원인 / cause | `cause(q, cause, evidence)` | 결론 | 유형 규칙이 파생. 한 문의에 원인이 하나일 때만 accept |
 | 문의 판정 결과 | 판정 / verdict | `Verdict` (`accept` · `ask` · `abstain` · `reject`) | 답변 | [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
 | 질문이 가리키는 신청 | 질문 대상 / subject | `subject(q, reg)` | — | `about_registration`이거나 `about_event`의 로그가 속한 신청 |
 | 문의 유형 하나를 판정하는 규칙 묶음 | 유형 규칙 / type rule | `rules/triage.dl` 유형 1~7 (`user_input` · `external_delay` · `external_failure` · `policy_normal` · `expired` · `suspected_bug` · `seat_full`/`over_capacity` · `sync_lag`) | 분류기 | 주제별로 `cause`와 `needs`를 파생. [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
-| 규칙으로 설명할 수 없어야 정상인 조건. 깨지면 버그 의심 | 불변식 / invariant | `invariant_violated(reg, invariant)` | 제약 | 확정인데 결제 없음 · 기한 뒤 결제로 확정 · 속성 정원 초과. 위반은 `suspected_bug`로 사람에게 넘긴다 |
-| 유형 규칙이 쓰는 설정값 | 문의 기준 / triage policy | `triage_policy(key, n)` | 임계값 | `grace_minutes`(0) · `payment_deadline_hours`(24). 운영 자료로 확인한 값 |
+| 규칙으로 설명할 수 없어야 정상인 조건. 깨지면 버그 의심 | 불변식 / invariant | `invariant_violated(reg, invariant)` | 제약 | 확정인데 결제 없음(조회했는데 없음) · 기한 뒤 결제로 확정 · 속성 정원 초과 · 업체 입금 확인 뒤 반영 대기 시간을 넘겨도 입금 대기(`paid_but_pending`). 위반은 `suspected_bug`로 사람에게 넘긴다 |
+| 유형 규칙이 쓰는 설정값 | 문의 기준 / triage policy | `triage_policy(key, n)` | 임계값 | `grace_minutes`(0, 운영 자료로 확인) · `sync_lag_minutes`(10, **가정값**). 입금 기한 `payment_deadline_hours`(24, 운영 자료로 확인)는 회차별 덮어쓰기가 있어 `deadline_hours(session, h)`로 따로 넣는다. 확신도 기준은 아래 "확신도 기준" 줄 |
 | `needs`를 누가 채울 수 있는지 | 확인 주체 / verifier | `NEEDS_VERIFIER` (외부 · 내부 · 질문 · 정책) | — | 외부 = 발송 업체 로그가 진실, 내부 = 관리자 기록. 출력에 괄호로 붙는다 |
 | 시나리오 작성자가 적어 둔 기대 결과 | 기대 판정 / expected verdict | `ExpectedVerdict` (kind · cause · needs) | 정답 | `event-ops triage`가 실제 판정과 비교한다 |
 | 자유 입력을 속성 값 후보로 바꾸는 부품 | 정규화기 / normalizer | `Normalizer` (Claude Code CLI · 가짜), `NormalizedValue(value, confidence, quote)` | 분류기, 태거 | 제안만 한다. 받아들이는 것은 규칙 |
@@ -65,13 +65,13 @@
 
 `status_event`의 `status`는 아래 다섯 값만 쓴다. 다른 값은 Python 모델이 거부한다.
 
-| 값 | 뜻 | 자리 계산 |
-|---|---|---|
-| `applied` | 신청 접수 (입금 안내 전) | 세지 않음 |
-| `pending_payment` | 입금 대기 | 세지 않음 (현황에 따로 표시) |
-| `confirmed` | 확정 | **센다** |
-| `cancelled` | 취소 | 세지 않음 |
-| `refunded` | 환불 완료 | 세지 않음 |
+| 값 | 뜻 | 확정 수(`filled`) | 남은 자리 · 부족분에서 빼나 |
+|---|---|---|---|
+| `applied` | 신청 접수 (입금 안내 전) | 세지 않음 | 빼지 않음 |
+| `pending_payment` | 입금 대기 | 세지 않음 (현황에 따로 표시) | **뺀다** (자리를 차지함) |
+| `confirmed` | 확정 | **센다** | **뺀다** |
+| `cancelled` | 취소 | 세지 않음 | 빼지 않음 |
+| `refunded` | 환불 완료 | 세지 않음 | 빼지 않음 |
 
 ## 속성 이름과 값 (1차)
 
@@ -109,3 +109,4 @@
 | 2026-11-10 | 용어 추가: 비슷한 나잇대 · 나이 폭 · 확정·대기 / 신청 접수 (#91) |
 | 2026-11-10 | 나이 폭에 폭 기준과 확인 요청 (#91 B) |
 | 2026-11-10 | 나이 범위 제안 추가 (#91 C) |
+| 2026-11-11 | 입금 대기 · 상태 값 표의 자리 계산, 후보 관계 다섯 개, 불변식 · 문의 기준 목록을 실제와 맞춤 (#95) |

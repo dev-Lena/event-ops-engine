@@ -16,7 +16,7 @@
 | 테스트 파일 위치 | 대상 파일 바로 옆 `*.test.*` | `tests/` 폴더, `test_<module>.py` | Python 패키징에서 테스트를 배포 패키지 밖에 두는 관례. pytest 기본 설정과 맞춤 |
 | 테스트 도구 | Vitest · Playwright | pytest (E2E 없음: 화면이 없다) | Python 프로젝트 |
 | 린트 · 타입 | eslint · tsc | black · isort · flake8 · mypy(strict) | Python 프로젝트 |
-| 계층 이름 | screens / patterns / ui / services / lib | `features`(capacity · promotion · cli) / `services`(engine) / `lib`(model · facts · bands · clock · policy) — 폴더는 나누지 않고 모듈 docstring에 계층을 적는다 | 모듈 수가 적다. 10개를 넘기면 폴더로 나눈다 |
+| 계층 이름 | screens / patterns / ui / services / lib | `features`(capacity · promotion · harness · cli) / `services`(engine · interpreter · normalizer) / `lib`(model · facts · bands · clock · policy · loader · decision · synthetic) — 폴더는 나누지 않고 모듈 docstring에 계층을 적는다 | 모듈 수가 적다. 10개를 넘기면 폴더로 나눈다 |
 
 ## 시작하기
 

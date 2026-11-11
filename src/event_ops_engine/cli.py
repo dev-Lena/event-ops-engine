@@ -29,7 +29,8 @@ from .promotion import cutoff_hours, promotion_decisions, promotion_stopped
 
 REPORT_SCHEMA = "event-ops/report@1"
 TRIAGE_SCHEMA = "event-ops/triage@1"
-"""Version tags of the `--json` output. Any field change bumps the number (#85)."""
+"""Version tags of the `--json` output. Adding a field keeps the number; changing or removing
+one bumps it (#32, #85)."""
 
 VERDICT_LABELS: dict[VerdictKind, str] = {
     VerdictKind.ACCEPT: "원인 확정",

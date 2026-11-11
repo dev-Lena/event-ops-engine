@@ -1,4 +1,7 @@
-"""Shared fixtures. Points PyreWire at the local engine build when WIRELOG_LIB is unset."""
+"""Shared fixtures: repo paths, a scenario loader and a fresh engine per test.
+
+The local engine build is picked up by `engine.ensure_library_env` when WIRELOG_LIB is unset.
+"""
 
 from __future__ import annotations
 

@@ -6,11 +6,11 @@
 
 ## 1. 범위
 
-| 모듈 | 하는 일 | LLM | 이번 PR |
+| 모듈 | 하는 일 | LLM | 상태 |
 |---|---|---|---|
 | ② 현황 (capacity) | 회차 · 속성 값마다 `filled` · `gap` · `remaining` · 입금 대기 · 정원 대비 남은 자리 | 없음 | 구현 |
 | ③ 홍보 판단 (promotion) | 부족분 · 남은 날 · 최근 추세 · 비율 불균형으로 홍보 **권고** 또는 **보류** | 없음 | 구현 |
-| ① 운영 문의 판정 (triage) | 문의 글을 유형으로 해석(LLM) → 규칙으로 판정 → accept / ask / abstain / reject | 있음 | 계약 · 해석기 · 하네스 · 유형 1 · 2(13절). 유형 3~ 는 #18~#21 |
+| ① 운영 문의 판정 (triage) | 문의 글을 유형으로 해석(LLM) → 규칙으로 판정 → accept / ask / abstain / reject | 있음 | 구현: 계약 · 해석기 · 하네스 · 유형 1~7 · 2b (13절) |
 
 엔진은 **권고만** 한다. 홍보 실행 · 개별 신청 거절은 사람이 한다. 개별 신청자를 자동으로 거절하는 규칙은 두지 않는다.
 
@@ -29,7 +29,7 @@ CLI 출력은 두 가지다. 기본은 운영자가 읽는 한국어 문장이�
 
 | 계층 | 모듈 | 규칙 |
 |---|---|---|
-| lib (순수) | `model.py` `bands.py` `clock.py` `facts.py` `policy.py` | 외부 라이브러리 · 시각을 모른다. 현재 시각은 인자로 받는다 |
+| lib (순수) | `model.py` `bands.py` `clock.py` `facts.py` `policy.py` `loader.py` `decision.py` `synthetic.py` | 엔진(PyreWire) · LLM · 현재 시각을 모른다. 현재 시각은 인자로 받는다. 입력 검증에 pydantic, YAML 읽기에 PyYAML을 쓴다 |
 | services | `engine.py` `interpreter.py` `normalizer.py` | PyreWire를 감싼다. wirelog 제약(9절)을 여기서 모두 흡수한다. LLM 호출(Claude Code CLI · 가짜)도 여기 |
 | features | `capacity.py` `promotion.py` `harness.py` `cli.py` | 사실 적재 → 스냅샷 → `Decision` · `Verdict` 조립 |
 
@@ -72,7 +72,7 @@ Member
 - 정책 맨 위에 `similar_age: {}`를 두면 그 모임의 `report`가 성별마다 나이 목록과 폭(가장 많은 나이 − 가장 적은 나이, 연 나이)을 보인다. 나이를 관리하지 않는 모임이 있어서 켜는 방식이다. 조합을 켜는 조건으로 쓰지 않는 이유: 범위를 정하기 전, 곧 조합을 적기 전이 가장 필요한 때다.
 - `similar_age:`처럼 값을 비우면 YAML이 null로 읽어 조용히 꺼지므로, 정책을 읽을 때 거부한다(`loader.py`). 모델에서 막지 않는 이유: `model_dump`한 정책이 `similar_age: None`을 담아 다시 검증되지 않는다.
 - 두 묶음을 따로 보인다. **확정·대기**(자리를 차지한 사람, 그 자리에 올 사람)와 **신청 접수**(`applied`, 담당자가 아직 고르는 사람)다. 선별을 돕는 것은 신청 접수 줄이다.
-- 사람을 가리키지 않는다. 출력(문장 · JSON)에는 나이와 수만 있고 신청 id나 "범위 밖" 표시는 없다. 엔진은 개별 신청자를 거절하지 않는다(1절). 나이는 작은 순으로 적어 신청 순서와 이어지지 않게 한다.
+- 사람을 가리키지 않는다. 출력(문장 · JSON)에는 나이와 수만 있고 신청 id나 "범위 밖" 표시는 없다. 엔진은 개별 신청자를 거절하지 않는다(1절). 나이는 작은 순으로 적어 신청 순서와 이어지지 않게 한다. 한계: JSON의 값별 근거(`values[].evidence`)에는 확정 신청 id가 있어, 조합 근거와 성별 근거를 맞대면 누가 조합 범위 밖인지 추론할 수 있다(#95). 나이 줄 자체에는 id가 없다.
 - 출생연도가 없거나 회차 연도보다 늦은 참가자는 목록에서 빠지고 그 수를 "출생연도 없음·오류 N명 제외"로 붙인다. 목록이 성별 인원보다 짧은 이유가 보이게 하려는 것이다. `similar_age`를 둔 모임도 나이를 읽는 모임이라, 자리를 차지한 사람의 출생연도가 없으면 지금처럼 `missing_birth_year` 확인 요청이 나온다.
 - 현황에서 나이 줄은 그 성별 줄 바로 아래, 조합보다 먼저 나온다. 성별 줄이 없는 성별(목표가 없음)은 맨 위 줄에 성별 이름을 붙여 나온다.
 - **폭 확인 요청 (#91 B)**: `similar_age: { max_spread: N }`을 두면, 어떤 성별의 확정·대기 폭이 N보다 **클 때** 확인 요청을 낸다("N살 차이 이내"이므로 같으면 괜찮다). 회차는 `similar_age: { max_spread: M }`으로 덮어쓴다. 기준이 없으면 나이만 보이고 확인 요청은 없다. 회차만 `similar_age`를 켤 수는 없다(모임 단위 결정이라서). 기준값은 **가정값**이다. 운영사 설명 "보통 10~15살"은 모임별 값이 아니다.
@@ -85,7 +85,7 @@ Member
   - 신청 접수는 세지 않고, 지난 회차에는 내지 않는다. 범위 계산은 규칙(`range_suggestion`)이 하고, 출력에는 범위와 수만 있다.
 - 예시: `policy/events/synthetic-similar-age.yaml`, `data/synthetic/scenarios/similar-age.yaml`.
 
-개인 식별 정보 칸은 **모델에 없다**. 이름 · 연락처 · 계좌 · 자유 서술은 들어올 자리가 없으므로 실수로도 저장소 · 출력에 섞이지 않는다.
+이름 · 연락처 · 계좌 칸은 **모델에 없다**. 다만 자유 글을 받는 칸이 세 곳 있다: 직군 `job`(정규화기 LLM에 보낸다), 문의 `question.text`(해석기 LLM에 보내고 `triage` 문장 출력 첫 줄에 찍는다), 로그 `attrs`(문자열 · 정수). 실제 데이터를 넣을 때는 이 세 칸에 개인정보가 섞이지 않게 해야 한다(8절, #95).
 
 ## 4. 인원 환산
 
@@ -240,7 +240,7 @@ blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(
 - 모델에 개인 식별 칸이 없다 (3절). 시나리오 파일의 id는 `r1`, `s1` 같은 합성 id다.
 - 운영사 이름 · 고객 코드 · 내부 문서는 저장소 어디에도 적지 않는다. 정책 파일의 예시 모임 이름도 합성이다.
 - 비밀값은 환경변수로만. `.env.example`에는 이름만 (공용 보안 기준).
-- 엔진 출력 · 로그에는 참가자 id와 집계 숫자만 나온다.
+- 엔진 출력에는 id · 집계 숫자 · 정책의 값 이름이 나온다. 예외: `triage` 문장 출력은 첫 줄에 질문 원문을 찍고(JSON은 질문 id만), 해석기 실패 메시지에는 CLI 표준 오류 끝 300자가 들어간다. 엔진은 파일 · 로그를 따로 쓰지 않는다(#95).
 
 ## 9. wirelog 0.70.0 제약과 우회 (2026-10-29 Intel Mac 검증)
 
@@ -259,31 +259,32 @@ blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(
 
 ```
 rules/            ontology.dl  capacity.dl  promotion.dl  triage.dl   (패키지에는 event_ops_engine.rules로 들어간다, #70)
-policy/events/    synthetic-example.yaml synthetic-job-group.yaml   속성 정의 · 목표 · 홍보 기준(가정값)
+policy/events/    synthetic-example.yaml synthetic-job-group.yaml synthetic-hybrid.yaml
+                  synthetic-age-combos.yaml synthetic-similar-age.yaml   속성 정의 · 목표 · 홍보 기준(가정값)
 src/event_ops_engine/
-                  model.py bands.py clock.py facts.py policy.py loader.py decision.py   lib
-                  engine.py interpreter.py normalizer.py                              services
-                  capacity.py promotion.py harness.py cli.py                          features
+                  model.py bands.py clock.py facts.py policy.py loader.py decision.py synthetic.py   lib
+                  engine.py interpreter.py normalizer.py                                          services
+                  capacity.py promotion.py harness.py cli.py                                      features
 data/synthetic/scenarios/   single.yaml pair-mixed.yaml group.yaml ratio.yaml boundary.yaml job-group.yaml
+                            hybrid.yaml pair-type.yaml combo.yaml similar-age.yaml
                             triage/  account-length.yaml account-missing-entry.yaml
-                                     delivery-timeout.yaml delivery-no-receipt.yaml
+                                     delivery-timeout.yaml delivery-no-receipt.yaml delivery-unreachable.yaml
                                      duplicate-reregistration.yaml deadline-expired.yaml
-                                     bug-confirmed-without-payment.yaml seat-full.yaml
-                                     delivery-unreachable.yaml
+                                     bug-confirmed-without-payment.yaml seat-full.yaml payment-sync-lag.yaml
 tests/            test_<module>.py (lib · 규칙 · CLI · 해석기 · 문의 판정) test_readme.py (README 출력 예시 대조)
-scripts/          build-wirelog.sh  verify_wirelog.py
+scripts/          build-wirelog.sh  verify_wirelog.py  bench.py
 docs/             design.md glossary.md decisions/
 ```
 
 ## 11. 테스트 전략
 
 - 계산 로직은 같은 PR에 단위 테스트를 올린다 (공용 테스트 기준 1번).
-- lib 모듈은 순수 함수 테스트. 규칙은 시나리오 5개(1인 · 2인 혼성 · 단체 · 1:1 비율 · 경계)를 엔진에 넣고 파생 관계와 `Decision`을 확인한다.
+- lib 모듈은 순수 함수 테스트. 규칙은 예시 시나리오(현황 10개 · 문의 10개)를 엔진에 넣고 파생 관계와 `Decision` · `Verdict`를 확인한다. 예시 폴더의 파일은 테스트가 목록으로 모두 돌린다(`tests/test_cli.py`, `tests/test_triage_types.py`).
 - 취소는 (a) 상태 이력 (b) 사실 철회 두 경로를 모두 테스트한다.
-- 엔진 라이브러리: `WIRELOG_LIB`가 비어 있고 `vendor/wirelog/build/libwirelog.1.dylib`가 있으면 `tests/conftest.py`가 자동으로 잡는다. 둘 다 없으면 wheel에 든 엔진을 쓴다(Linux CI).
+- 엔진 라이브러리: `WIRELOG_LIB`가 비어 있고 `vendor/wirelog/build/libwirelog.1.dylib`가 있으면 `engine.py`(`ensure_library_env`)가 자동으로 잡는다. 저장소를 받아 설치했을 때만이다. git 주소로 패키지만 설치했다면 `WIRELOG_LIB`를 직접 준다. 둘 다 없으면 wheel에 든 엔진을 쓴다(Linux CI).
 - 설치 확인 (`make wheel-smoke`, #80): wheel을 새 venv에 설치하고 저장소 밖 임시 폴더에서 `report` · `triage`를 실행한다. 불러온 패키지가 그 venv 안의 것인지도 확인한다. CI(ubuntu)가 매번 돌리고, Intel Mac에서는 `WIRELOG_LIB`를 주고 돌린다.
 
-**성능 측정 (#34)**: `make bench`(`scripts/bench.py`)가 `synthetic.py`의 seed 고정 합성 신청으로 `report` 단계와 문의 판정 시간을 잰다. 신청 구성은 1인 60% · 혼성 2인 25% · 같은 성별 2인 10% · 구성 미상 5%이고, 최종 상태는 확정 60% · 입금 대기 15% · 취소 15% · 신청 10%다. 생성기 결과를 Python으로 직접 센 값과 규칙의 집계가 같은지는 `tests/test_synthetic.py`가 확인한다. 측정은 CI에서 돌리지 않는다(몇 분 걸리고 시간 값이 기계마다 다르다).
+**성능 측정 (#34)**: `make bench`(`scripts/bench.py`)가 `synthetic.py`의 seed 고정 합성 신청으로 `report` 단계와 문의 판정 시간을 잰다. 신청 구성은 1인 60% · 혼성 2인 25% · 같은 성별 2인 10% · 구성 미상 5%이고, 최종 상태는 확정 60% · 입금 대기 15% · 취소 15% · 신청 10%다. 생성기 결과를 Python으로 직접 센 값과 규칙의 집계가 같은지는 `tests/test_synthetic.py`가 확인한다. 측정은 CI에서 돌리지 않는다(시간 값이 기계마다 다르다). Intel Mac에서 전체 약 8초 걸린다(2026-11-10).
 
 2026-11-07, Intel Mac (x86_64) · Python 3.11, 3회 중앙값. 단계별 값은 조회 캐시(#83) 뒤, 마지막 열은 캐시 전(#82) 합계:
 
@@ -306,7 +307,7 @@ docs/             design.md glossary.md decisions/
 ## 12. 확인하지 못한 것
 
 - Linux에서의 속도 — `make bench`는 Intel Mac에서만 쟀다 (11절).
-- `average` 등 다른 집계 함수 — 규칙은 `count` · `max` · `min`만 쓴다(`min`은 #91에서 검증 3c로 확인).
+- `average` 등 다른 집계 함수 — 규칙은 `count` · `sum` · `max` · `min`만 쓴다(`sum`은 검증 1a · 1c, `min`은 #91에서 검증 3c로 확인).
 - 실제 운영사 정책값 — 7절 기준값 중 `promotion_cutoff_hours`만 확인됨이고 나머지는 가정값이다 (#52).
 
 ## 13. 운영 문의 판정 (①, `rules/triage.dl`, `harness.py`)
@@ -367,7 +368,7 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 - 유형 3: 같은 모임 + 회차 + 이름 + 번호의 신청이 둘이면 막지 않고 중복으로 표시만 한다 (T0534~T0537). 엔진의 참가자 키가 실제 시스템의 "이름 + 번호"에 해당한다 (glossary "참가자 키").
 - 유형 4: 기한이 지난 뒤의 입금 시도는 거절된다 (T0304~T0305 · T0549~T0550. T0548은 외부 요인과 함께 라벨되어 빼냄). 유예 0은 아래 `grace_minutes`의 근거와 같다.
 
-`triage_policy(key, n)`은 유형 규칙의 정책값(`policy/events/*.yaml`의 `triage:`): `grace_minutes`(기본 0, 은행이 기한 시각에 바로 막는다는 운영 자료 T0549에 따름)와 `payment_deadline_hours`(기본 24, 선별 뒤 N시간, 회차별 `payment_deadline_hours`로 덮어씀, 운영 자료 T0577 · 회차 설정 32개). 이 둘은 가정값이 아니라 **자료로 확인한 값**이다. `sync_lag_minutes`(기본 10, 유형 7)는 **가정값**이다(실제 시스템의 입금 확인 주기가 10분에서 실시간으로 바뀜, T0287~T0305). 참가자 키(`participant`)는 합성 식별자이며 실명 · 연락처를 두지 않는다. 유형 5의 `over_capacity` 근거는 불변식 이름뿐이라 어느 속성 값이 초과인지는 `event-ops report`로 본다(규칙 안에서 문자열을 만들 수 없어서, 9절). 유형 5는 입금 기록이 **없다는 것만으로** 버그를 확정하지 않는다(아래 "기록 없음 ≠ 없음"). 같은 질문에 유형 5와 다른 유형이 함께 걸리면 원인이 둘이라 `ask`가 되고, 이것은 의도한 동작이다. `needs` 값에는 확인 주체가 붙어 나온다(`harness.NEEDS_VERIFIER`: 외부 = 발송 업체 로그, 내부 = 관리자 기록, 질문 = 묻는 사람, 정책). 관리자 알림의 '실패'는 보수적인 메모이고 전달 여부의 진실은 업체 로그라서다(운영 자료 T0551 · T0583). 원인이 하나라도 파생되면 `needs`는 비운다 (다른 이벤트의 '아직 없는 사실'이 확정된 원인에 끌려 나오지 않게). 자릿수가 같거나 수신증이 `failed`이면 원인도 `needs`도 없어 `ask`가 된다. 그 경우는 아직 유형이 없다는 뜻이고, #18~#21에서 유형이 늘면 거기서 판정된다. 시나리오 파일은 `expected`(기대 판정 · 원인 · needs)를 적고, `event-ops triage`는 실제 판정과 비교해 다르면 종료 코드 1을 낸다. `cause` · `needs`를 비우면(null) 비교하지 않고, `needs: []`는 '더 필요한 사실 없음'을 단언한다.
+`triage_policy(key, n)`은 유형 규칙의 정책값(`policy/events/*.yaml`의 `triage:`): `grace_minutes`(기본 0, 은행이 기한 시각에 바로 막는다는 운영 자료 T0549에 따름)와 `payment_deadline_hours`(기본 24, 선별 뒤 N시간, 회차별 `payment_deadline_hours`로 덮어씀, 운영 자료 T0577 · 회차 설정 32개). 이 둘은 가정값이 아니라 **자료로 확인한 값**이다. `sync_lag_minutes`(기본 10, 유형 7)는 **가정값**이다(실제 시스템의 입금 확인 주기가 10분에서 실시간으로 바뀜, T0287~T0305). 참가자 키(`participant`)는 합성 식별자이며 실명 · 연락처를 두지 않는다. 유형 5의 `over_capacity` 근거는 불변식 이름뿐이라 어느 속성 값이 초과인지는 `event-ops report`로 본다(규칙 안에서 문자열을 만들 수 없어서, 9절). 유형 5는 입금 기록이 **없다는 것만으로** 버그를 확정하지 않는다(아래 "기록 없음 ≠ 없음"). 같은 질문에 유형 5와 다른 유형이 함께 걸리면 원인이 둘이라 `ask`가 되고, 이것은 의도한 동작이다. `needs` 값에는 확인 주체가 붙어 나온다(`harness.NEEDS_VERIFIER`: 외부 = 발송 업체 로그, 내부 = 관리자 기록, 질문 = 묻는 사람, 정책). 관리자 알림의 '실패'는 보수적인 메모이고 전달 여부의 진실은 업체 로그라서다(운영 자료 T0551 · T0583). 원인이 하나라도 파생되면 `needs`는 비운다 (다른 이벤트의 '아직 없는 사실'이 확정된 원인에 끌려 나오지 않게). 자릿수가 같거나 수신증이 `failed`이면 유형 1 · 2의 원인도 `needs`도 없다. 이때 신청이 입금 대기이고 입금 조회 기록이 없으면 유형 7이 `needs: payment_lookup`을 낸다. 어느 쪽이든 `ask`다. 그 경우는 아직 유형이 없다는 뜻이고, #18~#21에서 유형이 늘면 거기서 판정된다. 시나리오 파일은 `expected`(기대 판정 · 원인 · needs)를 적고, `event-ops triage`는 실제 판정과 비교해 다르면 종료 코드 1을 낸다. `cause` · `needs`를 비우면(null) 비교하지 않고, `needs: []`는 '더 필요한 사실 없음'을 단언한다.
 
 **기록 없음 ≠ 없음 (열린 세계, #58)**: Datalog의 부정(`!`)은 "넣은 사실에 없다"는 뜻이다(닫힌 세계). 로그 연동이 덜 되면 "없다"가 틀린 결론이 된다. 그래서 부정을 쓰는 곳을 세 가지로 나누고, **원인을 확정하는 데에는 "조회했는데 없었다"는 사실만 쓴다.**
 
@@ -382,9 +383,9 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 
 **근거 등급 (#60)**: `event-ops triage`는 근거를 믿을 수 있는 순서로 줄을 나눠 보인다. ① 명시 사실(asserted) `log/…`(기록된 로그) ② 추론 사실(inferred) `rule/…`(규칙이 기록에서 파생한 사실) ③ LLM 추출 후보(검증 통과) `candidate/…`(해석기가 질문에서 뽑아 관계 · id · 인용 검증을 통과한 사실) ④ 질문 `question/…`. "확인 불가"는 등급이 아니라 판정 자체(`ask` 확인 요청 · `abstain` 판정 보류)로 나타난다. 이름은 OWL 도구에서 쓰는 asserted / inferred 구분을 따른다.
 
-**실제 해석기 확인 (#61)**: `--interpreter claude` · `--normalizer claude`면 시작 전에 `claude -p`로 한 번 응답을 확인한다(설치됨 ≠ 로그인됨). 안 되면 판정을 하지 않고 종료 코드 2. 로그인 확인은 짧은 실제 호출 1회다. `--runs N`은 같은 질문을 N번 판정해 (판정 · 원인) 분포와 일치율을 내고, 기대 판정이 있으면 모든 실행이 맞아야 종료 코드 0이다. 정규화는 반복 밖에서 한 번만 하므로 해석기의 변동만 재고, `--trace`는 첫 실행만 보인다.
+**실제 해석기 확인 (#61)**: `--interpreter claude` · `--normalizer claude`면 시작 전에 `claude -p`로 한 번 응답을 확인한다(설치됨 ≠ 로그인됨). 안 되면 판정을 하지 않고 종료 코드 2. 로그인 확인은 짧은 실제 호출 1회다. `--runs N`은 같은 질문을 N번 판정해 (판정 · 원인) 분포와 일치율을 내고, 기대 판정이 있으면 모든 실행이 맞아야 종료 코드 0이다. 정규화는 반복 밖에서 한 번만 하므로 해석기의 변동만 잰다. 문장 출력의 `--trace`는 첫 실행만 보이고, `--json --trace`는 실행마다 trace를 담는다.
 
-**해석기**: 기본은 Claude Code CLI(`claude -p`, 구독 안 · 추가 비용 0), 테스트는 가짜 해석기(시나리오 파일의 `canned` 응답). API는 쓰지 않는다. LLM 출력은 JSON이며 `Interpretation` 모델 검증을 통과해야 한다. 실제 CLI는 관계 서명의 `q`를 `args`에 같이 넣는 경우가 있어(2026-11-04 확인, #61) 하네스가 검증 전에 앞의 질문 id를 떼어 낸다. 다른 id는 떼지 않는다.
+**해석기**: 실제 해석기는 Claude Code CLI(`claude -p`, 구독 안 · 추가 비용 0)이고, CLI 기본값과 테스트는 가짜 해석기(시나리오 파일의 `canned` 응답). API는 쓰지 않는다. LLM 출력은 JSON이며 `Interpretation` 모델 검증을 통과해야 한다. 실제 CLI는 관계 서명의 `q`를 `args`에 같이 넣는 경우가 있어(2026-11-04 확인, #61) 하네스가 검증 전에 앞의 질문 id를 떼어 낸다. 다른 id는 떼지 않는다.
 
 ## 14. 속성 정규화 (`job_group`, `normalizer.py`, `capacity.dl`)
 
@@ -394,7 +395,7 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 |---|---|---|
 | 정책 | `dimensions.job_group: { values: [...], normalize: llm, min_confidence: 0.7, aliases: {값: [단어…]} }` (기준값은 가정값, 별칭 사전은 사람이 PR로 승인) | `model.py` `JobGroupDimension` |
 | 별칭 사전 (#62) | 문구에 **한 값**의 별칭만 보이면 LLM 없이 확정(확신도 1.0, 인용 = 문구에 쓰인 그대로). 값 이름 자체는 별칭이 아니다(사람이 적은 단어만). 영문 별칭은 단어 단위로만 맞춘다("UX"가 "luxury"에 걸리지 않게). 같은 단어를 두 값에 적으면 정책 로드에서 거부. 걸리는 값이 없거나 여럿이면("마케팅 겸 기획") 정규화기로 | `normalizer.match_alias` |
-| 정규화 | 남은 문구마다 정규화기가 `NormalizedValue(value, confidence, quote)`를 제안. **같은 문구는 한 번만**, Claude CLI 정규화기는 남은 문구를 **한 프롬프트**(최대 40개씩)로 묻는다(#63, 호출 1회 ≈ 1분). `quote`가 문구에 없거나 답이 없으면 `unknown` · 확신도 0 | `normalizer.resolve_texts` · `normalize_members` (Claude Code CLI · 가짜) |
+| 정규화 | 남은 문구마다 정규화기가 `NormalizedValue(value, confidence, quote)`를 제안. **같은 문구는 한 번만**, Claude CLI 정규화기는 남은 문구를 **한 프롬프트**(최대 40개씩)로 묻는다(#63, 실측: 로그인 확인을 포함한 명령 전체 약 20초). `quote`가 문구에 없거나 답이 없으면 `unknown` · 확신도 0 | `normalizer.resolve_texts` · `normalize_members` (Claude Code CLI · 가짜) |
 | 사실 | 후보는 `candidate_attr(attendee, job_group, value, 확신도%, job/<attendee>)`, 문구가 없으면 `given_attr(…, job_group, unknown)`. 확신도는 1% 해상도로 **내림**(0.695는 0.7 기준을 넘지 못한다) | `facts.py` |
 | 규칙 | 확신도 ≥ 기준이고 값이 허용 목록에 있으면 `attendee_attr`로 올린다. 기준 미만이면 `unknown` + `needs_review(…, "low_confidence")`, 목록 밖 값이면 `unknown` + `needs_review(…, "unknown_value")`. 네 규칙은 서로 배타적이라 참가자마다 값이 하나다(wirelog는 중복을 남기므로 `count`가 두 번 셀 수 있다) | `capacity.dl` |
 | 결과 | ② 현황이 `job_group` 목표를 보통 속성처럼 계산하고, 확인 요청에 근거 `job/<attendee>`가 붙는다 | `capacity.py` |
@@ -453,3 +454,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-10 | 3 · 5 · 6절 비슷한 나잇대(#91 A): 정책 `similar_age`, 성별 · 묶음(확정·대기 / 신청 접수)별 나이 목록과 폭, 출생연도 없음 수, 2절 JSON `ages`. 9 · 12절 `min` 집계 검증 |
 | 2026-11-10 | 3 · 5 · 6절 폭 확인 요청(#91 B): `similar_age.max_spread`(회차 덮어쓰기), 회차 × 성별 `age_spread_review`, 확인 요청 줄 |
 | 2026-11-10 | 2 · 3 · 6 · 9절 범위 제안(#91 C): 가운데 맞춤 · 동점 후보 모두 · 조합 있는 성별 제외, JSON `range_suggestions`, wirelog 나눗셈 · 괄호 제약 |
+| 2026-11-11 | 문서 정합성 (#95): 1 · 2절 표, 3 · 8절 자유 글 칸과 출력 범위, 10절 구조, 11 · 12 · 13 · 14절 지난 문장 |
