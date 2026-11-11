@@ -38,7 +38,7 @@ wheel-smoke: package-check
 	cd "$(SMOKE)/run" && "$(SMOKE)/venv/bin/event-ops" triage data/synthetic/scenarios/triage/account-length.yaml > /dev/null
 	@echo 'installed wheel runs outside the repo'
 
-# Time report and triage on seeded synthetic sign-ups (#34); about 10 s on an Intel Mac, not run in CI.
+# Time report and triage on seeded synthetic sign-ups (#34); about 8 s on an Intel Mac (docs/design.md 11), not run in CI.
 bench:
 	$(PY) scripts/bench.py
 
