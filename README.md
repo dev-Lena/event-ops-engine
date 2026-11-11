@@ -161,7 +161,7 @@ make install
 ```
 
 ```bash
-pip install "git+https://github.com/dev-Lena/event-ops-engine.git@main"   # 고정하려면 @<태그> (예: @v0.3.0, Releases 참고)
+pip install "git+https://github.com/dev-Lena/event-ops-engine.git@main"   # 고정하려면 @<태그> (예: @v0.4.0, Releases 참고)
 ```
 
 설치한 패키지는 저장소 없이 돕니다. CI가 Linux에서 wheel을 새 환경에 설치해 저장소 밖에서 `report` · `triage`를 실행해 확인합니다(`make wheel-smoke`).
