@@ -61,7 +61,7 @@ event-ops report data/synthetic/scenarios/pair-mixed.yaml
   홍보 권고: 회차 임박: female 3명 부족, 홍보가 필요합니다. 광고 대상: female 25~29세(연 나이) 3명 이상. (이유: lead_time, slow_trend; 근거: ...)
 ```
 
-"비슷한 나잇대"를 관리하는 모임은 정책 맨 위에 `similar_age: {}`를 둡니다. 그러면 성별마다 확정·대기와 신청 접수의 나이 목록과 폭이 나옵니다. 범위는 담당자가 이것을 보고 정합니다. `similar_age: { max_spread: 12 }`처럼 폭 기준을 두면, 어떤 성별의 확정·대기 폭이 기준보다 클 때 "확인 요청"이 나옵니다(회차마다 덮어쓸 수 있고, 기준값은 가정값). 기준이 있으면 조합이 아직 없는 성별마다 그 폭의 범위 중 확정·대기가 가장 많이 드는 것을 제안합니다(가운데 맞춤, 동점이면 후보를 모두). 출력에는 나이와 수만 있고 신청 id는 없습니다(`similar-age.yaml`의 s1 부분, 줄임. `tests/test_similar_age.py`가 고정합니다):
+"비슷한 나잇대"를 관리하는 모임은 정책 맨 위에 `similar_age: {}`를 둡니다. 그러면 성별마다 확정·대기와 신청 접수의 나이 목록과 폭이 나옵니다. 범위는 담당자가 이것을 보고 정합니다. `similar_age: { max_spread: 12 }`처럼 폭 기준을 두면, 어떤 성별의 확정·대기 폭이 기준보다 클 때 "확인 요청"이 나옵니다(회차마다 덮어쓸 수 있고, 기준값은 가정값). 기준이 있으면 조합이 아직 없는 성별마다 그 폭의 범위 중 확정·대기가 가장 많이 드는 것을 제안합니다(가운데 맞춤, 동점이면 후보를 모두). 출력에는 나이와 수만 있고 신청 id는 없습니다(`similar-age.yaml`의 s1 부분, 줄임. `tests/test_similar_age.py` · `tests/test_range_suggestion.py`가 고정합니다):
 
 ```
   gender=female: 확정 2 · 대기 1 · 목표 4~4 · 부족 1
@@ -161,7 +161,7 @@ make install
 ```
 
 ```bash
-pip install "git+https://github.com/dev-Lena/event-ops-engine.git@main"   # 고정하려면 @<태그> (예: @v0.2.0, Releases 참고)
+pip install "git+https://github.com/dev-Lena/event-ops-engine.git@main"   # 고정하려면 @<태그> (예: @v0.3.0, Releases 참고)
 ```
 
 설치한 패키지는 저장소 없이 돕니다. CI가 Linux에서 wheel을 새 환경에 설치해 저장소 밖에서 `report` · `triage`를 실행해 확인합니다(`make wheel-smoke`).
@@ -175,13 +175,13 @@ pip install meson ninja
 make engine            # vendor/wirelog (v0.70.0) 받아서 빌드
 ```
 
-빌드 결과 `vendor/wirelog/build/libwirelog.1.dylib`는 `WIRELOG_LIB` 환경변수가 비어 있으면 자동으로 잡습니다 (`.env.example` 참고). Linux CI는 wheel에 든 엔진을 그대로 씁니다.
+빌드 결과 `vendor/wirelog/build/libwirelog.1.dylib`는 저장소를 받아 설치했을 때 `WIRELOG_LIB` 환경변수가 비어 있으면 자동으로 잡습니다 (`.env.example` 참고). git 주소로 패키지만 설치했다면 빌드한 파일 경로를 `WIRELOG_LIB`에 직접 줍니다. Linux CI는 wheel에 든 엔진을 그대로 씁니다.
 
 ## 개발
 
 ```bash
 make check     # lint(black · isort · flake8) + typecheck(mypy strict) + test(pytest)
-python scripts/verify_wirelog.py   # wirelog 문법 검증 25건 (24건 통과가 정상, docs/design.md 9)
+python scripts/verify_wirelog.py   # wirelog 문법 검증 28건 (27건 통과가 정상, docs/design.md 9)
 ```
 
 브랜치 · 커밋 · PR 규칙과 이 프로젝트에서 다르게 하는 것은 [CONTRIBUTING.md](CONTRIBUTING.md)에 있습니다. 이슈 · PR · 코멘트는 한국어와 영어를 함께 씁니다.

@@ -1,6 +1,6 @@
 """Time `report` and `triage` on seeded synthetic sign-ups (#34). Run: `make bench`.
 
-Prints a markdown table (median of RUNS runs per shape) for docs/design.md 12.
+Prints a markdown table (median of RUNS runs per shape) for docs/design.md 11.
 Intel Mac: WIRELOG_LIB or the vendor build is picked up as in the tests.
 """
 
