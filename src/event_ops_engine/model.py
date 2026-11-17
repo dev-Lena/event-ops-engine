@@ -6,6 +6,7 @@ See docs/design.md 3 and docs/glossary.md.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Mapping
 from datetime import datetime
 from enum import StrEnum
 from typing import Literal, Self
@@ -551,7 +552,7 @@ class LogEvent(StrictModel):
     def _booleans_as_text(cls, value: object) -> object:
         # Unquoted YAML `auto: true` and a JSON adapter's `true` are booleans. Left alone,
         # pydantic coerces them to the integer 1 and the rules see "1", never "true".
-        if not isinstance(value, dict):
+        if not isinstance(value, Mapping):
             return value
         return {
             key: ("true" if item else "false") if isinstance(item, bool) else item
