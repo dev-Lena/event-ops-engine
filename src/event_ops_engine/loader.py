@@ -9,6 +9,21 @@ import yaml
 
 from .model import EventPolicy, Scenario, TriageScenario
 
+SAMPLE_SCENARIOS = Path("data") / "synthetic" / "scenarios"
+
+
+def samples_dir() -> Path:
+    """The synthetic sample scenarios (#110): `samples/` inside an installed package, else
+    the checkout's own `data/synthetic/scenarios`. Triage samples sit in its `triage/`."""
+    here = Path(__file__).resolve()
+    for root in (here.parent / "samples", here.parents[2]):
+        candidate = root / SAMPLE_SCENARIOS
+        if candidate.is_dir():
+            return candidate
+    raise FileNotFoundError(
+        "합성 예시 폴더를 찾지 못했습니다. 저장소를 받아 그 폴더에서 실행하거나 패키지를 다시 설치하세요."
+    )
+
 
 def _read_yaml(path: Path) -> dict[str, Any]:
     with path.open(encoding="utf-8") as handle:

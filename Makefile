@@ -25,9 +25,12 @@ check: lint typecheck test
 
 package-check:
 	rm -rf build dist && python -m pip wheel . --no-deps -q -w dist && python -m zipfile -l dist/*.whl | grep -q 'event_ops_engine/rules/triage.dl' && echo 'wheel ships rules/*.dl'
+	python -m zipfile -l dist/*.whl | grep -q 'event_ops_engine/samples/policy/events/synthetic-example.yaml' && echo 'wheel ships the synthetic samples'
+	@if python -m zipfile -l dist/*.whl | grep -q 'private'; then echo 'wheel contains a private path'; exit 1; fi
 
 # Install the built wheel into a fresh venv and run it from a temp dir outside the repo,
-# so a file missing from the wheel or a repo-relative path fails here (#80).
+# so a file missing from the wheel or a repo-relative path fails here (#80). The last two
+# runs start from an empty folder and use the samples inside the wheel (#110).
 SMOKE ?= $(or $(TMPDIR),/tmp)/event-ops-wheel-smoke
 wheel-smoke: package-check
 	rm -rf "$(SMOKE)" && $(PY) -m venv "$(SMOKE)/venv"
@@ -36,7 +39,9 @@ wheel-smoke: package-check
 	cd "$(SMOKE)/run" && "$(SMOKE)/venv/bin/python" -I -c "import event_ops_engine as m, sys; sys.exit(0 if m.__file__.startswith(sys.prefix + '/') else 'imported ' + m.__file__)"
 	cd "$(SMOKE)/run" && "$(SMOKE)/venv/bin/event-ops" report data/synthetic/scenarios/pair-mixed.yaml | grep -q '잠정 마감 권고'
 	cd "$(SMOKE)/run" && "$(SMOKE)/venv/bin/event-ops" triage data/synthetic/scenarios/triage/account-length.yaml > /dev/null
-	@echo 'installed wheel runs outside the repo'
+	mkdir -p "$(SMOKE)/empty" && cd "$(SMOKE)/empty" && "$(SMOKE)/venv/bin/event-ops" report "$$("$(SMOKE)/venv/bin/event-ops" samples)/pair-mixed.yaml" | grep -q '잠정 마감 권고'
+	cd "$(SMOKE)/empty" && "$(SMOKE)/venv/bin/event-ops" triage "$$("$(SMOKE)/venv/bin/event-ops" samples)/triage/account-length.yaml" > /dev/null
+	@echo 'installed wheel runs outside the repo, with its own samples'
 
 # Time report and triage on seeded synthetic sign-ups (#34); about 8 s on an Intel Mac (docs/design.md 11), not run in CI.
 bench:

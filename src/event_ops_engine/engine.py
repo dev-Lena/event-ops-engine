@@ -26,6 +26,15 @@ RULE_FILES = ("ontology.dl", "capacity.dl", "promotion.dl", "triage.dl")
 LINE_COMMENT = re.compile(r"//[^\n]*")
 QUOTED_CONSTANT = re.compile(r'"([^"\n]*)"')
 WIRELOG_LIB_ENV = "WIRELOG_LIB"
+ENGINE_MISSING = (
+    "wirelog 엔진 라이브러리(libwirelog)를 불러오지 못했습니다.\n"
+    "- Intel Mac은 설치 파일에 엔진이 없어 한 번 빌드해야 합니다. 저장소를 받은 폴더에서 "
+    "`pip install meson ninja && make engine`을 실행하세요 (README '설치 > Intel Mac: 엔진 빌드').\n"
+    "- 패키지만 설치했다면 빌드한 파일의 경로를 환경변수로 알려 줍니다: "
+    "`export WIRELOG_LIB=/절대/경로/libwirelog.1.dylib`\n"
+    "- {env}"
+)
+"""Shown when PyreWire cannot load the engine (#110); the original error stays as the cause."""
 
 
 def load_rules(rules_dir: Path = RULES_DIR, files: Sequence[str] = RULE_FILES) -> str:
@@ -40,6 +49,14 @@ def default_library_path(repo_root: Path | None = None) -> Path | None:
         if candidate.is_file():
             return candidate
     return None
+
+
+def engine_missing_message() -> str:
+    path = os.environ.get(WIRELOG_LIB_ENV)
+    if not path:
+        return ENGINE_MISSING.format(env=f"지금 {WIRELOG_LIB_ENV}는 비어 있습니다.")
+    found = "있습니다" if Path(path).is_file() else "없습니다"
+    return ENGINE_MISSING.format(env=f"지금 {WIRELOG_LIB_ENV}={path} (그 경로에 파일이 {found}).")
 
 
 def ensure_library_env() -> None:
@@ -57,7 +74,10 @@ class Engine:
     def __init__(self, rules_src: str | None = None) -> None:
         # PyreWire resolves WIRELOG_LIB at import time, so the env is set before importing.
         ensure_library_env()
-        from pyrewire import EasySession
+        try:
+            from pyrewire import EasySession
+        except OSError as error:
+            raise OSError(engine_missing_message()) from error
 
         src = load_rules() if rules_src is None else rules_src
         self._session = EasySession(src)

@@ -31,15 +31,29 @@ event-ops = "event_ops_engine.cli:main"
 [tool.setuptools]
 # The rule files live at the repo root (`rules/`) for readers, and ship inside the package as
 # `event_ops_engine.rules` so a pip install works outside a checkout (#70).
-packages = ["event_ops_engine", "event_ops_engine.rules"]
+# The synthetic samples ship the same way under `event_ops_engine/samples/` (#110), keeping
+# the repo layout because a scenario names its policy by a relative path. Only the folders
+# and file patterns listed here are packaged: `data/private/` never is.
+packages = [
+  "event_ops_engine",
+  "event_ops_engine.rules",
+  "event_ops_engine.samples.data.synthetic.scenarios",
+  "event_ops_engine.samples.data.synthetic.scenarios.triage",
+  "event_ops_engine.samples.policy.events",
+]
 
 [tool.setuptools.package-dir]
 "" = "src"
 "event_ops_engine.rules" = "rules"
+"event_ops_engine.samples.data" = "data"
+"event_ops_engine.samples.policy" = "policy"
 
 [tool.setuptools.package-data]
 event_ops_engine = ["py.typed"]
 "event_ops_engine.rules" = ["*.dl"]
+"event_ops_engine.samples.data.synthetic.scenarios" = ["*.yaml"]
+"event_ops_engine.samples.data.synthetic.scenarios.triage" = ["*.yaml"]
+"event_ops_engine.samples.policy.events" = ["synthetic-*.yaml"]
 
 [tool.black]
 line-length = 100

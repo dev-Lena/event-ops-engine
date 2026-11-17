@@ -32,6 +32,8 @@ LLM은 ①과 직군 정규화에서만 쓰고, 역할은 **후보 사실을 제
 
 ## 사용
 
+아래 명령은 저장소를 받은 폴더에서 실행합니다. 패키지만 설치했다면 예시 파일이 그 폴더에 없으니 [설치](#설치)의 첫 실행 줄을 쓰세요.
+
 ### 현황과 홍보 판단 (② · ③)
 
 ```bash
@@ -127,6 +129,17 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
                   "message": "원인: user_input. 근거: log/e1, log/e2", "dropped": [] } ] }
 ```
 
+## 지원 범위 (v0.4 기준)
+
+| 항목 | 지금 되는 것 |
+|---|---|
+| 쓰는 사람 | 개발자입니다. YAML 시나리오를 만들어 CLI로 돌립니다. 운영 담당자가 직접 쓰는 화면과 실제 운영 데이터 연동은 아직 없습니다 |
+| 데이터 | 합성 예시만 들어 있습니다 |
+| 시간대 | 서울(Asia/Seoul) 고정입니다. 회차 날짜 · 시작 시각 · 남은 날을 서울 기준으로 셉니다 |
+| 출력 언어 | 한국어 문장입니다. 다른 시스템은 `--json`으로 받습니다 |
+| 성별 | `female` · `male` · `unknown`(모름) 세 값입니다 |
+| 실행 환경 | Linux(CI)와 Intel Mac(엔진 빌드 필요)에서 확인했습니다. 다른 환경은 확인하지 못했습니다 |
+
 ## 구조
 
 ```mermaid
@@ -153,7 +166,7 @@ flowchart LR
 
 ## 설치
 
-저장소를 받아서 개발용으로 설치하거나(아래), 패키지로만 쓰려면 git 주소로 설치합니다. 규칙 파일(`rules/*.dl`)은 패키지에 함께 들어 있습니다.
+저장소를 받아서 개발용으로 설치하거나(아래), 패키지로만 쓰려면 git 주소로 설치합니다. 규칙 파일(`rules/*.dl`)과 합성 예시(시나리오 · 정책)는 패키지에 함께 들어 있습니다.
 
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
@@ -161,10 +174,11 @@ make install
 ```
 
 ```bash
-pip install "git+https://github.com/dev-Lena/event-ops-engine.git@main"   # 고정하려면 @<태그> (예: @v0.4.0, Releases 참고)
+pip install "git+https://github.com/dev-Lena/event-ops-engine.git@main"   # 고정하려면 @<태그> (Releases 참고)
+event-ops report "$(event-ops samples)/pair-mixed.yaml"                    # 패키지에 든 합성 예시로 첫 실행
 ```
 
-설치한 패키지는 저장소 없이 돕니다. CI가 Linux에서 wheel을 새 환경에 설치해 저장소 밖에서 `report` · `triage`를 실행해 확인합니다(`make wheel-smoke`).
+설치한 패키지는 저장소 없이 돕니다. `event-ops samples`가 패키지에 든 예시 시나리오 폴더의 경로를 알려 주므로, "사용"의 `data/synthetic/scenarios/` 자리에 그 경로를 씁니다(문의 예시는 그 아래 `triage/`). `samples` 명령과 패키지에 든 예시는 v0.4.0 다음 버전부터 있습니다. v0.4.0을 설치했다면 저장소를 받아 그 폴더에서 실행하세요. 내 시나리오를 만들 때는 예시를 복사해 고치고, 시나리오의 `policy:`는 정책 파일을 시나리오 파일 기준 상대 경로로 가리킵니다. CI가 Linux에서 wheel을 새 환경에 설치해 저장소 밖 빈 폴더에서 이 첫 실행 줄과 `triage`를 돌려 확인합니다(`make wheel-smoke`).
 
 ### Intel Mac: 엔진 빌드
 
@@ -175,7 +189,7 @@ pip install meson ninja
 make engine            # vendor/wirelog (v0.70.0) 받아서 빌드
 ```
 
-빌드 결과 `vendor/wirelog/build/libwirelog.1.dylib`는 저장소를 받아 설치했을 때 `WIRELOG_LIB` 환경변수가 비어 있으면 자동으로 잡습니다 (`.env.example` 참고). git 주소로 패키지만 설치했다면 빌드한 파일 경로를 `WIRELOG_LIB`에 직접 줍니다. Linux CI는 wheel에 든 엔진을 그대로 씁니다.
+빌드 결과 `vendor/wirelog/build/libwirelog.1.dylib`는 저장소를 받아 설치했을 때 `WIRELOG_LIB` 환경변수가 비어 있으면 자동으로 잡습니다 (`.env.example` 참고). git 주소로 패키지만 설치했다면 빌드한 파일 경로를 `WIRELOG_LIB`에 직접 줍니다. 엔진을 찾지 못하면 오류 메시지가 이 빌드 방법과 지금 `WIRELOG_LIB` 값을 알려 줍니다. Linux CI는 wheel에 든 엔진을 그대로 씁니다.
 
 ## 개발
 
