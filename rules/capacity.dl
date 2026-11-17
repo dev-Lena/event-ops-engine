@@ -109,6 +109,22 @@ needs_review(S, R, "unknown_value") :-
     registration(R, S), occupies(R), attendee(R, A),
     candidate_attr(A, D, V, C, _), normalize_threshold(D, Min), C >= Min, !dimension_value(D, V).
 
+// --- blank gender or choice answer (#103) -------------------------------------------
+// A seat holder with no gender, or no answer to a fixed-choice attribute, counts toward no
+// target: the shortfall grows and nobody is told. Per-person blanks of an unknown-composition
+// registration are left to `unknown_party`, which already asks for the people.
+.decl attr_missing(reg: symbol, attendee: symbol, dim: symbol)
+attr_missing(R, A, "gender") :-
+    attendee(R, A), !unknown_party(R, _), attendee_attr(A, "gender", "unknown").
+attr_missing(R, A, D) :-
+    attendee(R, A), !unknown_party(R, _), choice_dim(D, "member"), attendee_attr(A, D, "unknown").
+attr_missing(R, A, D) :-
+    attendee(R, A), choice_dim(D, "registration"), attendee_attr(A, D, "unknown").
+needs_review(S, R, "missing_gender") :-
+    registration(R, S), occupies(R), attr_missing(R, _, "gender").
+needs_review(S, R, "missing_choice") :-
+    registration(R, S), occupies(R), attr_missing(R, _, D), choice_dim(D, _).
+
 // --- ages per gender for "similar age" (#91) ------------------------------------
 // Two pools: "occupying" (confirmed or waiting for payment) is who will be in the room,
 // "applied" is who the person in charge still picks from. Attendees without a birth year
