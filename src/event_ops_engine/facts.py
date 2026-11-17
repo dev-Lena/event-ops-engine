@@ -224,6 +224,8 @@ def scenario_facts(scenario: Scenario) -> Facts:
     facts = Facts()
     facts.add("now", clock.to_epoch(scenario.now))
     facts.extend(normalization_facts(scenario))
+    for name, choice in scenario.policy.dimensions.choices.items():
+        facts.add("choice_dim", name, choice.per)  # who answers it; lets rules spot a blank (#103)
     for session in scenario.sessions:
         facts.extend(session_facts(scenario, session))
     for registration in scenario.registrations:

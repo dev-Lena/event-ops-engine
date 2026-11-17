@@ -1,8 +1,9 @@
 """Layer: features. `event-ops report <scenario.yaml>` prints capacity status and promotion
 decisions for every session; `event-ops triage <scenario.yaml>` prints the verdict for the
 scenario's question, its evidence by trust tier, and with `--runs N` how often repeated runs
-agree. Output is for operators, in Korean (docs/glossary.md). `--json` prints the same results
-as a versioned structure for other systems (`REPORT_SCHEMA`, `TRIAGE_SCHEMA`, #85)."""
+agree; `event-ops samples` prints where the packaged synthetic samples are (#110). Output is
+for operators, in Korean (docs/glossary.md). `--json` prints the same results as a versioned
+structure for other systems (`REPORT_SCHEMA`, `TRIAGE_SCHEMA`, #85)."""
 
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ from .engine import Engine
 from .facts import scenario_facts
 from .harness import differences, needs_label, run_triage
 from .interpreter import ClaudeCliInterpreter, FakeInterpreter, Interpreter, preflight
-from .loader import InputWarning, load_scenario, load_triage_scenario
+from .loader import InputWarning, load_scenario, load_triage_scenario, samples_dir
 from .model import DIM_COMBO, DIM_GENDER, Combos, Scenario, TriageScenario
 from .normalizer import NORMALIZERS, normalize_members
 from .policy import resolve_combos
@@ -401,6 +402,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="같은 질문을 N번 판정해 결과 분포와 일치율을 출력 (실제 해석기 안정성 확인용). "
         "정규화는 한 번만 하므로 해석기의 변동만 잰다. --trace는 첫 실행만 보인다",
     )
+    sub.add_parser(
+        "samples",
+        help="합성 예시 시나리오 폴더의 경로를 출력 (패키지 설치면 패키지 안, 저장소면 "
+        "data/synthetic/scenarios. 문의 예시는 그 아래 triage/)",
+    )
     for subparser in (report_parser, triage_parser):
         subparser.add_argument(
             "--normalizer",
@@ -414,6 +420,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             help="사람용 문장 대신 다른 시스템이 읽을 JSON으로 출력 (형식: README '결과 JSON')",
         )
     args = parser.parse_args(argv)
+    if args.command == "samples":
+        print(samples_dir())
+        return 0
     if uses_claude(args):
         problem = preflight()
         if problem is not None:

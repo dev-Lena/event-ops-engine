@@ -103,7 +103,10 @@ def test_two_member_registration_reviews_once_and_cites_only_rejected_candidates
     r3 = next(r for r in scenario.registrations if r.id == "r3")
     assert r3.members is not None
     pair = r3.model_copy(
-        update={"members": (r3.members[0], Member(job="백엔드 3년차")), "party_size": 2}
+        update={
+            "members": (r3.members[0], Member(gender="male", job="백엔드 3년차")),
+            "party_size": 2,
+        }
     )
     scenario = scenario.model_copy(
         update={"registrations": tuple(pair if r.id == "r3" else r for r in scenario.registrations)}
