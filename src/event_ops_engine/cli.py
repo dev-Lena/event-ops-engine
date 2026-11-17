@@ -365,7 +365,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     sub.add_parser(
         "samples",
-        help="패키지에 든 합성 예시 시나리오 폴더의 경로를 출력 (문의 예시는 그 아래 triage/)",
+        help="합성 예시 시나리오 폴더의 경로를 출력 (패키지 설치면 패키지 안, 저장소면 "
+        "data/synthetic/scenarios. 문의 예시는 그 아래 triage/)",
     )
     for subparser in (report_parser, triage_parser):
         subparser.add_argument(

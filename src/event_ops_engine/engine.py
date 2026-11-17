@@ -32,6 +32,7 @@ ENGINE_MISSING = (
     "`pip install meson ninja && make engine`을 실행하세요 (README '설치 > Intel Mac: 엔진 빌드').\n"
     "- 패키지만 설치했다면 빌드한 파일의 경로를 환경변수로 알려 줍니다: "
     "`export WIRELOG_LIB=/절대/경로/libwirelog.1.dylib`\n"
+    "- 다른 환경이라면 이 메시지 위의 원래 오류에 엔진을 찾아본 경로가 나옵니다.\n"
     "- {env}"
 )
 """Shown when PyreWire cannot load the engine (#110); the original error stays as the cause."""

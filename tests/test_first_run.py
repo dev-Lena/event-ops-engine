@@ -13,8 +13,10 @@ from event_ops_engine.loader import samples_dir
 from tests.conftest import SCENARIOS
 
 
-def test_samples_dir_in_a_checkout_is_the_repo_folder() -> None:
-    assert samples_dir() == SCENARIOS
+def test_samples_dir_holds_the_same_files_as_the_repo_folder() -> None:
+    # Editable install: the repo folder itself. Regular install: the packaged copy.
+    found = {path.relative_to(samples_dir()) for path in samples_dir().rglob("*.yaml")}
+    assert found == {path.relative_to(SCENARIOS) for path in SCENARIOS.rglob("*.yaml")}
     assert (samples_dir() / "triage" / "account-length.yaml").is_file()
 
 
@@ -41,6 +43,6 @@ def test_a_missing_engine_says_how_to_build_it(monkeypatch: pytest.MonkeyPatch) 
     with pytest.raises(OSError) as caught:
         Engine()
     text = str(caught.value)
-    assert "make engine" in text and "export WIRELOG_LIB=" in text
+    assert "make engine" in text and "export WIRELOG_LIB=" in text and "원래 오류" in text
     assert "WIRELOG_LIB=/nonexistent/libwirelog.1.dylib (그 경로에 파일이 없습니다)" in text
     assert "Could not find libwirelog" in str(caught.value.__cause__)

@@ -26,6 +26,7 @@ check: lint typecheck test
 package-check:
 	rm -rf build dist && python -m pip wheel . --no-deps -q -w dist && python -m zipfile -l dist/*.whl | grep -q 'event_ops_engine/rules/triage.dl' && echo 'wheel ships rules/*.dl'
 	python -m zipfile -l dist/*.whl | grep -q 'event_ops_engine/samples/policy/events/synthetic-example.yaml' && echo 'wheel ships the synthetic samples'
+	@if python -m zipfile -l dist/*.whl | grep 'event_ops_engine/samples/' | grep -Ev 'samples/(data/synthetic/scenarios/|policy/events/synthetic-)'; then echo 'wheel ships a sample outside the synthetic set (above)'; exit 1; fi
 	@if python -m zipfile -l dist/*.whl | grep -q 'private'; then echo 'wheel contains a private path'; exit 1; fi
 
 # Install the built wheel into a fresh venv and run it from a temp dir outside the repo,
