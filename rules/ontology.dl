@@ -25,6 +25,9 @@
 .decl normalize_threshold(dim: symbol, min_pct: int64)
 .decl dimension_value(dim: symbol, value: symbol)
 .decl attendee_attr(attendee: symbol, dim: symbol, value: symbol)
+// Fixed-choice dimensions (#31) and who answers: "member" or "registration". Lets the rules
+// tell a blank answer from an unknown composition (#103).
+.decl choice_dim(dim: symbol, per: symbol)
 
 // --- targets and policy -----------------------------------------------------
 .decl target(session: symbol, dim: symbol, value: symbol, lo: int64, hi: int64)

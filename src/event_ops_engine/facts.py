@@ -209,13 +209,16 @@ def registration_facts(scenario: Scenario, registration: Registration) -> Facts:
 
 
 def normalization_facts(scenario: Scenario) -> Facts:
-    """Threshold and allowed values the rules use to promote `candidate_attr` rows."""
+    """Threshold and allowed values the rules use to promote `candidate_attr` rows, and the
+    choice dimensions with who answers them (#103)."""
     facts = Facts()
     job_group = scenario.policy.dimensions.job_group
     if job_group is not None:
         facts.add("normalize_threshold", DIM_JOB_GROUP, confidence_pct(job_group.min_confidence))
         for value in job_group.values:
             facts.add("dimension_value", DIM_JOB_GROUP, value)
+    for name, choice in scenario.policy.dimensions.choices.items():
+        facts.add("choice_dim", name, choice.per)
     return facts
 
 

@@ -91,6 +91,14 @@ REVIEW_MESSAGES = {
         "신청 {reg}: 출생연도가 없거나 회차 연도보다 늦은 참가자가 있습니다(필수 항목). "
         "나이 집계에서 빠졌으니 출생연도를 확인해 주세요."
     ),
+    "missing_gender": (
+        "신청 {reg}: 성별이 없는 참가자가 있습니다(필수 항목). "
+        "성별 목표 집계에서 빠졌으니 성별을 확인해 주세요."
+    ),
+    "missing_choice": (
+        "신청 {reg}: 선택 속성({dims}) 답이 없습니다. "
+        "그 속성의 목표 집계에서 빠졌으니 답을 확인해 주세요."
+    ),
 }
 
 
@@ -112,19 +120,34 @@ def missing_ages(engine: Engine) -> dict[str, list[str]]:
     return found
 
 
+def blank_attrs(engine: Engine) -> dict[str, dict[str, list[str]]]:
+    """Per registration, the dimensions left blank (#103) with the evidence id of each blank
+    `given_attr`. Keyed by dimension so wirelog's duplicate rows collapse."""
+    found: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    for reg, attendee, dim in engine.snapshot("attr_missing"):
+        found[str(reg)][str(dim)].add(evidence_id("given_attr", attendee, dim))
+    return {reg: {dim: sorted(ids) for dim, ids in dims.items()} for reg, dims in found.items()}
+
+
 def _review(
     session_id: str,
     reg: str,
     reason: str,
     rejected: dict[str, list[str]],
     missing: dict[str, list[str]],
+    blank: dict[str, dict[str, list[str]]],
 ) -> Decision:
     """One `needs_review` row as a Decision; evidence names the facts the rule looked at."""
     evidence = [evidence_id("registration", reg)]
+    dims: list[str] = []
     if reason == "unknown_party":
         evidence.append(evidence_id("unknown_party", reg))
     elif reason == "missing_birth_year":
         evidence.extend(missing.get(reg, []))
+    elif reason in ("missing_gender", "missing_choice"):
+        is_gender = reason == "missing_gender"
+        dims = sorted(dim for dim in blank.get(reg, {}) if (dim == DIM_GENDER) == is_gender)
+        evidence.extend(id_ for dim in dims for id_ in blank[reg][dim])
     else:
         evidence.extend(rejected.get(reg, []))
     return Decision(
@@ -133,7 +156,7 @@ def _review(
         reasons=(reason,),
         evidence=tuple(evidence),
         message=REVIEW_MESSAGES.get(reason, "신청 {reg}: 확인이 필요합니다 ({reason}).").format(
-            reg=reg, reason=reason
+            reg=reg, reason=reason, dims=" · ".join(dims)
         ),
     )
 
@@ -209,8 +232,9 @@ def session_status(engine: Engine, session_id: str) -> SessionStatus:
 
     rejected = rejected_candidates(engine)
     missing = missing_ages(engine)
+    blank = blank_attrs(engine)
     reviews = tuple(
-        _review(session_id, str(row[1]), str(row[2]), rejected, missing)
+        _review(session_id, str(row[1]), str(row[2]), rejected, missing, blank)
         for row in engine.rows("needs_review", session_id)
     )
     ages = age_groups(engine, session_id)
