@@ -7,13 +7,15 @@ as a versioned structure for other systems (`REPORT_SCHEMA`, `TRIAGE_SCHEMA`, #8
 from __future__ import annotations
 
 import argparse
+import contextlib
 import dataclasses
 import json
 import sys
+import warnings
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 from .capacity import AgeGroup, RangeSuggestion, SessionStatus, ValueStatus, capacity_status
 from .decision import Decision, Verdict, VerdictKind
@@ -21,7 +23,7 @@ from .engine import Engine
 from .facts import scenario_facts
 from .harness import differences, needs_label, run_triage
 from .interpreter import ClaudeCliInterpreter, FakeInterpreter, Interpreter, preflight
-from .loader import load_scenario, load_triage_scenario
+from .loader import InputWarning, load_scenario, load_triage_scenario
 from .model import DIM_COMBO, DIM_GENDER, Combos, Scenario, TriageScenario
 from .normalizer import NORMALIZERS, normalize_members
 from .policy import resolve_combos
@@ -348,6 +350,30 @@ def uses_claude(args: argparse.Namespace) -> bool:
     return "claude" in (getattr(args, "interpreter", None), getattr(args, "normalizer", None))
 
 
+@contextlib.contextmanager
+def input_warnings_on_stderr() -> Iterator[None]:
+    """Show each `InputWarning` as one stderr line, so stdout (and `--json`) stays as it was."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("always", InputWarning)
+        fallback = warnings.showwarning
+
+        def show(
+            message: Warning | str,
+            category: type[Warning],
+            filename: str,
+            lineno: int,
+            file: TextIO | None = None,
+            line: str | None = None,
+        ) -> None:
+            if issubclass(category, InputWarning):
+                print(f"경고: {message}", file=sys.stderr)
+            else:
+                fallback(message, category, filename, lineno, file, line)
+
+        warnings.showwarning = show
+        yield
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="event-ops", description="모임 운영 판단 엔진")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -398,6 +424,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
+    with input_warnings_on_stderr():
+        return run_command(args)
+
+
+def run_command(args: argparse.Namespace) -> int:
     if args.command == "report":
         if args.json:
             print_json(report_json(run_report(args.scenario, args.normalizer)))

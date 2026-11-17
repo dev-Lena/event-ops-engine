@@ -101,7 +101,7 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
   기대 판정: ask · 일치
 ```
 
-문의 시나리오(`data/synthetic/scenarios/triage/*.yaml`)는 질문 · 이벤트 로그 · 기대 판정을 담습니다. 기본은 파일의 `canned` 해석을 쓰는 가짜 해석기이고, `--interpreter claude`를 주면 Claude Code CLI(`claude -p`, 구독 안에서 추가 비용 없음)가 질문을 후보 사실로 바꿉니다. 이때 CLI는 도구 · 연결 서비스(MCP) · 실행한 사람의 `CLAUDE.md` 없이 글만 읽는 추출기로 뜹니다(Claude Code 2.1.318에서 확인). 기대 판정과 다르면 종료 코드 1, `--trace`로 단계별 기록을 봅니다. 출력 첫 줄은 질문 id만 보이고, `--show-question`을 주면 질문 원문도 보입니다(원문에는 개인정보가 섞일 수 있어 기본은 끔). `--runs N`은 같은 질문을 N번 판정해 결과 분포와 일치율을 보여 줍니다(실제 해석기의 안정성 확인용). `claude`를 고르면 시작 전에 CLI 로그인을 확인하고, 안 되어 있으면 `claude login` 안내와 함께 종료 코드 2로 멈춥니다. 해석기가 자신 없다고 한 후보 사실(확신도 0.6 미만, 가정값)은 판정에 쓰지 않습니다. 위 출력 예시는 테스트(`tests/test_readme.py`)가 실제 출력과 대조합니다.
+문의 시나리오(`data/synthetic/scenarios/triage/*.yaml`)는 질문 · 이벤트 로그 · 기대 판정을 담습니다. 기본은 파일의 `canned` 해석을 쓰는 가짜 해석기이고, `--interpreter claude`를 주면 Claude Code CLI(`claude -p`, 구독 안에서 추가 비용 없음)가 질문을 후보 사실로 바꿉니다. 이때 CLI는 도구 · 연결 서비스(MCP) · 실행한 사람의 `CLAUDE.md` 없이 글만 읽는 추출기로 뜹니다(Claude Code 2.1.318에서 확인). 기대 판정과 다르면 종료 코드 1, `--trace`로 단계별 기록을 봅니다. 출력 첫 줄은 질문 id만 보이고, `--show-question`을 주면 질문 원문도 보입니다(원문에는 개인정보가 섞일 수 있어 기본은 끔). 이벤트 로그 `attrs`에 `014` · `12:30` · `yes`처럼 YAML이 다른 값으로 읽는 것을 따옴표 없이 적으면 `경고:` 한 줄을 stderr에 내고 전처럼 진행합니다(다음 릴리스부터 오류, 따옴표로 감싸면 글자 그대로). `--runs N`은 같은 질문을 N번 판정해 결과 분포와 일치율을 보여 줍니다(실제 해석기의 안정성 확인용). `claude`를 고르면 시작 전에 CLI 로그인을 확인하고, 안 되어 있으면 `claude login` 안내와 함께 종료 코드 2로 멈춥니다. 해석기가 자신 없다고 한 후보 사실(확신도 0.6 미만, 가정값)은 판정에 쓰지 않습니다. 위 출력 예시는 테스트(`tests/test_readme.py`)가 실제 출력과 대조합니다.
 
 ### 결과 JSON (`--json`)
 
