@@ -1,9 +1,12 @@
 """Module ③ promotion judgement: reasons, holds, inactive sessions, evidence."""
 
+from typing import Any
+
 from event_ops_engine.decision import Decision
 from event_ops_engine.engine import Engine
 from event_ops_engine.promotion import promotion_decisions, session_promotion
 from tests.conftest import loaded, scenario
+from tests.test_combo_promotion import decide, person
 
 
 def by_value(decisions: list[Decision]) -> dict[tuple[str, str], Decision]:
@@ -55,9 +58,10 @@ def test_full_session_turns_gaps_into_holds(engine: Engine) -> None:
     decisions = session_promotion(engine, "s4b")
     assert {d.kind for d in decisions} == {"hold"}
     male = by_value(decisions)[("gender", "male")]
-    assert male.reasons == ("session_full",)
-    assert male.need == 3
-    assert "정원 마감" in male.message
+    # male 3 against 6~6 is 3 short, and trails female 6 by 3: two counts, two reasons
+    assert male.reasons == ("session_full", "session_full_ratio")
+    assert (male.need, male.shortfall, male.ratio_diff) == (3, 3, 3)
+    assert male.message.startswith("정원 마감: male 3명 부족이 남았지만")
 
 
 def test_lead_days_boundary_is_inclusive_and_past_sessions_are_silent(engine: Engine) -> None:
@@ -93,7 +97,50 @@ def test_mixed_reasons_take_need_and_message_from_the_gap_reason(engine: Engine)
     male = by_value(session_promotion(engine, "s1"))[("gender", "male")]
     assert male.reasons == ("imbalance", "slow_trend")
     assert male.need == 5  # target shortfall, not the ratio difference
+    assert (male.shortfall, male.ratio_diff) == (5, 2)
     assert male.message.startswith("신청 추세 느림: male 5명 부족")
+
+
+RATIO = [{"dim": "gender", "values": ["female", "male"], "max_diff": 1}]
+
+
+def pending(reg: str, gender: str) -> dict[str, Any]:
+    waiting = [{"at": "2026-11-07T08:00:00+09:00", "status": "pending_payment"}]
+    return {**person(reg, gender, 1993), "status_events": waiting}
+
+
+def test_full_session_with_only_a_ratio_difference_is_not_called_a_shortfall() -> None:
+    # #106: capacity 12 filled by 10 confirmed + 2 waiting for payment. Male has 4 + 2 against
+    # 6~6, so its target is met; it only trails female 6 by 2 confirmed (the ratio).
+    people = [person(f"f{i}", "female", 1993) for i in range(6)]
+    people += [person(f"m{i}", "male", 1993) for i in range(4)]
+    people += [pending("p1", "male"), pending("p2", "male")]
+    targets = {"gender": {"female": {"lo": 6, "hi": 6}, "male": {"lo": 6, "hi": 6}}}
+    (held,) = decide(targets, people, capacity=12, ratios=RATIO)
+    assert (held.kind, held.value, held.reasons) == ("hold", "male", ("session_full_ratio",))
+    assert (held.need, held.shortfall, held.ratio_diff) == (2, None, 2)
+    assert "부족" not in held.message
+    assert held.message == (
+        "정원 마감: male 확정 인원이 상대 쪽보다 2명 적습니다(비율 차). "
+        "자리가 없어 홍보로 맞출 수 없으니 운영자 확인이 필요합니다."
+    )
+    assert "ratio_target/s/gender" in held.evidence
+    assert held.model_dump(mode="json")["ratio_diff"] == 2
+
+
+def test_full_session_hold_takes_need_from_the_shortfall_not_the_ratio() -> None:
+    # #106: capacity 10, female 6 and male 4 confirmed. Male 5~5 is 1 short; the ratio
+    # difference is 2. The hold needs 1 person and reports the 2 apart.
+    people = [person(f"f{i}", "female", 1993) for i in range(6)]
+    people += [person(f"m{i}", "male", 1993) for i in range(4)]
+    targets = {"gender": {"female": {"lo": 5, "hi": 6}, "male": {"lo": 5, "hi": 5}}}
+    (held,) = decide(targets, people, capacity=10, ratios=RATIO)
+    assert held.reasons == ("session_full", "session_full_ratio")
+    assert (held.need, held.shortfall, held.ratio_diff) == (1, 1, 2)
+    assert held.message == (
+        "정원 마감: male 1명 부족이 남았지만 자리가 없습니다. 운영자 확인이 필요합니다. "
+        "비율 차도 있습니다: male 확정 인원이 상대 쪽보다 2명 적습니다."
+    )
 
 
 def test_past_full_session_gets_no_hold(engine: Engine) -> None:

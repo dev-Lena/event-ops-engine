@@ -190,6 +190,7 @@ promote(S, D, V, G, "slow_trend")    :- gap(S, D, V, G), active(S), !session_ful
                                         recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
 promote(S, D, V, Diff, "imbalance")  :- imbalance(S, D, V, Diff), active(S), !session_full(S).
 blocked(S, D, V, G, "session_full")  :- gap(S, D, V, G), active(S), session_full(S).
+blocked(S, D, V, Diff, "session_full_ratio") :- imbalance(S, D, V, Diff), active(S), session_full(S).
 cap(S, D, A, Fb + Max, B, Fb, Max) :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb), Fa - Fb > Max, active(S), !session_full(S).   // 대칭 규칙도 있음
 capped(S, D, V)             :- cap(S, D, V, _, _, _, _).   // promote 세 규칙은 !capped, !held, !past_cutoff
 combo_gap_sum(S, G, sum(N)) :- gap(S, "combo", C, N), combo_gender(S, C, G).        // 조합 (#32)
@@ -207,6 +208,7 @@ blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(
 | `slow_trend` | 최근 1주 확정 수가 `trend_min_per_week`보다 적음 | "신청 추세 느림, {value} {n}명 홍보 권장" |
 | `imbalance` | 비율 목표의 허용 차를 넘음 | "{value} 쪽 {n}명 부족(비율)" |
 | `blocked: session_full` | 부족분은 있으나 정원이 찼음 (지난 회차는 제외) | "정원 마감 — 목표와 정원이 충돌, 운영자 확인" |
+| `blocked: session_full_ratio` | 부족분이 아니라 비율 차만 남았는데 정원이 찼음 (#106) | "정원 마감: {value} 확정 인원이 상대 쪽보다 {n}명 적음(비율 차), 운영자 확인" |
 | `blocked: gender_room` | 한 성별의 조합 부족 합이 그 성별의 남은 자리보다 큼 (#32) | "목표 충돌: {성별} 조합 부족 합 {n}명이 남은 자리보다 많음, 운영자 확인" |
 
 **기준값** (#52, 2026-11-06 결정. 바꿀 때는 `policy/events/*.yaml`만 바꾼다. 결정 기록: [decisions/2026-11-07-promotion-thresholds.md](decisions/2026-11-07-promotion-thresholds.md)):
@@ -219,12 +221,12 @@ blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(
 | 비율 `max_diff` | 1 | 가정 | 홍보(`imbalance`)와 잠정 마감(`cap`)에 같은 값. 운영사의 성별 한도 방식은 확인 중 |
 
 `imbalance` 홍보 권고는 기간 제한 없이 낸다(운영사는 임박했을 때 광고하지만, 엔진은 더 일찍 알리는 쪽을 택함).
-한 (회차, 속성, 값)에 이유가 여럿이면 `Decision` 하나에 이유 목록으로 모은다. `need`와 문구는 우선순위(`lead_time` > `slow_trend` > `imbalance`)가 가장 높은 이유의 값을 쓴다 — 부족분(gap)과 비율 차(diff)는 다른 수이므로 섞지 않는다.
+한 (회차, 속성, 값)에 이유가 여럿이면 `Decision` 하나에 이유 목록으로 모은다. `need`와 문구는 우선순위(`lead_time` > `slow_trend` > `imbalance`, 보류는 `session_full` > `session_full_ratio`)가 가장 높은 이유의 값을 쓴다 — 부족분(gap)과 비율 차(diff)는 다른 수이므로 섞지 않는다. 그래서 규칙은 둘을 다른 이유로 내고, `Decision`은 `shortfall`(부족분, 없으면 `null`)과 `ratio_diff`(비율 차, 없으면 `null`)를 따로 담는다(#106). `need`는 부족분이 있으면 부족분, 비율 차만 있으면 비율 차다. 정원이 찬 회차에 비율 차만 남으면 "부족"이라 하지 않고 비율 차 보류(`session_full_ratio`)로 내고, 부족분과 비율 차가 함께 있으면 부족분 보류 문장 뒤에 비율 차를 덧붙인다.
 
 **조합 권고 (#32, 결정 기록: [decisions/2026-11-09-combination-targets.md](decisions/2026-11-09-combination-targets.md))**: 규칙은 조합도 다른 값처럼 `promote` · `blocked`를 내고, `promotion.py`가 그 행을 조합의 성별 결정 하나(`dim = gender`)로 묶는다. 조합 몫은 `Decision.parts`(조합 id · 표시 이름 · 부족 · 이유)에 담는다.
 - `need` = max(성별 자신의 부족분, 그 성별 조합 부족의 합). 조합에 든 사람은 성별에도 세이므로 둘을 더하지 않는다. 비율 차(`imbalance`)는 부족분이 아니라서 이 계산에 넣지 않는다.
 - 묶는 조합은 규칙이 권고(또는 보류)한 것만이다. 부족분이 있어도 임박 · 추세 조건에 걸리지 않은 조합은 성별과 마찬가지로 아직 권고하지 않는다.
-- 문구는 광고 단위로 쓴다: "회차 임박: female 3명 부족, 홍보가 필요합니다. 광고 대상: female 25~29세(연 나이) 3명 이상." 성별 자신은 부족하지 않고 조합만 부족하면 조합 이름을 바로 쓴다("female 25~29세(연 나이) 1명 부족").
+- 문구는 광고 단위로 쓴다: "회차 임박: female 3명 부족, 홍보가 필요합니다. 광고 대상: female 25~29세(연 나이) 3명 이상." 성별 자신은 부족하지 않고 조합만 부족하면 조합 이름을 바로 쓴다("female 25~29세(연 나이) 1명 부족"). 성별에 비율 차만 있는 것도 "부족하지 않음"이다(#106).
 - 성별이 잠정 마감 중이면 그 성별의 조합 권고를 내지 않는다(잠정 마감 권고가 이유를 말한다). 홍보 중단(`past_cutoff`)과 정원 마감(`session_full`)은 다른 값과 같다.
 - 조합 부족의 합이 그 성별이 더 받을 수 있는 자리(성별 목표의 남은 자리, 목표가 없으면 회차의 남은 자리)보다 크면 홍보로 함께 채울 수 없다. 그 성별의 조합은 권고 대신 `blocked(…, "gender_room")` 보류가 되고 운영자가 목표를 정한다(`session_full`과 같은 성격). 범위 밖 나이의 사람이 자리를 차지하면 생긴다. 같으면 충돌이 아니다.
 - 이때 성별 자신의 부족분 권고는 그대로 낸다(조합 몫 없이). 그래서 조합이 묶인 성별에는 권고와 보류가 함께 나올 수 있다.
@@ -469,4 +471,5 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-10 | 2 · 3 · 6 · 9절 범위 제안(#91 C): 가운데 맞춤 · 동점 후보 모두 · 조합 있는 성별 제외, JSON `range_suggestions`, wirelog 나눗셈 · 괄호 제약 |
 | 2026-11-11 | 문서 정합성 (#95): 1 · 2절 표, 3 · 8절 자유 글 칸과 출력 범위, 10절 구조, 11 · 12 · 13 · 14절 지난 문장 |
 | 2026-11-17 | 13절 로그 `attrs`: 불리언을 `"true"` · `"false"`로, YAML이 다르게 읽는 값 경고 (#102) |
+| 2026-11-17 | 7절 정원 마감 보류: 부족분(`session_full`)과 비율 차(`session_full_ratio`)를 다른 이유로, `Decision.shortfall` · `ratio_diff` 추가 (#106) |
 | 2026-11-17 | 13절 도구 없는 추출기 · 문의 글 데이터 구획 · 실측, 3 · 8절 질문 원문 출력은 `--show-question`일 때만 (#99) |
