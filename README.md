@@ -105,7 +105,7 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
 
 ### 결과 JSON (`--json`)
 
-다른 시스템(운영 관리 화면, 웹)이 결과를 받을 때는 `report`와 `triage`에 `--json`을 붙입니다. 사람용 문장 대신 아래 구조를 출력하고, 종료 코드는 같습니다. `schema`는 형식 버전입니다. 필드를 바꾸거나 없애면 `@2`로 올리고, 필드를 더하는 것은 같은 번호로 둡니다. `combos`는 그 회차의 조합 정의(성별 · 나이 범위 · 표시 이름)이고, 결정의 `parts`는 성별 권고에 묶인 조합 몫(조합 id · 표시 이름 · 부족 · 이유)입니다. `ages`는 `similar_age` 모임의 성별 · 묶음(`occupying` 확정·대기, `applied` 신청 접수)별 나이 목록 · 폭 · 출생연도 없음 수이고, `range_suggestions`는 성별 범위 제안(범위들 · 든 수 · 확정·대기 수 · 폭)입니다. 둘 다 신청 id는 담지 않습니다. `decisions` · `needs_review`의 각 항목은 `Decision`, `verdicts`의 각 항목은 `Verdict` 모델 그대로입니다(`src/event_ops_engine/decision.py`). `trace`는 `--json --trace`일 때만 들어갑니다.
+다른 시스템(운영 관리 화면, 웹)이 결과를 받을 때는 `report`와 `triage`에 `--json`을 붙입니다. 사람용 문장 대신 아래 구조를 출력하고, 종료 코드는 같습니다. `schema`는 형식 버전입니다. 필드를 바꾸거나 없애면 `@2`로 올리고, 필드를 더하는 것은 같은 번호로 둡니다. `combos`는 그 회차의 조합 정의(성별 · 나이 범위 · 표시 이름)이고, 결정의 `parts`는 성별 권고에 묶인 조합 몫(조합 id · 표시 이름 · 부족 · 이유)입니다. 홍보 권고 · 보류의 `shortfall`은 목표 부족분, `ratio_diff`는 비율 차(확정 인원이 상대 쪽보다 적은 수)이고 없으면 `null`입니다. `need`는 문장에 쓴 수(부족분이 있으면 부족분, 비율 차만 있으면 비율 차, 잠정 마감은 상한)이니 받는 쪽은 `shortfall` · `ratio_diff`를 읽으세요. `ages`는 `similar_age` 모임의 성별 · 묶음(`occupying` 확정·대기, `applied` 신청 접수)별 나이 목록 · 폭 · 출생연도 없음 수이고, `range_suggestions`는 성별 범위 제안(범위들 · 든 수 · 확정·대기 수 · 폭)입니다. 둘 다 신청 id는 담지 않습니다. `decisions` · `needs_review`의 각 항목은 `Decision`, `verdicts`의 각 항목은 `Verdict` 모델 그대로입니다(`src/event_ops_engine/decision.py`). `trace`는 `--json --trace`일 때만 들어갑니다.
 
 ```json
 // event-ops report data/synthetic/scenarios/pair-mixed.yaml --json (줄임)
@@ -118,7 +118,8 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
                   "needs_review": [], "ages": [], "range_suggestions": [],
                   "decisions": [ { "kind": "recommend", "session": "s2", "dim": "gender", "value": "male", "need": 4,
                                    "reasons": ["imbalance", "lead_time", "slow_trend"], "evidence": ["..."],
-                                   "message": "회차 임박: male 4명 부족, 홍보가 필요합니다.", "parts": [] } ] } ] }
+                                   "message": "회차 임박: male 4명 부족, 홍보가 필요합니다.", "parts": [],
+                                   "shortfall": 4, "ratio_diff": 2 } ] } ] }
 
 // event-ops triage data/synthetic/scenarios/triage/account-length.yaml --json
 { "schema": "event-ops/triage@1", "question": "q1", "matched": true,
