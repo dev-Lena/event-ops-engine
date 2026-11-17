@@ -124,7 +124,8 @@ def test_logged_out_claude_cli_stops_before_running(
     monkeypatch.setattr(cli, "preflight", lambda: "claude exited 1: not logged in")
     code = main(["triage", str(TRIAGE / "account-length.yaml"), "--interpreter", "claude"])
     assert code == 2
-    assert "claude login" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "claude login" in err and "최신 버전" in err  # an old CLI rejects the flags too
 
 
 def test_fake_runs_skip_the_preflight(monkeypatch: pytest.MonkeyPatch) -> None:

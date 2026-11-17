@@ -77,23 +77,30 @@ CLAUDE_COMMAND: tuple[str, ...] = (
     "",
     "--strict-mcp-config",
     "--safe-mode",
+    "--no-session-persistence",
 )
 """Print mode as a pure text extractor (#99). Plain `claude -p` boots the whole agent with
 the caller's tools, MCP servers and `CLAUDE.md`, and the prompt ends with text written by
 people outside the team. `--tools ""` removes every built-in tool, `--strict-mcp-config`
 (with no `--mcp-config`) every MCP server, and `--safe-mode` the caller's `CLAUDE.md`,
 hooks, skills and plugins, so nothing the text says can act and every caller gets the same
-extractor. Login and model selection are unaffected. Checked on Claude Code 2.1.318."""
+extractor. `--no-session-persistence` keeps the CLI from saving the prompt (the inquiry) as
+a transcript under `~/.claude/projects`. Login and model selection are unaffected. Checked
+on Claude Code 2.1.318."""
+
+_GAP = r"[\s\u200b-\u200f\u2060\ufeff]*"
+"""Whitespace and invisible characters that may sit inside a look-alike marker."""
 
 
 def data_block(tag: str, lines: Sequence[str]) -> list[str]:
     """`lines` between `<tag>` and `</tag>`, each squashed to one line.
 
     A `<tag>` or `</tag>` inside the text is defused (`<` becomes `&lt;`) so the text cannot
-    close the block early and continue as instructions. A quote that spans a defused marker
-    no longer matches the original text and fails validation, which is the safe direction.
+    close the block early and continue as instructions; spaces and zero-width characters
+    inside the marker do not hide it. A quote that spans a defused marker no longer matches
+    the original text and fails validation, which is the safe direction.
     """
-    marker = re.compile(rf"<(?=\s*/?\s*{re.escape(tag)}\b)", re.IGNORECASE)
+    marker = re.compile(rf"<(?={_GAP}/?{_GAP}{re.escape(tag)}\b)", re.IGNORECASE)
     return [f"<{tag}>", *(marker.sub("&lt;", squash(line)) for line in lines), f"</{tag}>"]
 
 

@@ -365,7 +365,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     triage_parser.add_argument(
         "--show-question",
         action="store_true",
-        help="첫 줄에 질문 원문도 출력 (기본: 질문 id만. 원문에는 개인정보가 섞일 수 있음)",
+        help="문장 출력 첫 줄에 질문 원문도 출력 (기본: 질문 id만. 원문에는 개인정보가 "
+        "섞일 수 있음). --json 출력은 늘 질문 id만 담는다",
     )
     triage_parser.add_argument(
         "--runs",
@@ -392,7 +393,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if problem is not None:
             print(
                 f"Claude CLI를 쓸 수 없습니다: {problem}\n"
-                "터미널에서 `claude login`을 실행한 뒤 다시 시도하세요.",
+                "로그인 문제면 터미널에서 `claude login`을 실행하고, 옵션을 모른다는 오류면 "
+                "Claude Code를 최신 버전으로 올린 뒤 다시 시도하세요.",
                 file=sys.stderr,
             )
             return 2
