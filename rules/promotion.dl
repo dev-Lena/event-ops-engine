@@ -53,8 +53,9 @@ capped(S, D, V) :- cap(S, D, V, _, _, _, _).
 // --- combinations (#32): when their gender can't take the people they need -------------
 // A gender's combinations go quiet while the gender is capped (the cap explains why), and
 // are held when their shortfalls add up to more than the gender's room: the room left
-// under the gender's target, or the session's when the gender has none. Promotion can't
-// meet those targets together, so the operator decides (like `session_full`).
+// under the gender's target or the session's seats left, whichever is smaller (the
+// session's when the gender has no target). Promotion can't meet those targets together,
+// so the operator decides (like `session_full`).
 .decl combo_gender(session: symbol, combo: symbol, gender: symbol)
 .decl combo_gap_sum(session: symbol, gender: symbol, n: int64)
 .decl gender_room(session: symbol, gender: symbol, n: int64)
@@ -63,7 +64,12 @@ capped(S, D, V) :- cap(S, D, V, _, _, _, _).
 
 combo_gender(S, C, G) :- combo_def(S, C, G, _, _).
 combo_gap_sum(S, G, sum(N)) :- gap(S, "combo", C, N), combo_gender(S, C, G).
-gender_room(S, G, R) :- combo_gap_sum(S, G, _), remaining(S, "gender", G, R).
+// The room is the smaller of the gender's and the session's (#107): a gender can't take
+// more people than the session has seats, whatever its own target allows.
+gender_room(S, G, R) :-
+    combo_gap_sum(S, G, _), remaining(S, "gender", G, R), remaining_seats(S, Seats), R <= Seats.
+gender_room(S, G, Seats) :-
+    combo_gap_sum(S, G, _), remaining(S, "gender", G, R), remaining_seats(S, Seats), R > Seats.
 gender_room(S, G, R) :- combo_gap_sum(S, G, _), !target(S, "gender", G, _, _), remaining_seats(S, R).
 combo_conflict(S, G) :- combo_gap_sum(S, G, N), gender_room(S, G, R), N > R.
 held(S, "combo", C) :- combo_gender(S, C, G), cap(S, "gender", G, _, _, _, _).

@@ -156,7 +156,28 @@ def test_without_a_gender_target_the_sessions_room_decides_the_conflict() -> Non
     people = [person("m1", "male", 1990), person("m2", "male", 1990)]
     (held,) = decide({"combo": {"f25_29": {"lo": 2}}}, people, capacity=3)
     assert (held.kind, held.reasons, held.need) == (DecisionKind.HOLD, ("gender_room",), 2)
-    assert "남은 자리 1명" in held.message
+    assert "회차 남은 자리 1명" in held.message and "정원을" in held.message
+
+
+def test_a_roomy_gender_target_does_not_outgrow_the_sessions_seats() -> None:
+    # #107: capacity 10, eight men and one woman aged 40 confirmed: 1 seat left. Female 0~10
+    # could take 9 more on paper, but 25~29 needs 3 and only 1 seat exists: hold, not promote.
+    people = [person(f"m{i}", "male", 1990) for i in range(8)] + [woman("r1", 1986)]
+    targets = {"gender": {"female": {"lo": 0, "hi": 10}}, "combo": {"f25_29": {"lo": 3}}}
+    (held,) = decide(targets, people, capacity=10)
+    assert (held.kind, held.reasons, held.need) == (DecisionKind.HOLD, ("gender_room",), 3)
+    assert held.message == (
+        "목표 충돌: female 조합 부족 합 3명(female 25~29세(연 나이) 3명)이 회차 남은 자리 "
+        "1명보다 많습니다. 조합 목표나 정원을 운영자가 확인해 주세요."
+    )
+
+
+def test_combinations_that_exactly_fit_the_sessions_seats_are_promoted() -> None:
+    # Six men and one woman aged 40 in 10 seats: 3 left for the 3 the combination needs.
+    people = [person(f"m{i}", "male", 1990) for i in range(6)] + [woman("r1", 1986)]
+    targets = {"gender": {"female": {"lo": 0, "hi": 10}}, "combo": {"f25_29": {"lo": 3}}}
+    (rec,) = decide(targets, people, capacity=10)
+    assert (rec.kind, rec.need) == (DecisionKind.RECOMMEND, 3)
 
 
 def test_a_slow_trend_alone_recommends_a_combination_with_only_its_evidence() -> None:

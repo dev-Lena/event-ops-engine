@@ -28,6 +28,13 @@ GAP_REASONS = ("lead_time", "slow_trend", "session_full", "gender_room")
 """Reasons whose number is a target shortfall (`gap`)."""
 RATIO_REASONS = ("imbalance", "session_full_ratio")
 """Reasons whose number is a ratio difference: never added to or shown as a shortfall."""
+ROOM_BY_SESSION = (
+    "목표 충돌: {value} 조합 부족 합 {need}명({parts})이 회차 남은 자리 {room}명보다 많습니다. "
+    "조합 목표나 정원을 운영자가 확인해 주세요."
+)
+"""The `gender_room` sentence when the session's seats, not the gender's target, are the
+limit (#107): it names the room that is actually short and what to revisit."""
+
 REASON_PRIORITY = (
     "lead_time",
     "slow_trend",
@@ -120,14 +127,22 @@ def _parts(
 
 
 def _message(
-    primary: str, value: str, need: int, room: int | None, parts: list[DecisionPart], own: bool
+    primary: str,
+    value: str,
+    need: int,
+    room: int | None,
+    parts: list[DecisionPart],
+    own: bool,
+    by_session: bool = False,
 ) -> str:
     """The decision sentence. A gender's line names its combinations as ad targets (#32);
-    combinations alone (the gender itself has no shortfall) are named directly."""
+    combinations alone (the gender itself has no shortfall) are named directly. `by_session`
+    says a `gender_room` conflict is limited by the session's seats (#107)."""
     named_directly = parts and not own and primary != "gender_room"
     shown = " · ".join(part.label for part in parts) if named_directly else value
     listed = ", ".join(f"{part.label} {part.need}명" for part in parts)
-    text = REASON_MESSAGES[primary].format(value=shown, need=need, room=room, parts=listed)
+    template = ROOM_BY_SESSION if by_session else REASON_MESSAGES[primary]
+    text = template.format(value=shown, need=need, room=room, parts=listed)
     if parts and primary in ("lead_time", "slow_trend") and (own or len(parts) > 1):
         targets = ", ".join(f"{part.label} {part.need}명 이상" for part in parts)
         text += f" 광고 대상: {targets}."
@@ -185,9 +200,13 @@ def _decisions(
         need = shortfall if shortfall is not None else ratio_diff
         if need is None:
             raise ValueError(f"{relation} reasons carry neither a gap nor a ratio: {reasons}")
-        room = None
+        room, by_session = None, False
         if primary == "gender_room":
             room = int(engine.rows("gender_room", session_id, value)[0][2])
+            # The room is the smaller of the gender's and the session's (#107); the session's
+            # is the limit when it is smaller, or when the gender has no target of its own.
+            own_room = engine.rows("remaining", session_id, dim, value)
+            by_session = not own_room or room < int(own_room[0][3])
         if own or own_short or primary == "gender_room":
             # A conflict hold also rests on the gender's room: its target and its people. So
             # does a sentence that counts the gender's own shortfall.
@@ -198,7 +217,7 @@ def _decisions(
         evidence += part_evidence + cutoff_ids
         # The gender is named as short only when it has a shortfall of its own (`own_short`):
         # a ratio difference alone leaves the combinations to be named directly.
-        message = _message(primary, value, need, room, parts, own_short) + note
+        message = _message(primary, value, need, room, parts, own_short, by_session) + note
         if kind is DecisionKind.HOLD and shortfall is not None and ratio_diff is not None:
             message += RATIO_NOTE.format(value=value, diff=ratio_diff)
         decisions.append(
