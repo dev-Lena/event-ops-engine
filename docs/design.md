@@ -238,7 +238,7 @@ blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(
 
 ## 8. 보안 · 데이터
 
-- 저장소에는 **합성 데이터만** 둔다 (`data/synthetic/`). 실제 데이터는 `data/private/`(gitignore)에만 두고 LLM에 보내지 않는다. 패키지에도 합성 예시만 들어간다: `pyproject.toml`이 `data/synthetic/scenarios`와 `policy/events/synthetic-*.yaml`만 지정하고, `make package-check`가 wheel에 `private` 경로가 없는지 확인한다(#110).
+- 저장소에는 **합성 데이터만** 둔다 (`data/synthetic/`). 실제 데이터는 `data/private/`(gitignore)에만 두고 LLM에 보내지 않는다. 패키지에도 합성 예시만 들어간다: `pyproject.toml`이 `data/synthetic/scenarios`와 `policy/events/synthetic-*.yaml`만 지정하고, `make package-check`가 wheel에 든 예시가 git이 추적하는 합성 파일 목록과 같은지, `private` 경로가 없는지 확인한다(#110).
 - 모델에 개인 식별 칸이 없다 (3절). 시나리오 파일의 id는 `r1`, `s1` 같은 합성 id다.
 - 운영사 이름 · 고객 코드 · 내부 문서는 저장소 어디에도 적지 않는다. 정책 파일의 예시 모임 이름도 합성이다.
 - 비밀값은 환경변수로만. `.env.example`에는 이름만 (공용 보안 기준).
