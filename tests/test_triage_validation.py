@@ -123,6 +123,14 @@ def test_blank_or_one_character_quote_is_rejected(tmp_path: Path, quote: str) ->
     assert f"shorter than {MIN_QUOTE_CHARS} characters" in verdict.message
 
 
+def test_unknown_registration_is_reported_once(tmp_path: Path) -> None:
+    base = scenario(tmp_path, TWO_REGISTRATIONS, ("about_registration", "r9", "r1 신청자"))
+    assert base.question.canned is not None
+    assert validate(base.question.canned, base) == [
+        "about_registration: unknown registration id r9"
+    ]
+
+
 def test_registration_id_must_be_a_whole_token() -> None:
     assert names_id("r1 신청자", "r1") and names_id("신청 R1번", "r1") and names_id("(r1)", "r1")
     assert not names_id("r12 신청자", "r1") and not names_id("r1-b 신청자", "r1")

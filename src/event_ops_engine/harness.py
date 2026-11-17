@@ -108,7 +108,11 @@ def validate(
             problems.append(f"{fact.relation}: quote is shorter than {MIN_QUOTE_CHARS} characters")
         elif quote not in question:
             problems.append(f"{fact.relation}: quote not found in the question")
-        elif fact.relation == "about_registration" and not names_id(quote, fact.args[0]):
+        elif (
+            kinds == ("registration",)
+            and fact.args[0] in known["registration"]  # an unknown id is reported below
+            and not names_id(quote, fact.args[0])
+        ):
             # The quote must tie the fact to its argument: "r1 신청자" cannot justify r2.
             problems.append(f"{fact.relation}: quote does not name registration {fact.args[0]}")
         if kinds == ("dim", "value"):

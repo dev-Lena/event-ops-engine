@@ -326,7 +326,7 @@ docs/             design.md glossary.md decisions/
 
 **후보 사실** (`CandidateFact`): `relation`, `args`, `provenance(source, quote)`, `confidence`(0~1).
 - `relation`은 후보 관계 다섯 개 중 하나만: `asks_about(q, topic)` · `about_registration(q, reg)` · `about_session(q, session)` · `about_event(q, log_id)` · `about_value(q, dim, value)`. 그 밖의 관계는 LLM이 **새 사실을 만든 것**이므로 `reject`.
-- `provenance.quote`는 질문 원문의 일부이고 공백을 줄인 뒤 2글자 이상이어야 한다(빈칸뿐인 인용은 어느 질문에나 "있다"). `about_registration`의 인용에는 그 신청 id가 낱말로 들어 있어야 한다("r1 신청자"로 r2를 고를 수 없다, `harness.names_id`). 어기면 `reject` (#101). `args`가 가리키는 신청 · 회차 · 로그 id · 속성 값(정책의 `dim=value`)이 입력에 없으면 `reject` ("로그에 없는 사실").
+- `provenance.quote`는 질문 원문의 일부이고 공백을 줄인 뒤 2글자 이상이어야 한다(빈칸뿐인 인용은 어느 질문에나 "있다"). `about_registration`의 인용에는 그 신청 id가 낱말로 들어 있어야 한다("r1 신청자"로 r2를 고를 수 없다, `harness.names_id`). 어기면 `reject` (#101). 한계: id가 `14`처럼 짧은 숫자면 질문 속의 같은 숫자("14자리")도 그 신청을 가리킨 것으로 통과한다. `about_event`로 다른 신청의 로그를 고르는 것은 이 규칙이 막지 못한다(로그는 id가 아니라 "timeout" 같은 표현으로 가리킨다). `args`가 가리키는 신청 · 회차 · 로그 id · 속성 값(정책의 `dim=value`)이 입력에 없으면 `reject` ("로그에 없는 사실").
 - 해석기는 사실을 **제안**만 한다. 원인 판정은 규칙만 한다.
 
 **이벤트 로그** (`LogEvent`): `id`, `at`, `kind`, `registration`(선택), `attrs{key: value}`. 종류(`kind`)와 속성은 유형 규칙과 함께 정한다 (#15~#21). 합성 로그만 둔다. 규칙은 `attrs` 값을 글자로 비교한다. 불리언은 `"true"` · `"false"`로 바꿔 넣으므로 `auto: true`는 따옴표가 있든 없든 같다(JSON의 `true`도 같다). YAML 1.1이 따옴표 없는 값을 다르게 읽는 경우(`014` → 12, `12:30` → 750, `yes` → 불리언)는 읽을 때 경고하고 전처럼 읽는다. 다음 릴리스부터는 거부하므로 글자 그대로 둘 값은 따옴표로 감싼다 (#102).
@@ -351,7 +351,7 @@ cause(Q, C, E)   :- cause_of(Q, _, _, C, E).
 needs(Q, What)   :- needs_of(Q, Scope, Topic, What), !settled(Q, Scope, Topic).   -- 열린 needs
 ```
 
-**원인과 `needs`의 범위 (#101)**: 유형 규칙은 원인과 더 필요한 사실을 "어느 신청(`Scope`)의 어느 주제(`Topic`)에 대한 것인지"와 함께 낸다. 원인은 **같은 신청 · 같은 주제**의 `needs`만 닫는다. 그래서 해석기가 질문에 없는 신청이나 주제를 하나 더 골라 거기서 원인이 나와도, 질문이 가리킨 신청에 아직 모르는 것이 있으면 `accept`가 아니라 `ask`다(후보 원인은 함께 보인다). 주제와 무관한 유형 5는 `Topic`이 `*`이고, 그 원인은 그 신청에 대해 물은 모든 주제(와 신청 없이 묻는 자리 문의)를 닫는다. 반대로 유형 5의 `payment_lookup` 요청은 다른 유형의 원인이 닫지 못한다. 신청이 아니라 회차를 묻는 유형 6의 `Scope`는 `-`다.
+**원인과 `needs`의 범위 (#101)**: 유형 규칙은 원인과 더 필요한 사실을 "어느 신청(`Scope`)의 어느 주제(`Topic`)에 대한 것인지"와 함께 낸다. 원인은 **같은 신청 · 같은 주제**의 `needs`만 닫는다. 그래서 해석기가 질문에 없는 신청이나 주제를 하나 더 골라 거기서 원인이 나와도, 질문이 가리킨 신청에 아직 모르는 것이 있으면 `accept`가 아니라 `ask`다(후보 원인은 함께 보인다). 주제와 무관한 유형 5는 `Topic`이 `*`이고, 그 원인은 그 신청에 대해 물은 모든 주제(와 신청 없이 묻는 자리 문의)를 닫는다. 반대로 유형 5의 `payment_lookup` 요청은 다른 유형의 원인이 닫지 못한다. 신청이 아니라 회차를 묻는 유형 6의 `Scope`는 `-`다. 규칙을 더할 때는 `cause` · `needs`가 아니라 `cause_of` · `needs_of`에 쓴다(`cause`에 바로 쓴 원인은 어떤 `needs`도 닫지 못한다).
 
 지원 주제(`supported_topic`)는 `payment` · `delivery` · `duplicate` · `deadline` · `seat` 다섯 개이고, 유형 규칙이 붙을 때마다 실제로 판정되는 주제가 늘어난다. 모든 `Verdict`에는 근거 id가 1개 이상 붙는다 (후보 사실 id `candidate/<q>/<relation>/<args>`, 로그 id `log/<id>`, 로그 하나로 설명되지 않는 원인은 규칙이 파생한 사실 이름 `rule/<name>`).
 
