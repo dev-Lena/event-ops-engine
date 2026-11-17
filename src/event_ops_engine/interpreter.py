@@ -100,7 +100,7 @@ def data_block(tag: str, lines: Sequence[str]) -> list[str]:
     inside the marker do not hide it. A quote that spans a defused marker no longer matches
     the original text and fails validation, which is the safe direction.
     """
-    marker = re.compile(rf"<(?={_GAP}/?{_GAP}{re.escape(tag)}\b)", re.IGNORECASE)
+    marker = re.compile(rf"<(?={_GAP}(?:/{_GAP})?{re.escape(tag)}\b)", re.IGNORECASE)
     return [f"<{tag}>", *(marker.sub("&lt;", squash(line)) for line in lines), f"</{tag}>"]
 
 

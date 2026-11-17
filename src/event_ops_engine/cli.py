@@ -366,7 +366,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--show-question",
         action="store_true",
         help="문장 출력 첫 줄에 질문 원문도 출력 (기본: 질문 id만. 원문에는 개인정보가 "
-        "섞일 수 있음). --json 출력은 늘 질문 id만 담는다",
+        "섞일 수 있음). --json 출력에는 영향이 없다",
     )
     triage_parser.add_argument(
         "--runs",
