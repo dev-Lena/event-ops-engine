@@ -7,8 +7,9 @@ promotes it only above the policy's threshold. Two implementations, as for modul
 
 Before any LLM call, the policy's approved alias dictionary settles every text with exactly
 one clear hit (#62). Each distinct remaining text is asked once, and the Claude CLI
-normalizer asks for all of them in a single prompt (#63): one `claude -p` call takes about
-10 s, plus a preflight call of about 13 s per command (#61, #63).
+normalizer asks for all of them in a single prompt (#63). One CLI call took about 10 s plus
+a preflight of about 13 s per command (#61, #63); run as a tool-less extractor the preflight
+takes about 5 s and a whole `report --normalizer claude` about 13 s (#99, one run).
 """
 
 from __future__ import annotations
