@@ -38,11 +38,21 @@ class Decision(BaseModel):
     dim: str | None = None
     value: str | None = None
     need: int | None = None
+    """The number in the message. For `recommend` / `hold` it is `shortfall` when there is
+    one, else `ratio_diff`; for `cap` it is the recommended limit. Read the two fields below
+    rather than decoding this from `reasons`."""
     reasons: tuple[str, ...] = ()
     evidence: tuple[str, ...] = Field(min_length=1)
     message: str
     parts: tuple[DecisionPart, ...] = ()
     """Combinations nested under this gender (#32): who, within `need`, the ads should reach."""
+    shortfall: int | None = None
+    """People missing below the target (`recommend` / `hold`); None when no target is short."""
+    ratio_diff: int | None = None
+    """How many fewer confirmed people this value has than its ratio partner (`recommend` /
+    `hold`), set only on the trailing side once the allowed difference is exceeded. None
+    otherwise, so None alone does not say the ratio is fine: the leading side gets a `cap`
+    decision instead. A different count from `shortfall`, never added to it (#106)."""
 
 
 class VerdictKind(StrEnum):

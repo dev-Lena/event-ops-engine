@@ -79,7 +79,7 @@ event-ops triage data/synthetic/scenarios/triage/account-length.yaml
 ```
 
 ```
-[문의 q1] r1 신청자가 입금하려는데 계좌가 없다고 나온대요. 계좌 발급이 잘못됐나요?
+[문의 q1]
   판정: 원인 확정 (accept) · 원인: user_input
   설명: 원인: user_input. 근거: log/e1, log/e2
   근거 · 명시 사실: log/e1, log/e2
@@ -94,18 +94,18 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
 ```
 
 ```
-[문의 q1] r1 신청자 안내 문자가 timeout으로 떠요. 다시 보내야 하나요?
+[문의 q1]
   판정: 확인 요청 (ask) · 더 필요한 사실: provider_lookup (외부: 발송 업체 로그)
   설명: 판정하려면 더 필요합니다: provider_lookup (외부: 발송 업체 로그)
   근거 · LLM 추출 후보(검증 통과): candidate/q1/about_event/e1, candidate/q1/asks_about/delivery
   기대 판정: ask · 일치
 ```
 
-문의 시나리오(`data/synthetic/scenarios/triage/*.yaml`)는 질문 · 이벤트 로그 · 기대 판정을 담습니다. 기본은 파일의 `canned` 해석을 쓰는 가짜 해석기이고, `--interpreter claude`를 주면 Claude Code CLI(`claude -p`, 구독 안에서 추가 비용 없음)가 질문을 후보 사실로 바꿉니다. 기대 판정과 다르면 종료 코드 1, `--trace`로 단계별 기록을 봅니다. 이벤트 로그 `attrs`에 `014` · `12:30` · `yes`처럼 YAML이 다른 값으로 읽는 것을 따옴표 없이 적으면 `경고:` 한 줄을 stderr에 내고 전처럼 진행합니다(다음 릴리스부터 오류, 따옴표로 감싸면 글자 그대로). `--runs N`은 같은 질문을 N번 판정해 결과 분포와 일치율을 보여 줍니다(실제 해석기의 안정성 확인용). `claude`를 고르면 시작 전에 CLI 로그인을 확인하고, 안 되어 있으면 `claude login` 안내와 함께 종료 코드 2로 멈춥니다. 해석기가 자신 없다고 한 후보 사실(확신도 0.6 미만, 가정값)은 판정에 쓰지 않습니다. 위 출력 예시는 테스트(`tests/test_readme.py`)가 실제 출력과 대조합니다.
+문의 시나리오(`data/synthetic/scenarios/triage/*.yaml`)는 질문 · 이벤트 로그 · 기대 판정을 담습니다. 기본은 파일의 `canned` 해석을 쓰는 가짜 해석기이고, `--interpreter claude`를 주면 Claude Code CLI(`claude -p`, 구독 안에서 추가 비용 없음)가 질문을 후보 사실로 바꿉니다. 이때 CLI는 도구 · 연결 서비스(MCP) · 실행한 사람의 `CLAUDE.md` 없이 글만 읽는 추출기로 뜹니다(Claude Code 2.1.318에서 확인). 기대 판정과 다르면 종료 코드 1, `--trace`로 단계별 기록을 봅니다. 출력 첫 줄은 질문 id만 보이고, `--show-question`을 주면 질문 원문도 보입니다(원문에는 개인정보가 섞일 수 있어 기본은 끔). 이벤트 로그 `attrs`에 `014` · `12:30` · `yes`처럼 YAML이 다른 값으로 읽는 것을 따옴표 없이 적으면 `경고:` 한 줄을 stderr에 내고 전처럼 진행합니다(다음 릴리스부터 오류, 따옴표로 감싸면 글자 그대로). `--runs N`은 같은 질문을 N번 판정해 결과 분포와 일치율을 보여 줍니다(실제 해석기의 안정성 확인용). `claude`를 고르면 시작 전에 CLI 로그인을 확인하고, 안 되어 있으면 `claude login` 안내와 함께 종료 코드 2로 멈춥니다. 해석기가 자신 없다고 한 후보 사실(확신도 0.6 미만, 가정값)은 판정에 쓰지 않습니다. 위 출력 예시는 테스트(`tests/test_readme.py`)가 실제 출력과 대조합니다.
 
 ### 결과 JSON (`--json`)
 
-다른 시스템(운영 관리 화면, 웹)이 결과를 받을 때는 `report`와 `triage`에 `--json`을 붙입니다. 사람용 문장 대신 아래 구조를 출력하고, 종료 코드는 같습니다. `schema`는 형식 버전입니다. 필드를 바꾸거나 없애면 `@2`로 올리고, 필드를 더하는 것은 같은 번호로 둡니다. `combos`는 그 회차의 조합 정의(성별 · 나이 범위 · 표시 이름)이고, 결정의 `parts`는 성별 권고에 묶인 조합 몫(조합 id · 표시 이름 · 부족 · 이유)입니다. `ages`는 `similar_age` 모임의 성별 · 묶음(`occupying` 확정·대기, `applied` 신청 접수)별 나이 목록 · 폭 · 출생연도 없음 수이고, `range_suggestions`는 성별 범위 제안(범위들 · 든 수 · 확정·대기 수 · 폭)입니다. 둘 다 신청 id는 담지 않습니다. `decisions` · `needs_review`의 각 항목은 `Decision`, `verdicts`의 각 항목은 `Verdict` 모델 그대로입니다(`src/event_ops_engine/decision.py`). `trace`는 `--json --trace`일 때만 들어갑니다.
+다른 시스템(운영 관리 화면, 웹)이 결과를 받을 때는 `report`와 `triage`에 `--json`을 붙입니다. 사람용 문장 대신 아래 구조를 출력하고, 종료 코드는 같습니다. `schema`는 형식 버전입니다. 필드를 바꾸거나 없애면 `@2`로 올리고, 필드를 더하는 것은 같은 번호로 둡니다. `combos`는 그 회차의 조합 정의(성별 · 나이 범위 · 표시 이름)이고, 결정의 `parts`는 성별 권고에 묶인 조합 몫(조합 id · 표시 이름 · 부족 · 이유)입니다. 홍보 권고 · 보류의 `shortfall`은 목표 부족분, `ratio_diff`는 비율 차(확정 인원이 상대 쪽보다 적은 수)이고 없으면 `null`입니다. `need`는 문장에 쓴 수(부족분이 있으면 부족분, 비율 차만 있으면 비율 차, 잠정 마감은 상한)이니 받는 쪽은 `shortfall` · `ratio_diff`를 읽으세요. `ages`는 `similar_age` 모임의 성별 · 묶음(`occupying` 확정·대기, `applied` 신청 접수)별 나이 목록 · 폭 · 출생연도 없음 수이고, `range_suggestions`는 성별 범위 제안(범위들 · 든 수 · 확정·대기 수 · 폭)입니다. 둘 다 신청 id는 담지 않습니다. `decisions` · `needs_review`의 각 항목은 `Decision`, `verdicts`의 각 항목은 `Verdict` 모델 그대로입니다(`src/event_ops_engine/decision.py`). `trace`는 `--json --trace`일 때만 들어갑니다.
 
 ```json
 // event-ops report data/synthetic/scenarios/pair-mixed.yaml --json (줄임)
@@ -118,7 +118,8 @@ event-ops triage data/synthetic/scenarios/triage/delivery-no-receipt.yaml
                   "needs_review": [], "ages": [], "range_suggestions": [],
                   "decisions": [ { "kind": "recommend", "session": "s2", "dim": "gender", "value": "male", "need": 4,
                                    "reasons": ["imbalance", "lead_time", "slow_trend"], "evidence": ["..."],
-                                   "message": "회차 임박: male 4명 부족, 홍보가 필요합니다.", "parts": [] } ] } ] }
+                                   "message": "회차 임박: male 4명 부족, 홍보가 필요합니다.", "parts": [],
+                                   "shortfall": 4, "ratio_diff": 2 } ] } ] }
 
 // event-ops triage data/synthetic/scenarios/triage/account-length.yaml --json
 { "schema": "event-ops/triage@1", "question": "q1", "matched": true,

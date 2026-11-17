@@ -50,6 +50,20 @@ def test_triage_main_reports_mismatch_with_exit_code_one(
     assert "불일치" in out and "ACT: dry run" in out
 
 
+def test_triage_text_names_the_question_by_id_and_shows_its_text_only_on_request(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An inquiry is outside free text; by default it stays out of the output (#99)."""
+    path = str(TRIAGE / "account-length.yaml")
+    assert main(["triage", path]) == 0
+    default = capsys.readouterr().out
+    assert default.split("\n")[0] == "[문의 q1]" and "계좌가 없다고" not in default
+    assert main(["triage", path, "--show-question"]) == 0
+    shown = capsys.readouterr().out.split("\n")
+    assert shown[0].startswith("[문의 q1] r1 신청자가 입금하려는데")
+    assert shown[1:] == default.split("\n")[1:]
+
+
 def test_triage_main_returns_zero_on_match(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["triage", str(TRIAGE / "delivery-timeout.yaml")]) == 0
     assert "원인 확정 (accept) · 원인: external_delay" in capsys.readouterr().out
@@ -110,7 +124,8 @@ def test_logged_out_claude_cli_stops_before_running(
     monkeypatch.setattr(cli, "preflight", lambda: "claude exited 1: not logged in")
     code = main(["triage", str(TRIAGE / "account-length.yaml"), "--interpreter", "claude"])
     assert code == 2
-    assert "claude login" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "claude login" in err and "최신 버전" in err  # an old CLI rejects the flags too
 
 
 def test_fake_runs_skip_the_preflight(monkeypatch: pytest.MonkeyPatch) -> None:

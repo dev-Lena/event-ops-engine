@@ -35,7 +35,7 @@
 | 속성 값이 아직 확인되지 않음 | 미상 / unknown | `"unknown"` (예약 값) | 기타, 없음 | 신청 방식 칸이 없던 옛 신청. 목표 집계에서 뺀다. 자리를 차지한 신청의 성별 · 선택 속성이 미상이면 확인 요청을 낸다([design.md 6](design.md#6-현황-규칙-②-rulescapacitydl)) |
 | 홍보를 권하는 판단 | 홍보 권고 / promotion recommendation | `promote(session, dim, value, need, reason)` | 홍보 지시, 자동 홍보 | 엔진은 권고만 하고 실행은 사람이 한다 |
 | 비율에서 앞선 쪽을 상대가 따라올 때까지 막아 두라는 판단 | 잠정 마감 권고 / cap | `cap(session, dim, value, limit, other, other_filled, max_diff)` · `Decision.kind = cap` | 자동 마감 | 상한 = 상대 확정 + `max_diff`. 잠정 마감된 값은 홍보 권고를 받지 않는다. 폼을 닫는 것은 사람이 한다 |
-| 부족분이 있지만 홍보할 수 없는 상태 (예: 정원 마감) | 홍보 보류 / blocked | `blocked(session, dim, value, need, reason)` | — | 목표와 정원이 충돌한 것을 운영자에게 보인다 |
+| 부족분이나 비율 차가 있지만 홍보할 수 없는 상태 (예: 정원 마감) | 홍보 보류 / blocked | `blocked(session, dim, value, need, reason)` | — | 목표와 정원이 충돌한 것을 운영자에게 보인다. 부족분은 `session_full`, 비율 차는 `session_full_ratio`로 따로 낸다 |
 | 회차 시작까지 남은 날 수 | 남은 날 / days left | `days_left(session, days)` | D-day | 기준 시각(`now`)에서 Python이 계산해 사실로 넣는다 |
 | 홍보 판단에 쓰는 설정값 | 홍보 기준 / promotion policy | `policy(session, key, n)` | 임계값 | `lead_days`, `trend_min_per_week`, `promotion_cutoff_hours`. `promotion_cutoff_hours`만 **확인됨**, 나머지는 **가정값** ([design.md 7](design.md#7-홍보-판단-③)). `lead_days` · `promotion_cutoff_hours`는 회차마다 덮어쓸 수 있다 |
 | 이 시각부터 홍보 권고를 내지 않음 | 홍보 중단 / promotion cutoff | `promotion_cutoff_ts(session, ts)` · `past_cutoff(session)` | 홍보 마감 (정원 마감 · 잠정 마감과 헷갈림) | 시작 시각 − `promotion_cutoff_hours`. `promote`만 멈추고 `blocked` · `cap`은 그대로 |
