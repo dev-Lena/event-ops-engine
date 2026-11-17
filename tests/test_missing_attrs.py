@@ -13,7 +13,10 @@ import pytest
 from event_ops_engine.capacity import capacity_status
 from event_ops_engine.cli import report, report_json, run_report
 from event_ops_engine.decision import Decision
-from event_ops_engine.loader import load_policy, load_scenario
+from event_ops_engine.facts import triage_facts
+from event_ops_engine.harness import run_triage
+from event_ops_engine.interpreter import FakeInterpreter
+from event_ops_engine.loader import load_policy, load_scenario, load_triage_scenario
 from event_ops_engine.model import Scenario
 from tests.conftest import REPO, SCENARIOS
 
@@ -124,6 +127,18 @@ def test_the_shipped_hybrid_scenario_now_names_its_blank_registration() -> None:
     assert any(text.startswith(line) for text in report(path))
     (session,) = report_json(run_report(path))["sessions"]
     assert [review["reasons"] for review in session["needs_review"]] == [["missing_choice"]]
+
+
+def test_the_triage_path_loads_the_same_rules_with_a_choice_policy(tmp_path: Path) -> None:
+    """Triage reuses the capacity rules, so `choice_dim` has to load there as well."""
+    source = (SCENARIOS / "triage" / "seat-full.yaml").read_text(encoding="utf-8")
+    old = "policy: ../../../../policy/events/synthetic-example.yaml"
+    assert old in source
+    path = tmp_path / "seat.yaml"
+    path.write_text(source.replace(old, f"policy: '{HYBRID}'"), encoding="utf-8")
+    scenario_with_choices = load_triage_scenario(path)
+    assert ("mode", "registration") in triage_facts(scenario_with_choices).rows["choice_dim"]
+    run_triage(scenario_with_choices, FakeInterpreter())  # the engine accepts the facts
 
 
 OTHERS = sorted(path for path in SCENARIOS.glob("*.yaml") if path.stem != "hybrid")

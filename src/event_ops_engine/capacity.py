@@ -93,11 +93,11 @@ REVIEW_MESSAGES = {
     ),
     "missing_gender": (
         "신청 {reg}: 성별이 없는 참가자가 있습니다(필수 항목). "
-        "성별 목표 집계에서 빠졌으니 성별을 확인해 주세요."
+        "성별 집계에서 빠졌으니 성별을 확인해 주세요."
     ),
     "missing_choice": (
         "신청 {reg}: 선택 속성({dims}) 답이 없습니다. "
-        "그 속성의 목표 집계에서 빠졌으니 답을 확인해 주세요."
+        "그 속성의 집계에서 빠졌으니 답을 확인해 주세요."
     ),
 }
 
@@ -144,12 +144,13 @@ def _review(
         evidence.append(evidence_id("unknown_party", reg))
     elif reason == "missing_birth_year":
         evidence.extend(missing.get(reg, []))
-    elif reason in ("missing_gender", "missing_choice"):
-        is_gender = reason == "missing_gender"
-        dims = sorted(dim for dim in blank.get(reg, {}) if (dim == DIM_GENDER) == is_gender)
-        evidence.extend(id_ for dim in dims for id_ in blank[reg][dim])
+    elif reason == "missing_gender":
+        dims = [DIM_GENDER]
+    elif reason == "missing_choice":
+        dims = sorted(set(blank.get(reg, {})) - {DIM_GENDER})
     else:
         evidence.extend(rejected.get(reg, []))
+    evidence.extend(id_ for dim in dims for id_ in blank.get(reg, {}).get(dim, []))
     return Decision(
         kind=DecisionKind.ASK,
         session=session_id,
