@@ -141,7 +141,8 @@ def _message(
     named_directly = parts and not own and primary != "gender_room"
     shown = " · ".join(part.label for part in parts) if named_directly else value
     listed = ", ".join(f"{part.label} {part.need}명" for part in parts)
-    template = ROOM_BY_SESSION if by_session else REASON_MESSAGES[primary]
+    session_room = primary == "gender_room" and by_session
+    template = ROOM_BY_SESSION if session_room else REASON_MESSAGES[primary]
     text = template.format(value=shown, need=need, room=room, parts=listed)
     if parts and primary in ("lead_time", "slow_trend") and (own or len(parts) > 1):
         targets = ", ".join(f"{part.label} {part.need}명 이상" for part in parts)

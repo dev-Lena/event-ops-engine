@@ -172,6 +172,16 @@ def test_a_roomy_gender_target_does_not_outgrow_the_sessions_seats() -> None:
     )
 
 
+def test_when_both_rooms_tie_the_hold_names_the_genders_target() -> None:
+    # Six men and one woman aged 40 in 10 seats: 3 left. Female 0~4 also leaves 3. The
+    # combination needs 4: the sentence stays with the gender's target on a tie.
+    people = [person(f"m{i}", "male", 1990) for i in range(6)] + [woman("r1", 1986)]
+    targets = {"gender": {"female": {"lo": 0, "hi": 4}}, "combo": {"f25_29": {"lo": 4}}}
+    (held,) = decide(targets, people, capacity=10)
+    assert (held.reasons, held.need) == (("gender_room",), 4)
+    assert "female 남은 자리 3명" in held.message and "female 목표를" in held.message
+
+
 def test_combinations_that_exactly_fit_the_sessions_seats_are_promoted() -> None:
     # Six men and one woman aged 40 in 10 seats: 3 left for the 3 the combination needs.
     people = [person(f"m{i}", "male", 1990) for i in range(6)] + [woman("r1", 1986)]
