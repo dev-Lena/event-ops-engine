@@ -541,9 +541,22 @@ class LogEvent(StrictModel):
     kind: str
     registration: str | None = None
     attrs: dict[str, str | int] = Field(default_factory=dict)
+    """Booleans are stored as the text "true" / "false", the form the rules match (#102)."""
 
     def __hash__(self) -> int:  # frozen model with a dict field: hash by identity fields
         return hash((self.id, self.at, self.kind))
+
+    @field_validator("attrs", mode="before")
+    @classmethod
+    def _booleans_as_text(cls, value: object) -> object:
+        # Unquoted YAML `auto: true` and a JSON adapter's `true` are booleans. Left alone,
+        # pydantic coerces them to the integer 1 and the rules see "1", never "true".
+        if not isinstance(value, dict):
+            return value
+        return {
+            key: ("true" if item else "false") if isinstance(item, bool) else item
+            for key, item in value.items()
+        }
 
     @model_validator(mode="after")
     def _require_timezone(self) -> Self:
