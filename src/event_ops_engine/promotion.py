@@ -172,33 +172,32 @@ def _decisions(
         )
         reasons = sorted(set(own) | {reason for part in parts for reason in part.reasons})
         primary = next(reason for reason in REASON_PRIORITY if reason in reasons)
-        ratio = [own[reason] for reason in RATIO_REASONS if reason in own]
-        ratio_diff = max(ratio) if ratio else None
-        shortfall: int | None
+        ratio_diff = next((own[reason] for reason in RATIO_REASONS if reason in own), None)
+        shortfall = next((own[reason] for reason in GAP_REASONS if reason in own), None)
+        own_short = False
         if parts:
             # The gender's own shortfall comes from `gap`, whether or not the rules gave the
-            # gender a gap-based reason of its own.
+            # gender a gap-based reason of its own (it may be short without being slow).
             gap_rows = engine.rows("gap", session_id, dim, value)
             own_gap = int(gap_rows[0][3]) if gap_rows else 0
+            own_short = own_gap > 0
             shortfall = max(own_gap, sum(part.need for part in parts))
-        else:
-            gaps = [own[reason] for reason in GAP_REASONS if reason in own]
-            shortfall = gaps[0] if gaps else None
         need = shortfall if shortfall is not None else ratio_diff
-        assert need is not None  # every row carries a gap-based or a ratio reason
+        if need is None:
+            raise ValueError(f"{relation} reasons carry neither a gap nor a ratio: {reasons}")
         room = None
         if primary == "gender_room":
             room = int(engine.rows("gender_room", session_id, value)[0][2])
-        if own or primary == "gender_room":
-            # A conflict hold also rests on the gender's room: its target and its people.
+        if own or own_short or primary == "gender_room":
+            # A conflict hold also rests on the gender's room: its target and its people. So
+            # does a sentence that counts the gender's own shortfall.
             evidence = _evidence(engine, session_id, dim, value, sorted(own), contributors)
         else:
             evidence = [evidence_id("session_capacity", session_id)]
             evidence.append(evidence_id("days_left", session_id))
         evidence += part_evidence + cutoff_ids
-        # The gender is named as short only when it has a shortfall of its own: a ratio
-        # difference alone leaves the combinations to be named directly.
-        own_short = any(reason in GAP_REASONS for reason in own)
+        # The gender is named as short only when it has a shortfall of its own (`own_short`):
+        # a ratio difference alone leaves the combinations to be named directly.
         message = _message(primary, value, need, room, parts, own_short) + note
         if kind is DecisionKind.HOLD and shortfall is not None and ratio_diff is not None:
             message += RATIO_NOTE.format(value=value, diff=ratio_diff)

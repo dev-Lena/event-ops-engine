@@ -187,6 +187,30 @@ def test_a_full_session_never_counts_a_ratio_difference_as_people() -> None:
     )
 
 
+def test_a_short_gender_without_its_own_reason_is_still_the_one_named() -> None:
+    # 20 days out. Three women aged 40 confirmed this week: female 6 wanted is 3 short but
+    # not slow. 25~29 is 1 short and slow. Five men, so female also trails on the ratio.
+    # The sentence counts female's 3, so it names female, never "25~29 3명 부족".
+    def recent(reg: str, gender: str, birth_year: int) -> dict[str, Any]:
+        confirmed = [{"at": "2026-11-05T10:00:00+09:00", "status": "confirmed"}]
+        return {**person(reg, gender, birth_year), "status_events": confirmed}
+
+    people = [recent(f"w{i}", "female", 1986) for i in range(3)]
+    people += [recent(f"m{i}", "male", 1990) for i in range(5)]
+    targets = {"gender": {"female": {"lo": 6}}, "combo": {"f25_29": {"lo": 1}}}
+    ratio = [{"dim": "gender", "values": ["female", "male"], "max_diff": 1}]
+    wanted = (
+        "신청 추세 느림: female 3명 부족, 홍보를 권합니다. "
+        "광고 대상: female 25~29세(연 나이) 1명 이상."
+    )
+    for ratios, diff in ((ratio, 2), ([], None)):
+        decisions = decide(targets, people, ratios=ratios, session={"date": "2026-11-27"})
+        rec = only(decisions, DecisionKind.RECOMMEND, "female")
+        assert (rec.need, rec.shortfall, rec.ratio_diff) == (3, 3, diff)
+        assert rec.message == wanted
+        assert "target/s/gender/female" in rec.evidence
+
+
 def test_a_ratio_difference_alone_leaves_the_combination_named_directly() -> None:
     # Capacity 8, same people: not full. Female only trails on the ratio; 25~29 is 1 short.
     people = [person(f"m{i}", "male", 1990) for i in range(3)] + [woman("r1", 1986)]

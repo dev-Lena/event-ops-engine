@@ -50,8 +50,9 @@ class Decision(BaseModel):
     """People missing below the target (`recommend` / `hold`); None when no target is short."""
     ratio_diff: int | None = None
     """How many fewer confirmed people this value has than its ratio partner (`recommend` /
-    `hold`); None when the ratio is within its allowed difference. Never people to recruit
-    by itself: a different count from `shortfall` (#106)."""
+    `hold`), set only on the trailing side once the allowed difference is exceeded. None
+    otherwise, so None alone does not say the ratio is fine: the leading side gets a `cap`
+    decision instead. A different count from `shortfall`, never added to it (#106)."""
 
 
 class VerdictKind(StrEnum):
