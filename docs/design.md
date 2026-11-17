@@ -201,7 +201,7 @@ blocked(S, D, V, Diff, "session_full_ratio") :- imbalance(S, D, V, Diff), active
 cap(S, D, A, Fb + Max, B, Fb, Max) :- ratio_target(S, D, A, B, Max), filled(S, D, A, Fa), filled(S, D, B, Fb), Fa - Fb > Max, active(S), !session_full(S).   // 대칭 규칙도 있음
 capped(S, D, V)             :- cap(S, D, V, _, _, _, _).   // promote 세 규칙은 !capped, !held, !past_cutoff
 combo_gap_sum(S, G, sum(N)) :- gap(S, "combo", C, N), combo_gender(S, C, G).        // 조합 (#32)
-gender_room(S, G, R)        :- remaining(S, "gender", G, R) | 성별 목표가 없으면 remaining_seats(S, R)
+gender_room(S, G, R)        :- remaining(S, "gender", G, R)와 remaining_seats(S, Seats) 중 작은 쪽 | 성별 목표가 없으면 remaining_seats(S, R)
 combo_conflict(S, G)        :- combo_gap_sum(S, G, N), gender_room(S, G, R), N > R.
 held(S, "combo", C)         :- combo_gender(S, C, G), cap(S, "gender", G, …).        // 조용히
 held(S, "combo", C)         :- combo_gender(S, C, G), combo_conflict(S, G).          // 보류로
@@ -216,7 +216,7 @@ blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(
 | `imbalance` | 비율 목표의 허용 차를 넘음 | "{value} 쪽 {n}명 부족(비율)" |
 | `blocked: session_full` | 부족분은 있으나 정원이 찼음 (지난 회차는 제외) | "정원 마감 — 목표와 정원이 충돌, 운영자 확인" |
 | `blocked: session_full_ratio` | 부족분이 아니라 비율 차만 남았는데 정원이 찼음 (#106) | "정원 마감: {value} 확정 인원이 상대 쪽보다 {n}명 적음(비율 차), 운영자 확인" |
-| `blocked: gender_room` | 한 성별의 조합 부족 합이 그 성별의 남은 자리보다 큼 (#32) | "목표 충돌: {성별} 조합 부족 합 {n}명이 남은 자리보다 많음, 운영자 확인" |
+| `blocked: gender_room` | 한 성별의 조합 부족 합이 그 성별이 더 받을 수 있는 자리(성별 남은 자리와 회차 남은 자리 중 작은 쪽)보다 큼 (#32, #107) | "목표 충돌: {성별} 조합 부족 합 {n}명이 {성별 또는 회차} 남은 자리보다 많음, 운영자 확인" |
 
 **기준값** (#52, 2026-11-06 결정. 바꿀 때는 `policy/events/*.yaml`만 바꾼다. 결정 기록: [decisions/2026-11-07-promotion-thresholds.md](decisions/2026-11-07-promotion-thresholds.md)):
 
@@ -235,7 +235,7 @@ blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(
 - 묶는 조합은 규칙이 권고(또는 보류)한 것만이다. 부족분이 있어도 임박 · 추세 조건에 걸리지 않은 조합은 성별과 마찬가지로 아직 권고하지 않는다.
 - 문구는 광고 단위로 쓴다: "회차 임박: female 3명 부족, 홍보가 필요합니다. 광고 대상: female 25~29세(연 나이) 3명 이상." 성별 자신은 부족하지 않고 조합만 부족하면 조합 이름을 바로 쓴다("female 25~29세(연 나이) 1명 부족"). 성별에 비율 차만 있는 것도 "부족하지 않음"이다(#106).
 - 성별이 잠정 마감 중이면 그 성별의 조합 권고를 내지 않는다(잠정 마감 권고가 이유를 말한다). 홍보 중단(`past_cutoff`)과 정원 마감(`session_full`)은 다른 값과 같다.
-- 조합 부족의 합이 그 성별이 더 받을 수 있는 자리(성별 목표의 남은 자리, 목표가 없으면 회차의 남은 자리)보다 크면 홍보로 함께 채울 수 없다. 그 성별의 조합은 권고 대신 `blocked(…, "gender_room")` 보류가 되고 운영자가 목표를 정한다(`session_full`과 같은 성격). 범위 밖 나이의 사람이 자리를 차지하면 생긴다. 같으면 충돌이 아니다.
+- 조합 부족의 합이 그 성별이 더 받을 수 있는 자리보다 크면 홍보로 함께 채울 수 없다. 더 받을 수 있는 자리는 **성별 목표의 남은 자리와 회차의 남은 자리 중 작은 쪽**이고, 성별 목표가 없으면 회차의 남은 자리다(#107: 성별 목표가 넉넉해도 회차에 자리가 없으면 받을 수 없다). 보류 문장은 실제로 모자란 쪽을 말한다: 성별 목표가 한도면 "{성별} 남은 자리 … {성별} 목표를", 회차 자리가 한도면 "회차 남은 자리 … 정원을". 그 성별의 조합은 권고 대신 `blocked(…, "gender_room")` 보류가 되고 운영자가 목표를 정한다(`session_full`과 같은 성격). 범위 밖 나이의 사람이 자리를 차지하면 생긴다. 같으면 충돌이 아니다.
 - 이때 성별 자신의 부족분 권고는 그대로 낸다(조합 몫 없이). 그래서 조합이 묶인 성별에는 권고와 보류가 함께 나올 수 있다.
 값 하나의 `lo`·`hi`가 정원보다 크면 입력 오류로 거부한다(`policy.py`). 여러 값의 `lo` 합이 정원을 넘는 것은 허용하며, 그 충돌이 `blocked`로 드러난다. 같은 값에 `promote`와 `blocked`가 동시에 나올 수는 없다 (`!session_full` / `session_full`로 갈린다). 예외는 위의 조합 충돌 보류다(성별 결정과 조합 보류가 따로 나온다).
 
@@ -482,3 +482,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-17 | 13절 도구 없는 추출기 · 문의 글 데이터 구획 · 실측, 3 · 8절 질문 원문 출력은 `--show-question`일 때만 (#99) |
 | 2026-11-17 | 8 · 11절 합성 예시를 패키지에 포함, `event-ops samples`, 엔진을 못 찾을 때의 안내 (#110) |
 | 2026-11-17 | 3 · 5 · 6절 성별 · 선택 속성 빈칸 확인 요청 `missing_gender` · `missing_choice`, 사실 `choice_dim` (#103) |
+| 2026-11-17 | 7절 조합 자리: 성별 남은 자리와 회차 남은 자리 중 작은 쪽, 보류 문장이 모자란 쪽을 말함 (#107) |
