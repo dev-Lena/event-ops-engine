@@ -32,8 +32,11 @@ promote(S, D, V, G, "lead_time") :- gap(S, D, V, G), active(S), !session_full(S)
 promote(S, D, V, G, "slow_trend") :- gap(S, D, V, G), active(S), !session_full(S), !capped(S, D, V), !held(S, D, V), !past_cutoff(S), recent(S, D, V, N), policy(S, "trend_min_per_week", M), N < M.
 promote(S, D, V, Diff, "imbalance") :- imbalance(S, D, V, Diff), active(S), !session_full(S), !capped(S, D, V), !held(S, D, V), !past_cutoff(S).
 
+// A full session holds two different numbers under two reasons (#106): the target shortfall
+// (`session_full`) and the ratio difference (`session_full_ratio`). One reason carrying both
+// made the hold call a ratio difference a shortfall.
 blocked(S, D, V, G, "session_full") :- gap(S, D, V, G), active(S), session_full(S).
-blocked(S, D, V, Diff, "session_full") :- imbalance(S, D, V, Diff), active(S), session_full(S).
+blocked(S, D, V, Diff, "session_full_ratio") :- imbalance(S, D, V, Diff), active(S), session_full(S).
 
 // --- temporary cap for the leading side of a ratio (#51) ---------------------------
 // When one value runs ahead of its ratio partner by more than max_diff, recommend holding
