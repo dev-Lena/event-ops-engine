@@ -14,15 +14,33 @@ REASON_MESSAGES = {
     "slow_trend": "신청 추세 느림: {value} {need}명 부족, 홍보를 권합니다.",
     "imbalance": "비율 불균형: {value} 쪽이 {need}명 적습니다.",
     "session_full": "정원 마감: {value} {need}명 부족이 남았지만 자리가 없습니다. 운영자 확인이 필요합니다.",
+    "session_full_ratio": (
+        "정원 마감: {value} 확정 인원이 상대 쪽보다 {need}명 적습니다(비율 차). "
+        "자리가 없어 홍보로 맞출 수 없으니 운영자 확인이 필요합니다."
+    ),
     "gender_room": (
         "목표 충돌: {value} 조합 부족 합 {need}명({parts})이 {value} 남은 자리 {room}명보다 "
         "많습니다. 조합 목표나 {value} 목표를 운영자가 확인해 주세요."
     ),
 }
 
-REASON_PRIORITY = ("lead_time", "slow_trend", "imbalance", "session_full", "gender_room")
-"""The first reason present supplies `need` and the message. Gap-based reasons come first
-because their number is the target shortfall; `imbalance` carries a ratio difference."""
+GAP_REASONS = ("lead_time", "slow_trend", "session_full", "gender_room")
+"""Reasons whose number is a target shortfall (`gap`)."""
+RATIO_REASONS = ("imbalance", "session_full_ratio")
+"""Reasons whose number is a ratio difference: never added to or shown as a shortfall."""
+REASON_PRIORITY = (
+    "lead_time",
+    "slow_trend",
+    "imbalance",
+    "session_full",
+    "session_full_ratio",
+    "gender_room",
+)
+"""The first reason present supplies the message. Within `promote` and within `blocked` the
+gap-based reason comes before the ratio one, so a shortfall is named before a difference."""
+
+RATIO_NOTE = " 비율 차도 있습니다: {value} 확정 인원이 상대 쪽보다 {diff}명 적습니다."
+"""Appended to a shortfall hold that also carries a ratio difference (#106)."""
 
 REASON_POLICY_KEY = {"lead_time": "lead_days", "slow_trend": "trend_min_per_week"}
 
@@ -62,7 +80,7 @@ def _evidence(
     ids = [evidence_id("session_capacity", session_id), evidence_id("days_left", session_id)]
     if engine.rows("target", session_id, dim, value):
         ids.append(evidence_id("target", session_id, dim, value))
-    if "imbalance" in reasons:
+    if any(reason in RATIO_REASONS for reason in reasons):
         ids.append(evidence_id("ratio_target", session_id, dim))
     for reason in reasons:
         key = REASON_POLICY_KEY.get(reason)
@@ -121,9 +139,12 @@ def _decisions(
 ) -> list[Decision]:
     """One decision per (dim, value); combinations fold into their gender's decision (#32).
 
-    A gender's `need` with combinations is the larger of its own shortfall and the sum of its
-    combinations' shortfalls: everyone counted in a combination counts toward the gender too.
-    Only combinations the rules recommended (or held) take part.
+    A gender's `shortfall` with combinations is the larger of its own shortfall and the sum
+    of its combinations' shortfalls: everyone counted in a combination counts toward the
+    gender too. Only combinations the rules recommended (or held) take part.
+
+    `shortfall` and `ratio_diff` are kept apart (#106): `need` is the shortfall when there is
+    one and the ratio difference only when nothing is short.
     """
     ranges = {
         str(row[1]): (str(row[2]), int(row[3]), int(row[4]))
@@ -132,12 +153,12 @@ def _decisions(
     grouped: dict[tuple[str, str], dict[str, int]] = defaultdict(dict)
     combos: dict[str, dict[str, dict[str, int]]] = defaultdict(lambda: defaultdict(dict))
     for row in engine.rows(relation, session_id):
-        dim, value, need, reason = str(row[1]), str(row[2]), int(row[3]), str(row[4])
+        dim, value, count, reason = str(row[1]), str(row[2]), int(row[3]), str(row[4])
         if dim == DIM_COMBO:
             by_reason = combos[ranges[value][0]][value]
         else:
             by_reason = grouped[(dim, value)]
-        by_reason[reason] = max(need, by_reason.get(reason, need))
+        by_reason[reason] = max(count, by_reason.get(reason, count))
     for gender in combos:
         grouped.setdefault((DIM_GENDER, gender), {})
     contributors = contributors_by_value(engine, session_id)
@@ -151,14 +172,20 @@ def _decisions(
         )
         reasons = sorted(set(own) | {reason for part in parts for reason in part.reasons})
         primary = next(reason for reason in REASON_PRIORITY if reason in reasons)
+        ratio = [own[reason] for reason in RATIO_REASONS if reason in own]
+        ratio_diff = max(ratio) if ratio else None
+        shortfall: int | None
         if parts:
-            # The gender's own shortfall comes from `gap`: a `session_full` row may carry a
-            # ratio difference instead (the imbalance branch of `blocked`).
+            # The gender's own shortfall comes from `gap`, whether or not the rules gave the
+            # gender a gap-based reason of its own.
             gap_rows = engine.rows("gap", session_id, dim, value)
             own_gap = int(gap_rows[0][3]) if gap_rows else 0
-            need = max(own_gap, sum(part.need for part in parts))
+            shortfall = max(own_gap, sum(part.need for part in parts))
         else:
-            need = own[primary]
+            gaps = [own[reason] for reason in GAP_REASONS if reason in own]
+            shortfall = gaps[0] if gaps else None
+        need = shortfall if shortfall is not None else ratio_diff
+        assert need is not None  # every row carries a gap-based or a ratio reason
         room = None
         if primary == "gender_room":
             room = int(engine.rows("gender_room", session_id, value)[0][2])
@@ -169,6 +196,12 @@ def _decisions(
             evidence = [evidence_id("session_capacity", session_id)]
             evidence.append(evidence_id("days_left", session_id))
         evidence += part_evidence + cutoff_ids
+        # The gender is named as short only when it has a shortfall of its own: a ratio
+        # difference alone leaves the combinations to be named directly.
+        own_short = any(reason in GAP_REASONS for reason in own)
+        message = _message(primary, value, need, room, parts, own_short) + note
+        if kind is DecisionKind.HOLD and shortfall is not None and ratio_diff is not None:
+            message += RATIO_NOTE.format(value=value, diff=ratio_diff)
         decisions.append(
             Decision(
                 kind=kind,
@@ -178,8 +211,10 @@ def _decisions(
                 need=need,
                 reasons=tuple(reasons),
                 evidence=tuple(unique(evidence)),
-                message=_message(primary, value, need, room, parts, bool(own)) + note,
+                message=message,
                 parts=tuple(parts),
+                shortfall=shortfall,
+                ratio_diff=ratio_diff,
             )
         )
     return decisions
