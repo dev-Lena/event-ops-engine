@@ -233,10 +233,16 @@ def report_json(result: ReportResult) -> dict[str, Any]:
 
 
 def format_verdict(
-    scenario: TriageScenario, verdict: Verdict, trace: bool = False
+    scenario: TriageScenario, verdict: Verdict, trace: bool = False, show_question: bool = False
 ) -> tuple[list[str], bool]:
-    """Lines for one verdict and whether it matches the scenario's expectation (True if none)."""
-    lines = [f"[문의 {verdict.question}] {scenario.question.text}"]
+    """Lines for one verdict and whether it matches the scenario's expectation (True if none).
+
+    The first line names the question by id. Its text is printed only on request: an inquiry
+    is free text from outside the team and may carry personal details into a log (#99).
+    """
+    lines = [f"[문의 {verdict.question}]"]
+    if show_question:
+        lines[0] += f" {scenario.question.text}"
     head = f"  판정: {VERDICT_LABELS[verdict.kind]} ({verdict.kind})"
     if verdict.cause:
         head += f" · 원인: {verdict.cause}"
@@ -305,10 +311,11 @@ def triage(
     trace: bool = False,
     normalizer: str = "fake",
     runs: int = 1,
+    show_question: bool = False,
 ) -> tuple[list[str], bool]:
     """Lines and whether every run matched the scenario's expectation (True if none)."""
     scenario, verdicts, matched = triage_runs(scenario_path, interpreter, normalizer, runs)
-    lines, _ = format_verdict(scenario, verdicts[0], trace)
+    lines, _ = format_verdict(scenario, verdicts[0], trace, show_question)
     if len(verdicts) > 1:
         lines += agreement_lines(verdicts)
     return lines, matched
@@ -356,6 +363,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     triage_parser.add_argument("--trace", action="store_true", help="단계별 trace도 출력")
     triage_parser.add_argument(
+        "--show-question",
+        action="store_true",
+        help="첫 줄에 질문 원문도 출력 (기본: 질문 id만. 원문에는 개인정보가 섞일 수 있음)",
+    )
+    triage_parser.add_argument(
         "--runs",
         type=positive_int,
         default=1,
@@ -398,7 +410,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             print_json(triage_json(scenario, verdicts, matched, args.trace))
         else:
             lines, matched = triage(
-                args.scenario, args.interpreter, args.trace, args.normalizer, args.runs
+                args.scenario,
+                args.interpreter,
+                args.trace,
+                args.normalizer,
+                args.runs,
+                args.show_question,
             )
             print("\n".join(lines))
         return 0 if matched else 1
