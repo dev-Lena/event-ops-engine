@@ -1,5 +1,7 @@
-// Module ① inquiry triage: the generic contract. Type rules (#15-#21) derive `cause` and
-// `needs`; this file only fixes the schema and `in_scope`. See docs/design.md 13.
+// Module ① inquiry triage: the generic contract and the type rules (#15-#21). Type rules
+// derive `cause_of` and `needs_of`, each scoped to the registration and topic it is about;
+// the contract turns them into `cause` and the `needs` that are still open.
+// See docs/design.md 13.
 
 // --- input facts (ADAPT, facts.py) --------------------------------------------
 .decl question(q: symbol)
@@ -31,6 +33,23 @@ subject(Q, R) :- about_registration(Q, R).
 subject(Q, R) :- about_event(Q, E), log_event(E, R, _, _), R != "".
 asks(Q, R, T) :- subject(Q, R), asks_about(Q, T).
 
+// --- scope of a cause and of a missing fact (#101) -----------------------------------
+// `scope` is the registration (or "-" for a question-level type) and `topic` the asked
+// topic ("*" for the topic-independent type 5). A cause settles the missing facts of its own
+// scope only: a cause found for another registration or topic, e.g. one the interpreter
+// added by mistake, must not hide what is still unknown about the one the question names.
+.decl cause_of(q: symbol, scope: symbol, topic: symbol, cause: symbol, evidence: symbol)
+.decl needs_of(q: symbol, scope: symbol, topic: symbol, what: symbol)
+.decl settled(q: symbol, scope: symbol, topic: symbol)
+settled(Q, R, T) :- cause_of(Q, R, T, _, _).
+// A topic-independent cause answers every topic asked about that registration.
+settled(Q, R, T) :- cause_of(Q, R, "*", _, _), asks(Q, R, T).
+// So it does for a question-level topic: a broken invariant goes to a person whatever is
+// still missing for the seat answer.
+settled(Q, "-", T) :- cause_of(Q, _, "*", _, _), asks_about(Q, T).
+cause(Q, C, E) :- cause_of(Q, _, _, C, E).
+needs(Q, W) :- needs_of(Q, R, T, W), !settled(Q, R, T).
+
 // An event of a kind that the same registration has a newer event of. Type rules compare
 // the latest issue with the latest entry and ignore superseded ones.
 .decl superseded(id: symbol)
@@ -39,17 +58,18 @@ superseded(E) :- log_event(E, R, K, T), log_event(E2, R, K, T2), E != E2, T2 > T
 // --- type 1: user input error, account number length (#15) ------------------------
 // The number the applicant last typed has a different length than the account last issued
 // to them. Normal: guide the applicant. Evidence: both log events.
-.decl account_mismatch(q: symbol, issued: symbol, entered: symbol)
-account_mismatch(Q, I, E) :-
+.decl account_mismatch(q: symbol, reg: symbol, issued: symbol, entered: symbol)
+account_mismatch(Q, R, I, E) :-
     asks(Q, R, "payment"),
     log_event(I, R, "account_issued", _), !superseded(I), log_attr(I, "digits", DI),
     log_event(E, R, "account_entered", _), !superseded(E), log_attr(E, "digits", DE), DI != DE.
-cause(Q, "user_input", I) :- account_mismatch(Q, I, _).
-cause(Q, "user_input", E) :- account_mismatch(Q, _, E).
-needs(Q, "account_entered") :-
+cause_of(Q, R, "payment", "user_input", I) :- account_mismatch(Q, R, I, _).
+cause_of(Q, R, "payment", "user_input", E) :- account_mismatch(Q, R, _, E).
+needs_of(Q, R, "payment", "account_entered") :-
     asks(Q, R, "payment"),
     log_event(_, R, "account_issued", _), !log_event(_, R, "account_entered", _).
-needs(Q, "account_issued") :- asks(Q, R, "payment"), !log_event(_, R, "account_issued", _).
+needs_of(Q, R, "payment", "account_issued") :-
+    asks(Q, R, "payment"), !log_event(_, R, "account_issued", _).
 
 // --- type 2: external cause, delivery provider delay (#16) ------------------------
 // Our send timed out, but the provider's receipt says delivered afterwards: the message
@@ -75,13 +95,13 @@ proves(S, P) :-
     log_event(S, R, "message_sent", TS), delivered_proof(R, P, TP), TP >= TS,
     !log_attr(P, "of", _), !resent_between(S, P).
 proves(S, P) :- log_event(S, R, "message_sent", _), delivered_proof(R, P, _), log_attr(P, "of", S).
-.decl delivered_late(q: symbol, sent: symbol, receipt: symbol)
-delivered_late(Q, S, P) :-
+.decl delivered_late(q: symbol, reg: symbol, sent: symbol, receipt: symbol)
+delivered_late(Q, R, S, P) :-
     asks(Q, R, "delivery"),
     log_event(S, R, "message_sent", _), log_attr(S, "result", "timeout"),
     proves(S, P).
-cause(Q, "external_delay", S) :- delivered_late(Q, S, _).
-cause(Q, "external_delay", P) :- delivered_late(Q, _, P).
+cause_of(Q, R, "delivery", "external_delay", S) :- delivered_late(Q, R, S, _).
+cause_of(Q, R, "delivery", "external_delay", P) :- delivered_late(Q, R, _, P).
 
 // --- type 2b: external failure, the provider never got the request (#47) ----------
 // The send timed out and the provider log has no record at all: the message did not go
@@ -89,14 +109,14 @@ cause(Q, "external_delay", P) :- delivered_late(Q, _, P).
 // A proof that came after this send; older proofs belong to earlier messages.
 .decl proof_after(sent: symbol)
 proof_after(S) :- proves(S, _).
-.decl unreachable(q: symbol, sent: symbol, lookup: symbol)
-unreachable(Q, S, L) :-
+.decl unreachable(q: symbol, reg: symbol, sent: symbol, lookup: symbol)
+unreachable(Q, R, S, L) :-
     asks(Q, R, "delivery"),
     log_event(S, R, "message_sent", TS), log_attr(S, "result", "timeout"),
     log_event(L, R, "provider_lookup", TL), log_attr(L, "result", "none"), TL >= TS,
     !proof_after(S).
-cause(Q, "external_failure", S) :- unreachable(Q, S, _).
-cause(Q, "external_failure", L) :- unreachable(Q, _, L).
+cause_of(Q, R, "delivery", "external_failure", S) :- unreachable(Q, R, S, _).
+cause_of(Q, R, "delivery", "external_failure", L) :- unreachable(Q, R, _, L).
 // Neither a receipt nor a lookup yet: the provider log must be checked first.
 // A receipt is "about" a send when it names it (`of`) or names nothing (any earlier send).
 .decl receipt_about(sent: symbol)
@@ -104,7 +124,7 @@ receipt_about(S) :-
     log_event(S, R, "message_sent", _), log_event(P, R, "provider_receipt", _), !log_attr(P, "of", _).
 receipt_about(S) :-
     log_event(S, R, "message_sent", _), log_event(P, R, "provider_receipt", _), log_attr(P, "of", S).
-needs(Q, "provider_lookup") :-
+needs_of(Q, R, "delivery", "provider_lookup") :-
     asks(Q, R, "delivery"),
     log_event(S, R, "message_sent", _), log_attr(S, "result", "timeout"),
     !receipt_about(S), !log_event(_, R, "provider_lookup", _).
@@ -117,9 +137,11 @@ same_participant(R, E, E2) :-
     registration(R, S), registration(R2, S), R != R2,
     log_event(E, R, "registration_submitted", _), log_attr(E, "participant", P),
     log_event(E2, R2, "registration_submitted", _), log_attr(E2, "participant", P).
-cause(Q, "policy_normal", E) :- asks(Q, R, "duplicate"), same_participant(R, E, _).
-cause(Q, "policy_normal", E2) :- asks(Q, R, "duplicate"), same_participant(R, _, E2).
-needs(Q, "registration_submitted") :-
+cause_of(Q, R, "duplicate", "policy_normal", E) :-
+    asks(Q, R, "duplicate"), same_participant(R, E, _).
+cause_of(Q, R, "duplicate", "policy_normal", E2) :-
+    asks(Q, R, "duplicate"), same_participant(R, _, E2).
+needs_of(Q, R, "duplicate", "registration_submitted") :-
     asks(Q, R, "duplicate"), !log_event(_, R, "registration_submitted", _).
 
 // --- payment due time ---------------------------------------------------------------
@@ -139,17 +161,21 @@ due_time(R, T + H * 3600) :-
 // A rejected transfer after the due time plus the grace period (policy value, 0 by default:
 // the bank blocks at the due time itself) is the bank doing its job. An attempt the bank
 // accepted is never "expired", whatever its time.
-.decl expired_attempt(q: symbol, attempt: symbol)
-expired_attempt(Q, A) :-
+// `late_attempt` holds for either kind of due time. Only a logged due time confirms the
+// cause: without a `payment_due` log the deadline is the policy default, and an extension
+// that was never ingested would make "expired" wrong, so the rule asks for the record (#101).
+.decl late_attempt(q: symbol, reg: symbol, attempt: symbol)
+late_attempt(Q, R, A) :-
     asks(Q, R, "deadline"), due_time(R, TD),
     log_event(A, R, "payment_attempt", TA), log_attr(A, "result", "rejected"),
     triage_policy("grace_minutes", G), TA > TD + G * 60.
-cause(Q, "expired", A) :- expired_attempt(Q, A).
-cause(Q, "expired", D) :-
-    expired_attempt(Q, _), asks(Q, R, "deadline"), log_event(D, R, "payment_due", _), !superseded(D).
-cause(Q, "expired", "due_time") :- expired_attempt(Q, _), asks(Q, R, "deadline"), !has_due_log(R).
-needs(Q, "payment_due") :- asks(Q, R, "deadline"), !due_time(R, _).
-needs(Q, "payment_attempt") :- asks(Q, R, "deadline"), !log_event(_, R, "payment_attempt", _).
+cause_of(Q, R, "deadline", "expired", A) :- late_attempt(Q, R, A), has_due_log(R).
+cause_of(Q, R, "deadline", "expired", D) :-
+    late_attempt(Q, R, _), log_event(D, R, "payment_due", _), !superseded(D).
+needs_of(Q, R, "deadline", "payment_due") :- late_attempt(Q, R, _), !has_due_log(R).
+needs_of(Q, R, "deadline", "payment_due") :- asks(Q, R, "deadline"), !due_time(R, _).
+needs_of(Q, R, "deadline", "payment_attempt") :-
+    asks(Q, R, "deadline"), !log_event(_, R, "payment_attempt", _).
 
 // --- type 5: suspected bug, an invariant the rules cannot explain (#20) ------------
 // Fires for any in-scope question about the registration, whatever the topic: a person
@@ -178,11 +204,12 @@ invariant_violated(R, "confirmed_after_expiry") :-
 invariant_violated(R, "over_capacity") :-
     registration(R, S), confirmed(R), attendee(R, A), attendee_attr(A, D, V),
     over_capacity(S, D, V, _).
-cause(Q, "suspected_bug", I) :- subject(Q, R), in_scope(Q), invariant_violated(R, I).
-cause(Q, "suspected_bug", L) :- subject(Q, R), in_scope(Q), unpaid_checked(R, L).
+cause_of(Q, R, "*", "suspected_bug", I) :- subject(Q, R), in_scope(Q), invariant_violated(R, I).
+cause_of(Q, R, "*", "suspected_bug", L) :- subject(Q, R), in_scope(Q), unpaid_checked(R, L).
 // Topic-independent like the invariant itself: whatever the question, a confirmed
-// registration with no payment record and no lookup is worth checking first.
-needs(Q, "payment_lookup") :-
+// registration with no payment record and no lookup is worth checking first. Its scope is
+// "*", so a cause found under one topic does not withdraw the request (#101).
+needs_of(Q, R, "*", "payment_lookup") :-
     subject(Q, R), in_scope(Q), confirmed(R), !paid(R), !payment_checked(R).
 
 // --- type 7: payment sync lag, paid at the provider but still pending (#50) ----------
@@ -196,10 +223,11 @@ paid_pending(R, L, TL) :-
     log_event(L, R, "payment_lookup", TL), !superseded(L), log_attr(L, "result", "found").
 lag_ok(R, L) :-
     paid_pending(R, L, TL), now(N), triage_policy("sync_lag_minutes", M), N - TL <= M * 60.
-cause(Q, "sync_lag", L) :- asks(Q, R, "payment"), lag_ok(R, L).
+cause_of(Q, R, "payment", "sync_lag", L) :- asks(Q, R, "payment"), lag_ok(R, L).
 invariant_violated(R, "paid_but_pending") :- paid_pending(R, L, _), !lag_ok(R, L).
-cause(Q, "suspected_bug", L) :- subject(Q, R), in_scope(Q), paid_pending(R, L, _), !lag_ok(R, L).
-needs(Q, "payment_lookup") :-
+cause_of(Q, R, "*", "suspected_bug", L) :-
+    subject(Q, R), in_scope(Q), paid_pending(R, L, _), !lag_ok(R, L).
+needs_of(Q, R, "payment", "payment_lookup") :-
     asks(Q, R, "payment"), pending_payment(R), !log_event(_, R, "payment_lookup", _).
 
 // --- type 6: seat inquiry, answered from module ② (#21) --------------------------
@@ -207,9 +235,12 @@ needs(Q, "payment_lookup") :-
 // module ②'s `full` / `over_capacity` is the answer and the evidence.
 .decl seat_question(q: symbol, session: symbol, dim: symbol, value: symbol)
 seat_question(Q, S, D, V) :- asks_about(Q, "seat"), about_session(Q, S), about_value(Q, D, V).
-cause(Q, "seat_full", "full") :- seat_question(Q, S, D, V), full(S, D, V), !over_capacity(S, D, V, _).
-cause(Q, "over_capacity", "over_capacity") :- seat_question(Q, S, D, V), over_capacity(S, D, V, _).
-needs(Q, "session") :- asks_about(Q, "seat"), !about_session(Q, _).
-needs(Q, "attribute_value") :- asks_about(Q, "seat"), !about_value(Q, _, _).
+// A seat question is about a session, not a registration: its scope is "-".
+cause_of(Q, "-", "seat", "seat_full", "full") :-
+    seat_question(Q, S, D, V), full(S, D, V), !over_capacity(S, D, V, _).
+cause_of(Q, "-", "seat", "over_capacity", "over_capacity") :-
+    seat_question(Q, S, D, V), over_capacity(S, D, V, _).
+needs_of(Q, "-", "seat", "session") :- asks_about(Q, "seat"), !about_session(Q, _).
+needs_of(Q, "-", "seat", "attribute_value") :- asks_about(Q, "seat"), !about_value(Q, _, _).
 // A value without a target has no quota to be full: the policy must say first.
-needs(Q, "target") :- seat_question(Q, S, D, V), !target(S, D, V, _, _).
+needs_of(Q, "-", "seat", "target") :- seat_question(Q, S, D, V), !target(S, D, V, _, _).

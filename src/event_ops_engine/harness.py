@@ -8,6 +8,8 @@ See docs/design.md 13.
 
 from __future__ import annotations
 
+import re
+
 from .decision import Verdict, VerdictKind
 from .engine import Engine
 from .facts import (
@@ -64,6 +66,17 @@ def stripped_count(before: Interpretation, after: Interpretation) -> int:
     return sum(1 for b, a in zip(before.facts, after.facts) if b.args != a.args)
 
 
+MIN_QUOTE_CHARS = 2
+"""Shortest quote that counts as provenance, after squashing whitespace. An empty or
+one-character quote is "found" in any question and proves nothing (#101)."""
+
+
+def names_id(quote: str, identifier: str) -> bool:
+    """True when `quote` contains `identifier` as a whole token (r1 is not in "r12")."""
+    pattern = rf"(?<![0-9A-Za-z_-]){re.escape(identifier)}(?![0-9A-Za-z_-])"
+    return re.search(pattern, quote, re.IGNORECASE) is not None
+
+
 def validate(
     interpretation: Interpretation,
     scenario: TriageScenario,
@@ -90,8 +103,14 @@ def validate(
             continue
         if fact.provenance.source != "question":
             problems.append(f"{fact.relation}: provenance source must be the question")
-        if squash(fact.provenance.quote) not in question:
+        quote = squash(fact.provenance.quote)
+        if len(quote) < MIN_QUOTE_CHARS:
+            problems.append(f"{fact.relation}: quote is shorter than {MIN_QUOTE_CHARS} characters")
+        elif quote not in question:
             problems.append(f"{fact.relation}: quote not found in the question")
+        elif fact.relation == "about_registration" and not names_id(quote, fact.args[0]):
+            # The quote must tie the fact to its argument: "r1 신청자" cannot justify r2.
+            problems.append(f"{fact.relation}: quote does not name registration {fact.args[0]}")
         if kinds == ("dim", "value"):
             if (fact.args[0], fact.args[1]) not in context.values:
                 problems.append(
@@ -157,9 +176,10 @@ def decide(
     in_scope = bool(engine.rows("in_scope", q))
     cause_rows = engine.rows("cause", q)
     causes = sorted({str(row[1]) for row in cause_rows})
-    # `needs` only matters while no cause is derived; a cause from one event must not drag
-    # along "still missing" facts about another.
-    needs = [] if causes else sorted({str(row[1]) for row in engine.rows("needs", q)})
+    # The rules already withdrew the needs a cause settles (same registration and topic).
+    # What is left is still unknown about something the question names, so it blocks accept:
+    # a cause found for an extra registration or topic must not hide it (#101).
+    needs = sorted({str(row[1]) for row in engine.rows("needs", q)})
     log_ids = {event.id for event in scenario.log}
     # A cause's evidence is a log event id, or the name of the rule-derived fact (an
     # invariant, a module ② relation) when no single log event explains the verdict.
@@ -185,6 +205,16 @@ def decide(
             VerdictKind.ABSTAIN,
             "지원하지 않는 문의입니다. 지원 주제: " + ", ".join(TOPICS),
             base,
+        )
+    elif causes and needs:
+        trace.append(f"DECIDE: ask (cause candidates {causes}, still needed {needs})")
+        kind, message, evidence = (
+            VerdictKind.ASK,
+            "원인 후보가 있지만 확정하려면 더 필요합니다: "
+            + ", ".join(needs_label(n) for n in needs)
+            + ". 후보 원인: "
+            + ", ".join(causes),
+            base + tuple(derived),
         )
     elif len(causes) == 1:
         trace.append(f"DECIDE: accept ({causes[0]})")
