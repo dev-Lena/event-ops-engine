@@ -238,7 +238,7 @@ blocked(S, "combo", C, N, "gender_room") :- gap(S, "combo", C, N), combo_gender(
 
 ## 8. 보안 · 데이터
 
-- 저장소에는 **합성 데이터만** 둔다 (`data/synthetic/`). 실제 데이터는 `data/private/`(gitignore)에만 두고 LLM에 보내지 않는다.
+- 저장소에는 **합성 데이터만** 둔다 (`data/synthetic/`). 실제 데이터는 `data/private/`(gitignore)에만 두고 LLM에 보내지 않는다. 패키지에도 합성 예시만 들어간다: `pyproject.toml`이 `data/synthetic/scenarios`와 `policy/events/synthetic-*.yaml`만 지정하고, `make package-check`가 wheel에 든 예시가 git이 추적하는 합성 파일 목록과 같은지, `private` 경로가 없는지 확인한다(#110).
 - 모델에 개인 식별 칸이 없다 (3절). 시나리오 파일의 id는 `r1`, `s1` 같은 합성 id다.
 - 운영사 이름 · 고객 코드 · 내부 문서는 저장소 어디에도 적지 않는다. 정책 파일의 예시 모임 이름도 합성이다.
 - 비밀값은 환경변수로만. `.env.example`에는 이름만 (공용 보안 기준).
@@ -284,7 +284,7 @@ docs/             design.md glossary.md decisions/
 - lib 모듈은 순수 함수 테스트. 규칙은 예시 시나리오(현황 10개 · 문의 10개)를 엔진에 넣고 파생 관계와 `Decision` · `Verdict`를 확인한다. 예시 폴더의 파일은 테스트가 목록으로 모두 돌린다(`tests/test_cli.py`, `tests/test_triage_types.py`).
 - 취소는 (a) 상태 이력 (b) 사실 철회 두 경로를 모두 테스트한다.
 - 엔진 라이브러리: `WIRELOG_LIB`가 비어 있고 `vendor/wirelog/build/libwirelog.1.dylib`가 있으면 `engine.py`(`ensure_library_env`)가 자동으로 잡는다. 저장소를 받아 설치했을 때만이다. git 주소로 패키지만 설치했다면 `WIRELOG_LIB`를 직접 준다. 둘 다 없으면 wheel에 든 엔진을 쓴다(Linux CI).
-- 설치 확인 (`make wheel-smoke`, #80): wheel을 새 venv에 설치하고 저장소 밖 임시 폴더에서 `report` · `triage`를 실행한다. 불러온 패키지가 그 venv 안의 것인지도 확인한다. CI(ubuntu)가 매번 돌리고, Intel Mac에서는 `WIRELOG_LIB`를 주고 돌린다.
+- 설치 확인 (`make wheel-smoke`, #80): wheel을 새 venv에 설치하고 저장소 밖 임시 폴더에서 `report` · `triage`를 실행한다. 빈 폴더에서 패키지에 든 예시(`event-ops samples`가 알려 주는 경로)로도 돌린다(#110). 불러온 패키지가 그 venv 안의 것인지도 확인한다. CI(ubuntu)가 매번 돌리고, Intel Mac에서는 `WIRELOG_LIB`를 주고 돌린다.
 
 **성능 측정 (#34)**: `make bench`(`scripts/bench.py`)가 `synthetic.py`의 seed 고정 합성 신청으로 `report` 단계와 문의 판정 시간을 잰다. 신청 구성은 1인 60% · 혼성 2인 25% · 같은 성별 2인 10% · 구성 미상 5%이고, 최종 상태는 확정 60% · 입금 대기 15% · 취소 15% · 신청 10%다. 생성기 결과를 Python으로 직접 센 값과 규칙의 집계가 같은지는 `tests/test_synthetic.py`가 확인한다. 측정은 CI에서 돌리지 않는다(시간 값이 기계마다 다르다). Intel Mac에서 전체 약 8초 걸린다(2026-11-10).
 
@@ -473,3 +473,4 @@ needs(Q, What)   -- 유형 규칙이 파생. 원인을 가리기 위해 더 필�
 | 2026-11-17 | 13절 로그 `attrs`: 불리언을 `"true"` · `"false"`로, YAML이 다르게 읽는 값 경고 (#102) |
 | 2026-11-17 | 7절 정원 마감 보류: 부족분(`session_full`)과 비율 차(`session_full_ratio`)를 다른 이유로, `Decision.shortfall` · `ratio_diff` 추가 (#106) |
 | 2026-11-17 | 13절 도구 없는 추출기 · 문의 글 데이터 구획 · 실측, 3 · 8절 질문 원문 출력은 `--show-question`일 때만 (#99) |
+| 2026-11-17 | 8 · 11절 합성 예시를 패키지에 포함, `event-ops samples`, 엔진을 못 찾을 때의 안내 (#110) |
