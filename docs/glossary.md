@@ -45,7 +45,7 @@
 | 해석기(LLM)가 문의에서 뽑아 제안한 사실. 검증 전 | 후보 사실 / candidate fact | `CandidateFact` (relation · args · provenance · confidence) | 추출 결과, 엔티티 | 관계 다섯 개(`asks_about` · `about_registration` · `about_session` · `about_event` · `about_value`)만 허용. 규칙이 파생한 사실과 구분한다 |
 | 후보 사실이 어디서 왔는지 (원문 인용) | 근거 출처 / provenance | `Provenance(source, quote)` | — | 없으면 입력에서 거부 |
 | 시스템이 남긴 사건 기록 (발송 · 결제 시도 · 수신증 등) | 이벤트 로그 / event log | `log_event(id, reg, kind, ts)` · `log_attr(id, key, value)` | 히스토리 | 합성 로그만. `status_event`(신청 상태)와 다르다 |
-| 규칙이 문의에서 가려낸 원인 | 원인 / cause | `cause(q, cause, evidence)` | 결론 | 유형 규칙이 파생. 한 문의에 원인이 하나일 때만 accept |
+| 규칙이 문의에서 가려낸 원인 | 원인 / cause | `cause(q, cause, evidence)` | 결론 | 유형 규칙이 파생. 한 문의에 원인이 하나이고 질문 대상에 더 필요한 사실이 남지 않았을 때만 accept |
 | 문의 판정 결과 | 판정 / verdict | `Verdict` (`accept` · `ask` · `abstain` · `reject`) | 답변 | [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |
 | 질문이 가리키는 신청 | 질문 대상 / subject | `subject(q, reg)` | — | `about_registration`이거나 `about_event`의 로그가 속한 신청 |
 | 문의 유형 하나를 판정하는 규칙 묶음 | 유형 규칙 / type rule | `rules/triage.dl` 유형 1~7 (`user_input` · `external_delay` · `external_failure` · `policy_normal` · `expired` · `suspected_bug` · `seat_full`/`over_capacity` · `sync_lag`) | 분류기 | 주제별로 `cause`와 `needs`를 파생. [design.md 13](design.md#13-운영-문의-판정-①-rulestriagedl-harnesspy) |

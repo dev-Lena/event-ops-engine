@@ -359,7 +359,7 @@ def test_every_needs_value_in_the_rules_has_a_verifier() -> None:
     from event_ops_engine.harness import NEEDS_VERIFIER, needs_label
 
     rules = (RULES_DIR / "triage.dl").read_text(encoding="utf-8")
-    literals = set(re.findall(r'needs\(Q, "([a-z_]+)"\)', rules))
+    literals = set(re.findall(r'needs_of\(Q, [^,]+, "[a-z*]+", "([a-z_]+)"\)', rules))
     assert literals and literals <= set(NEEDS_VERIFIER)
     assert needs_label("provider_lookup").startswith("provider_lookup (외부")
     assert needs_label("unlisted") == "unlisted"
@@ -478,12 +478,13 @@ def test_missing_attempt_is_named() -> None:
     assert verdict_for(scenario) == (VerdictKind.ASK, None, ("payment_attempt",))
 
 
-def test_due_time_comes_from_policy_hours_when_there_is_no_due_log() -> None:
-    # pending_payment started 11-01 10:00, policy 24 h -> due 11-02 10:00; attempt 11-04 00:15
+def test_policy_default_due_time_asks_for_the_record_instead_of_concluding() -> None:
+    # pending_payment started 11-01 10:00, policy 24 h -> due 11-02 10:00; attempt 11-04 00:15.
+    # Late by the default, but only a logged due time confirms "expired" (#101).
     scenario = load_triage_scenario(DEADLINE)
     verdict = run_triage(scenario.model_copy(update={"log": (scenario.log[1],)}), FakeInterpreter())
-    assert (verdict.kind, verdict.cause) == (VerdictKind.ACCEPT, "expired")
-    assert "rule/due_time" in verdict.evidence and "log/e1" not in verdict.evidence
+    assert (verdict.kind, verdict.cause, verdict.needs) == (VerdictKind.ASK, None, ("payment_due",))
+    assert "rule/due_time" not in verdict.evidence
 
 
 def test_session_overrides_the_deadline_hours() -> None:

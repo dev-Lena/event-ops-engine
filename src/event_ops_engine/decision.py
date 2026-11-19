@@ -61,7 +61,8 @@ class VerdictKind(StrEnum):
     ACCEPT = "accept"
     """Exactly one cause, with evidence."""
     ASK = "ask"
-    """No cause yet (facts missing) or several candidate causes; a person must supply or choose."""
+    """No cause yet (facts missing), several candidate causes, or a candidate cause while
+    facts about the question's own subject are still missing; a person must supply or choose."""
     ABSTAIN = "abstain"
     """The question is outside the supported topics."""
     REJECT = "reject"
