@@ -132,9 +132,26 @@ def test_unknown_registration_is_reported_once(tmp_path: Path) -> None:
 
 
 def test_registration_id_must_be_a_whole_token() -> None:
-    assert names_id("r1 신청자", "r1") and names_id("신청 R1번", "r1") and names_id("(r1)", "r1")
-    assert not names_id("r12 신청자", "r1") and not names_id("r1-b 신청자", "r1")
-    assert not names_id("신청자가", "r2")
+    def names(quote: str, identifier: str) -> bool:
+        return names_id(quote, quote, identifier)
+
+    assert names("r1 신청자", "r1") and names("신청 R1번", "r1") and names("(r1)", "r1")
+    assert not names("r12 신청자", "r1") and not names("r1-b 신청자", "r1")
+    assert not names("신청자가", "r2")
+
+
+def test_token_boundaries_come_from_the_question_not_the_quote(tmp_path: Path) -> None:
+    """A quote cut down to "r1" out of "r12" passed the first version of the rule."""
+    text = TEXT.replace("r1 신청자가", "r12 신청자가")
+    assert not names_id(text, "r1", "r1") and names_id(text, "r12 신청자", "r12")
+    assert names_id("r12와 r1 신청", "r1", "r1")  # the second occurrence is a whole token
+    body = TWO_REGISTRATIONS.replace(TEXT, text).replace("id: r2,", "id: r12,")
+    body = body.replace("registration: r2,", "registration: r12,")
+    verdict = run_triage(
+        scenario(tmp_path, body, PAYMENT, ("about_registration", "r1", "r1")), FakeInterpreter()
+    )
+    assert verdict.kind == VerdictKind.REJECT
+    assert "quote does not name registration r1" in verdict.message
 
 
 def test_other_relations_are_not_tied_to_an_id(tmp_path: Path) -> None:
@@ -211,6 +228,17 @@ def test_policy_default_deadline_asks_for_the_due_record(tmp_path: Path) -> None
     verdict = one(tmp_path, PENDING, ATTEMPT, DEADLINE, R1)
     assert outcome(verdict) == (VerdictKind.ASK, None, ("payment_due",))
     assert verdict.causes == () and "rule/due_time" not in verdict.evidence
+
+
+def test_suspected_bug_does_not_withdraw_the_due_record_request(tmp_path: Path) -> None:
+    """Confirmed after a payment later than the default deadline: type 5 fires, but its
+    cause rests on the same default, so the due record is still asked for."""
+    received = "{ id: e2, at: 2026-11-03T11:00:00+09:00, kind: payment_received, registration: r1 }"
+    status = PENDING + ", { at: 2026-11-03T12:00:00+09:00, status: confirmed }"
+    verdict = one(tmp_path, status, f"{ATTEMPT}, {received}", DEADLINE, R1)
+    assert outcome(verdict) == (VerdictKind.ASK, None, ("payment_due",))
+    assert verdict.causes == ("suspected_bug",)
+    assert "rule/confirmed_after_expiry" in verdict.evidence
 
 
 def test_logged_extension_shows_the_attempt_was_on_time(tmp_path: Path) -> None:

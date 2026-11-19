@@ -71,10 +71,21 @@ MIN_QUOTE_CHARS = 2
 one-character quote is "found" in any question and proves nothing (#101)."""
 
 
-def names_id(quote: str, identifier: str) -> bool:
-    """True when `quote` contains `identifier` as a whole token (r1 is not in "r12")."""
-    pattern = rf"(?<![0-9A-Za-z_-]){re.escape(identifier)}(?![0-9A-Za-z_-])"
-    return re.search(pattern, quote, re.IGNORECASE) is not None
+def names_id(text: str, quote: str, identifier: str) -> bool:
+    """True when `quote`, where it occurs in `text`, covers `identifier` as a whole token.
+
+    Token boundaries are judged in the text, not in the quote: with only "r12" in the
+    question, a quote cut down to "r1" does not name r1. Both strings are already squashed.
+    """
+    token = rf"(?<![0-9A-Za-z_-]){re.escape(identifier)}(?![0-9A-Za-z_-])"
+    spans = [found.span() for found in re.finditer(token, text, re.IGNORECASE)]
+    start = text.find(quote)
+    while start >= 0:
+        end = start + len(quote)
+        if any(start <= first and last <= end for first, last in spans):
+            return True
+        start = text.find(quote, start + 1)
+    return False
 
 
 def validate(
@@ -111,7 +122,7 @@ def validate(
         elif (
             kinds == ("registration",)
             and fact.args[0] in known["registration"]  # an unknown id is reported below
-            and not names_id(quote, fact.args[0])
+            and not names_id(question, quote, fact.args[0])
         ):
             # The quote must tie the fact to its argument: "r1 신청자" cannot justify r2.
             problems.append(f"{fact.relation}: quote does not name registration {fact.args[0]}")

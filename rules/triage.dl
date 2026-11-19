@@ -172,7 +172,10 @@ late_attempt(Q, R, A) :-
 cause_of(Q, R, "deadline", "expired", A) :- late_attempt(Q, R, A), has_due_log(R).
 cause_of(Q, R, "deadline", "expired", D) :-
     late_attempt(Q, R, _), log_event(D, R, "payment_due", _), !superseded(D).
-needs_of(Q, R, "deadline", "payment_due") :- late_attempt(Q, R, _), !has_due_log(R).
+// Written to `needs` itself, so no cause withdraws it: only the due-date record answers it.
+// Scoped like the others, a type 5 cause on the same registration would settle it and
+// confirm a verdict that still rests on the default deadline.
+needs(Q, "payment_due") :- late_attempt(Q, R, _), !has_due_log(R).
 needs_of(Q, R, "deadline", "payment_due") :- asks(Q, R, "deadline"), !due_time(R, _).
 needs_of(Q, R, "deadline", "payment_attempt") :-
     asks(Q, R, "deadline"), !log_event(_, R, "payment_attempt", _).
